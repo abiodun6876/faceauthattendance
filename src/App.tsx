@@ -1,7 +1,7 @@
 // src/App.tsx
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
-import { Layout, Menu, Button, Spin, Alert, Typography, Space, ConfigProvider, theme } from 'antd';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Layout, Menu, Button, Spin, Alert, Typography, Space, ConfigProvider, theme, Card, Row, Col, Grid } from 'antd';
 import { 
   User, 
   Camera, 
@@ -14,7 +14,13 @@ import {
   Database,
   Shield,
   CheckCircle,
-  XCircle
+  XCircle,
+  ArrowLeft,
+  BarChart,
+  Upload,
+  Download,
+  UserPlus,
+  QrCode
 } from 'lucide-react';
 import EnrollmentPage from './pages/EnrollmentPage';
 import AttendancePage from './pages/AttendancePage';
@@ -25,6 +31,7 @@ import './App.css';
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Title, Text } = Typography;
+const { useBreakpoint } = Grid;
 
 // Interface for connection status
 interface ConnectionStatus {
@@ -72,6 +79,172 @@ const menuItems = [
   },
 ];
 
+// Home page cards component
+const HomeCards = () => {
+  const navigate = useNavigate();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+
+  const cards = [
+    {
+      key: 'enroll',
+      title: 'Student Enrollment',
+      description: 'Enroll new students with face recognition',
+      icon: <UserPlus size={isMobile ? 24 : 32} />,
+      path: '/enroll',
+      color: '#1890ff',
+    },
+    {
+      key: 'attendance',
+      title: 'Take Attendance',
+      description: 'Mark attendance using face recognition',
+      icon: <Camera size={isMobile ? 24 : 32} />,
+      path: '/attendance',
+      color: '#52c41a',
+    },
+    {
+      key: 'students',
+      title: 'Student Management',
+      description: 'View and manage enrolled students',
+      icon: <Users size={isMobile ? 24 : 32} />,
+      path: '/students',
+      color: '#722ed1',
+    },
+    {
+      key: 'events',
+      title: 'Event Management',
+      description: 'Schedule classes and events',
+      icon: <Calendar size={isMobile ? 24 : 32} />,
+      path: '/events',
+      color: '#fa8c16',
+    },
+    {
+      key: 'sync',
+      title: 'Sync Data',
+      description: 'Sync offline attendance records',
+      icon: <Database size={isMobile ? 24 : 32} />,
+      path: '/sync',
+      color: '#f5222d',
+    },
+    {
+      key: 'dashboard',
+      title: 'Analytics Dashboard',
+      description: 'View attendance statistics and reports',
+      icon: <BarChart size={isMobile ? 24 : 32} />,
+      path: '/',
+      color: '#13c2c2',
+    },
+    {
+      key: 'import',
+      title: 'Import Students',
+      description: 'Bulk import student data',
+      icon: <Upload size={isMobile ? 24 : 32} />,
+      path: '/import',
+      color: '#eb2f96',
+    },
+    {
+      key: 'export',
+      title: 'Export Reports',
+      description: 'Download attendance reports',
+      icon: <Download size={isMobile ? 24 : 32} />,
+      path: '/export',
+      color: '#faad14',
+    },
+  ];
+
+  return (
+    <div style={{ padding: isMobile ? '10px' : '20px' }}>
+      <Title level={3} style={{ marginBottom: 24, textAlign: isMobile ? 'center' : 'left' }}>
+        Welcome to ABUAD Face Attendance System
+      </Title>
+      
+      <Row gutter={[16, 16]} justify={isMobile ? 'center' : 'start'}>
+        {cards.map((card) => (
+          <Col xs={24} sm={12} md={8} lg={6} key={card.key}>
+            <Card
+              hoverable
+              onClick={() => navigate(card.path)}
+              style={{
+                height: '100%',
+                border: `1px solid ${card.color}20`,
+                borderRadius: 12,
+                transition: 'all 0.3s',
+              }}
+              bodyStyle={{
+                padding: isMobile ? '16px' : '20px',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center',
+                gap: 12 
+              }}>
+                <div style={{
+                  width: isMobile ? 48 : 64,
+                  height: isMobile ? 48 : 64,
+                  borderRadius: '50%',
+                  backgroundColor: `${card.color}15`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 8,
+                }}>
+                  {React.cloneElement(card.icon, { color: card.color })}
+                </div>
+                <Title level={5} style={{ margin: 0, color: card.color }}>
+                  {card.title}
+                </Title>
+                <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '14px' }}>
+                  {card.description}
+                </Text>
+                <Button 
+                  type="link" 
+                  style={{ 
+                    color: card.color, 
+                    padding: 0,
+                    fontSize: isMobile ? '12px' : '14px'
+                  }}
+                >
+                  Open →
+                </Button>
+              </div>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+    </div>
+  );
+};
+
+// Back button component
+const BackButton = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  
+  // Don't show back button on home page
+  if (location.pathname === '/') return null;
+
+  return (
+    <Button
+      type="text"
+      icon={<ArrowLeft size={isMobile ? 16 : 20} />}
+      onClick={() => navigate('/')}
+      style={{
+        marginBottom: 16,
+        padding: isMobile ? '4px 8px' : '8px 16px',
+        fontSize: isMobile ? '12px' : '14px',
+      }}
+    >
+      {isMobile ? 'Back' : 'Back to Home'}
+    </Button>
+  );
+};
+
+// Main App Component
 function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -80,45 +253,32 @@ function App() {
     status: 'testing',
     message: 'Testing database connection...'
   });
+  
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
 
   // Test the connection
   useEffect(() => {
     async function testConnection() {
       console.log('Testing Supabase connection...');
       
-      // Test 1: Check if we can access auth
       try {
         const { data: authData, error: authError } = await supabase.auth.getSession();
         console.log('Auth session:', authData);
-        console.log('Auth test:', authData, authError);
         
-        // Test 2: Try to fetch from faculties table
         const { data: faculties, error: facultiesError } = await supabase
           .from('faculties')
           .select('*')
           .limit(1);
         
-        console.log('Faculties test:', faculties, facultiesError);
-        
         if (facultiesError) {
-          console.error('Faculties fetch error details:', {
-            message: facultiesError.message,
-            code: facultiesError.code,
-            details: facultiesError.details
-          });
+          console.error('Faculties fetch error details:', facultiesError);
           
-          // Check the specific error
           if (facultiesError.message.includes('Invalid API key')) {
             setConnectionStatus({
               status: 'error',
               message: 'Invalid API Key',
               details: 'Please check your .env file and ensure REACT_APP_SUPABASE_ANON_KEY is correct.'
-            });
-          } else if (facultiesError.message.includes('JWT')) {
-            setConnectionStatus({
-              status: 'error',
-              message: 'Authentication Error',
-              details: 'There might be an issue with your authentication token.'
             });
           } else if (facultiesError.message.includes('relation')) {
             setConnectionStatus({
@@ -170,8 +330,6 @@ function App() {
   };
 
   const handleLogin = async () => {
-    // For demo purposes, we'll use a simple login
-    // In production, implement proper auth with Supabase
     setUser({ email: 'lecturer@abuad.edu.ng', name: 'Demo Lecturer' });
   };
 
@@ -183,11 +341,7 @@ function App() {
   // Show connection error screen if database connection failed
   if (connectionStatus.status === 'error') {
     return (
-      <ConfigProvider
-        theme={{
-          algorithm: theme.defaultAlgorithm,
-        }}
-      >
+      <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
         <div style={{ 
           display: 'flex', 
           flexDirection: 'column',
@@ -199,12 +353,7 @@ function App() {
           margin: '0 auto'
         }}>
           <Alert
-            title={
-              <Space>
-                <XCircle size={20} />
-                <span>{connectionStatus.message}</span>
-              </Space>
-            }
+            title={<Space><XCircle size={20} /><span>{connectionStatus.message}</span></Space>}
             description={
               <div>
                 <p>Failed to connect to the database. Please check:</p>
@@ -214,31 +363,16 @@ function App() {
                   <li>Supabase project is active and running</li>
                   <li>Database tables exist</li>
                 </ol>
-                {connectionStatus.details && (
-                  <p><strong>Details:</strong> {connectionStatus.details}</p>
-                )}
+                {connectionStatus.details && <p><strong>Details:</strong> {connectionStatus.details}</p>}
                 <div style={{ marginTop: 20 }}>
                   <Button 
                     type="primary" 
                     onClick={() => {
-                      // Test connection again
                       async function retryTest() {
-                        setConnectionStatus({
-                          status: 'testing',
-                          message: 'Retrying connection...'
-                        });
-                        // Only test faculties - no need for auth data in this test
-                        const { data: faculties } = await supabase
-                          .from('faculties')
-                          .select('*')
-                          .limit(1);
-                        
+                        setConnectionStatus({ status: 'testing', message: 'Retrying connection...' });
+                        const { data: faculties } = await supabase.from('faculties').select('*').limit(1);
                         if (faculties) {
-                          setConnectionStatus({
-                            status: 'connected',
-                            message: 'Connected successfully!',
-                            details: null
-                          });
+                          setConnectionStatus({ status: 'connected', message: 'Connected successfully!', details: null });
                         }
                       }
                       retryTest();
@@ -247,18 +381,7 @@ function App() {
                   >
                     Retry Connection
                   </Button>
-                  <Button 
-                    onClick={() => {
-                      console.log('Current environment:', {
-                        url: process.env.REACT_APP_SUPABASE_URL,
-                        keyExists: !!process.env.REACT_APP_SUPABASE_ANON_KEY,
-                        keyPreview: process.env.REACT_APP_SUPABASE_ANON_KEY 
-                          ? '***' + process.env.REACT_APP_SUPABASE_ANON_KEY.slice(-4) 
-                          : 'MISSING'
-                      });
-                      alert('Check browser console for debug info');
-                    }}
-                  >
+                  <Button onClick={() => alert('Check browser console for debug info')}>
                     Debug Info
                   </Button>
                 </div>
@@ -274,14 +397,7 @@ function App() {
             description={
               <div style={{ textAlign: 'left' }}>
                 <h4>1. Check your .env file:</h4>
-                <pre style={{ 
-                  background: '#f5f5f5', 
-                  padding: 10, 
-                  margin: '10px 0',
-                  borderRadius: 4,
-                  fontSize: '12px',
-                  overflow: 'auto'
-                }}>
+                <pre style={{ background: '#f5f5f5', padding: 10, margin: '10px 0', borderRadius: 4, fontSize: '12px' }}>
 {`REACT_APP_SUPABASE_URL=https://hdcneyipanqhnfjetauv.supabase.co
 REACT_APP_SUPABASE_ANON_KEY=your_anon_key_here`}
                 </pre>
@@ -295,12 +411,7 @@ REACT_APP_SUPABASE_ANON_KEY=your_anon_key_here`}
                 </ul>
                 
                 <h4>3. Restart development server:</h4>
-                <pre style={{ 
-                  background: '#f5f5f5', 
-                  padding: 10, 
-                  margin: '10px 0',
-                  borderRadius: 4 
-                }}>
+                <pre style={{ background: '#f5f5f5', padding: 10, margin: '10px 0', borderRadius: 4 }}>
 npm start
                 </pre>
               </div>
@@ -328,10 +439,7 @@ npm start
         <Text type="secondary">{connectionStatus.message}</Text>
         {connectionStatus.status === 'testing' && (
           <div style={{ marginTop: 20 }}>
-            <Space>
-              <Shield size={16} />
-              <Text>Testing database connection...</Text>
-            </Space>
+            <Space><Shield size={16} /><Text>Testing database connection...</Text></Space>
           </div>
         )}
       </div>
@@ -350,89 +458,115 @@ npm start
     >
       <Router>
         <Layout style={{ minHeight: '100vh' }}>
-          <Sider 
-            collapsible 
-            collapsed={collapsed} 
-            onCollapse={setCollapsed}
-            breakpoint="lg"
-            collapsedWidth={80}
-          >
-            <div style={{ 
-              padding: '16px', 
-              textAlign: 'center',
-              borderBottom: '1px solid rgba(255,255,255,0.1)'
-            }}>
-              <Title level={4} style={{ color: 'white', margin: 0 }}>
-                {collapsed ? 'ABU' : 'ABUAD'}
-              </Title>
-              <div style={{ fontSize: '12px', color: '#ccc', marginTop: 4 }}>
-                Face Attendance
-              </div>
-              {connectionStatus.status === 'connected' && (
-                <div style={{ 
-                  marginTop: 8,
-                  fontSize: '10px',
-                  color: '#52c41a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 4
-                }}>
-                  <CheckCircle size={10} />
-                  <span>Connected</span>
+          {!isMobile && (
+            <Sider 
+              collapsible 
+              collapsed={collapsed} 
+              onCollapse={setCollapsed}
+              breakpoint="lg"
+              collapsedWidth={80}
+            >
+              <div style={{ 
+                padding: '16px', 
+                textAlign: 'center',
+                borderBottom: '1px solid rgba(255,255,255,0.1)'
+              }}>
+                <Title level={4} style={{ color: 'white', margin: 0 }}>
+                  {collapsed ? 'ABU' : 'ABUAD'}
+                </Title>
+                <div style={{ fontSize: '12px', color: '#ccc', marginTop: 4 }}>
+                  Face Attendance
                 </div>
-              )}
-            </div>
-            
-            <Menu 
-              theme="dark" 
-              mode="inline" 
-              defaultSelectedKeys={['1']}
-              items={menuItems}
-            />
-          </Sider>
+                {connectionStatus.status === 'connected' && (
+                  <div style={{ 
+                    marginTop: 8,
+                    fontSize: '10px',
+                    color: '#52c41a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4
+                  }}>
+                    <CheckCircle size={10} />
+                    <span>Connected</span>
+                  </div>
+                )}
+              </div>
+              
+              <Menu 
+                theme="dark" 
+                mode="inline" 
+                defaultSelectedKeys={['1']}
+                items={menuItems}
+              />
+            </Sider>
+          )}
           
           <Layout>
             <Header style={{ 
               background: '#fff', 
-              padding: '0 16px', 
+              padding: isMobile ? '0 10px' : '0 16px',
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              height: isMobile ? 'auto' : '64px',
+              minHeight: isMobile ? '56px' : '64px',
             }}>
-              <Title level={4} style={{ margin: 0 }}>
-                AFE Babalola University - Face Authentication System
-              </Title>
+              <Space>
+                {isMobile && (
+                  <Button
+                    type="text"
+                    icon={<Home size={16} />}
+                    onClick={() => window.location.href = '/'}
+                    style={{ padding: '4px 8px' }}
+                  />
+                )}
+                <Title level={isMobile ? 5 : 4} style={{ margin: 0 }}>
+                  {isMobile ? 'ABUAD F.A.S' : 'AFE Babalola University - Face Authentication System'}
+                </Title>
+              </Space>
               
               <Space>
                 {user ? (
                   <>
-                    <Text type="secondary" style={{ marginRight: 8 }}>
-                      Welcome, {user.name || user.email}
-                    </Text>
-                    <Button type="text" icon={<LogOut size={16} />} onClick={handleLogout}>
-                      {!collapsed && 'Logout'}
+                    {!isMobile && (
+                      <Text type="secondary" style={{ marginRight: 8, fontSize: '14px' }}>
+                        Welcome, {user.name || user.email}
+                      </Text>
+                    )}
+                    <Button 
+                      type="text" 
+                      icon={<LogOut size={isMobile ? 14 : 16} />}
+                      onClick={handleLogout}
+                      style={{ padding: isMobile ? '4px 8px' : '8px 16px' }}
+                    >
+                      {!collapsed && !isMobile && 'Logout'}
                     </Button>
                   </>
                 ) : (
-                  <Button type="primary" icon={<LogIn size={16} />} onClick={handleLogin}>
-                    {!collapsed && 'Login'}
+                  <Button 
+                    type="primary" 
+                    icon={<LogIn size={isMobile ? 14 : 16} />}
+                    onClick={handleLogin}
+                    style={{ padding: isMobile ? '4px 8px' : '8px 16px' }}
+                  >
+                    {!collapsed && !isMobile && 'Login'}
                   </Button>
                 )}
               </Space>
             </Header>
             
-            <Content style={{ margin: '16px' }}>
+            <Content style={{ margin: isMobile ? '10px' : '16px' }}>
               <div style={{ 
-                padding: 24, 
+                padding: isMobile ? '16px' : '24px', 
                 background: '#fff', 
                 minHeight: 360,
                 borderRadius: 8,
                 boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
               }}>
                 {!user ? (
-                  <div style={{ textAlign: 'center', padding: '50px' }}>
+                  <div style={{ textAlign: 'center', padding: isMobile ? '20px' : '50px' }}>
                     <Alert
                       title="Authentication Required"
                       description="Please login to access the face authentication system"
@@ -442,7 +576,7 @@ npm start
                     <div style={{ marginTop: '20px' }}>
                       <Button 
                         type="primary" 
-                        size="large" 
+                        size={isMobile ? 'middle' : 'large'}
                         onClick={handleLogin} 
                         icon={<LogIn />}
                       >
@@ -451,34 +585,90 @@ npm start
                     </div>
                   </div>
                 ) : (
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/enroll" element={<EnrollmentPage />} />
-                    <Route path="/attendance" element={<AttendancePage />} />
-                    <Route path="/students" element={<div>Student Management (Coming Soon)</div>} />
-                    <Route path="/events" element={<div>Event Management (Coming Soon)</div>} />
-                    <Route path="/sync" element={<SyncPage />} />
-                    <Route path="/settings" element={<div>Settings (Coming Soon)</div>} />
-                    <Route path="*" element={<Navigate to="/" />} />
-                  </Routes>
+                  <>
+                    <BackButton />
+                    <Routes>
+                      <Route path="/" element={<HomeCards />} />
+                      <Route path="/enroll" element={<EnrollmentPage />} />
+                      <Route path="/attendance" element={<AttendancePage />} />
+                      <Route path="/students" element={
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                          <Users size={48} style={{ opacity: 0.3, marginBottom: 20 }} />
+                          <Title level={4}>Student Management</Title>
+                          <Text type="secondary">Coming Soon - View and manage all enrolled students</Text>
+                          <div style={{ marginTop: 20 }}>
+                            <Button type="primary" onClick={() => window.location.href = '/enroll'}>
+                              Enroll New Students
+                            </Button>
+                          </div>
+                        </div>
+                      } />
+                      <Route path="/events" element={
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                          <Calendar size={48} style={{ opacity: 0.3, marginBottom: 20 }} />
+                          <Title level={4}>Event Management</Title>
+                          <Text type="secondary">Coming Soon - Schedule classes and events</Text>
+                          <div style={{ marginTop: 20 }}>
+                            <Button type="primary" onClick={() => window.location.href = '/attendance'}>
+                              Take Attendance Now
+                            </Button>
+                          </div>
+                        </div>
+                      } />
+                      <Route path="/sync" element={<SyncPage />} />
+                      <Route path="/settings" element={
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                          <Settings size={48} style={{ opacity: 0.3, marginBottom: 20 }} />
+                          <Title level={4}>System Settings</Title>
+                          <Text type="secondary">Coming Soon - Configure system preferences</Text>
+                        </div>
+                      } />
+                      <Route path="/import" element={
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                          <Upload size={48} style={{ opacity: 0.3, marginBottom: 20 }} />
+                          <Title level={4}>Import Students</Title>
+                          <Text type="secondary">Coming Soon - Bulk import student data from CSV</Text>
+                          <div style={{ marginTop: 20 }}>
+                            <Button type="primary" onClick={() => window.location.href = '/enroll'}>
+                              Enroll Single Student
+                            </Button>
+                          </div>
+                        </div>
+                      } />
+                      <Route path="/export" element={
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                          <Download size={48} style={{ opacity: 0.3, marginBottom: 20 }} />
+                          <Title level={4}>Export Reports</Title>
+                          <Text type="secondary">Coming Soon - Download attendance reports</Text>
+                          <div style={{ marginTop: 20 }}>
+                            <Button type="primary" onClick={() => window.location.href = '/attendance'}>
+                              View Attendance Records
+                            </Button>
+                          </div>
+                        </div>
+                      } />
+                      <Route path="*" element={<Navigate to="/" />} />
+                    </Routes>
+                  </>
                 )}
               </div>
             </Content>
             
             <Footer style={{ 
               textAlign: 'center',
-              padding: '16px 50px',
-              backgroundColor: '#fafafa'
+              padding: isMobile ? '12px 20px' : '16px 50px',
+              backgroundColor: '#fafafa',
+              fontSize: isMobile ? '12px' : '14px'
             }}>
-              <Text>
+              <Text style={{ fontSize: 'inherit' }}>
                 AFE Babalola University Face Authentication System © {new Date().getFullYear()}
               </Text>
-              <div style={{ fontSize: '12px', color: '#999', marginTop: 4 }}>
+              <div style={{ fontSize: isMobile ? '10px' : '12px', color: '#999', marginTop: 4 }}>
                 Developed for Daily Student Attendance with Offline Support
               </div>
               {connectionStatus.status === 'connected' && (
                 <div style={{ 
-                  fontSize: '10px', 
+                  fontSize: isMobile ? '8px' : '10px', 
                   color: '#52c41a',
                   marginTop: 4,
                   display: 'inline-flex',
@@ -486,7 +676,7 @@ npm start
                   justifyContent: 'center',
                   gap: 4
                 }}>
-                  <CheckCircle size={10} />
+                  <CheckCircle size={isMobile ? 8 : 10} />
                   <span>Database Connected</span>
                 </div>
               )}
