@@ -1,6 +1,6 @@
-// src/types/react-webcam.d.ts (create this file)
+// src/types/react-webcam.d.ts
 declare module 'react-webcam' {
-  import { Component, RefObject } from 'react';
+  import { Component, Ref } from 'react';
 
   interface WebcamProps {
     audio?: boolean;
@@ -24,6 +24,3 @@ declare module 'react-webcam' {
     getScreenshot(): string | null;
   }
 }
-
-// Then in your FaceCamera component:
-const webcamRef = useRef<Webcam>(null); // Now this will work
