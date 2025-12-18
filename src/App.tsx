@@ -28,6 +28,10 @@ import Dashboard from './pages/Dashboard';
 import SyncPage from './pages/SyncPage';
 import { supabase } from './lib/supabase';
 import './App.css';
+// In App.tsx, add near the end of your return statement:
+import PWAInstallPrompt from './components/PWAInstallPrompt';
+
+
 
 const { Header, Sider, Content, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -156,8 +160,10 @@ const HomeCards = () => {
     <div style={{ padding: isMobile ? '10px' : '20px' }}>
       <Title level={3} style={{ marginBottom: 24, textAlign: isMobile ? 'center' : 'left' }}>
         Welcome to ABUAD Face Attendance System
+        <PWAInstallPrompt />
       </Title>
       
+
       <Row gutter={[16, 16]} justify={isMobile ? 'center' : 'start'}>
         {cards.map((card) => (
           <Col xs={24} sm={12} md={8} lg={6} key={card.key}>

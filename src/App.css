@@ -562,3 +562,27 @@
     padding: 0 !important;
   }
 }
+
+/* Add to your App.css or create a mobile.css */
+@media (max-width: 768px) {
+  /* Prevent text size adjustment on orientation change */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  /* Better tap targets */
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent pull-to-refresh on mobile */
+  body {
+    overscroll-behavior-y: contain;
+  }
+  
+  /* Fix viewport height issues on mobile */
+  #root {
+    min-height: -webkit-fill-available;
+  }
+}
