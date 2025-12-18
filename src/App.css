@@ -1,3 +1,4 @@
+/* src/App.css */
 .App {
   text-align: center;
 }
@@ -34,5 +35,530 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* ========== LAYOUT STYLES ========== */
+.ant-layout {
+  min-height: 100vh;
+}
+
+.ant-layout-header {
+  background: #fff !important;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 16px;
+}
+
+.ant-menu-item-selected {
+  background-color: #1890ff !important;
+}
+
+/* ========== WEBCAM STYLING ========== */
+.webcam-container {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.face-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.face-circle {
+  width: 60%;
+  height: 80%;
+  border: 3px solid #52c41a;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ========== LOADING SPINNER ========== */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+/* ========== RESPONSIVE BREAKPOINTS ========== */
+
+/* Extra small devices (phones, 576px and down) */
+@media (max-width: 576px) {
+  /* Layout adjustments */
+  .ant-layout-header {
+    padding: 0 8px;
+    height: 56px;
+    line-height: 56px;
+  }
+  
+  .ant-layout-header h4.ant-typography {
+    font-size: 14px !important;
+    margin: 0;
+  }
+  
+  /* Hide sidebar completely on mobile */
+  .ant-layout-sider {
+    display: none;
+  }
+  
+  /* Content padding */
+  .ant-layout-content {
+    margin: 8px !important;
+  }
+  
+  /* Card adjustments */
+  .ant-card {
+    margin: 8px 0;
+  }
+  
+  .ant-card-body {
+    padding: 12px !important;
+  }
+  
+  /* Typography adjustments */
+  h1.ant-typography {
+    font-size: 24px !important;
+  }
+  
+  h2.ant-typography {
+    font-size: 20px !important;
+  }
+  
+  h3.ant-typography {
+    font-size: 18px !important;
+  }
+  
+  h4.ant-typography {
+    font-size: 16px !important;
+  }
+  
+  /* Button adjustments */
+  .ant-btn {
+    font-size: 14px;
+    height: 40px;
+  }
+  
+  .ant-btn-lg {
+    height: 44px;
+  }
+  
+  /* Form adjustments */
+  .ant-form-item {
+    margin-bottom: 16px;
+  }
+  
+  .ant-form-item-label {
+    padding-bottom: 4px;
+  }
+  
+  /* Grid adjustments */
+  .ant-row {
+    margin-left: -8px !important;
+    margin-right: -8px !important;
+  }
+  
+  .ant-col {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+  
+  /* Webcam specific */
+  .webcam-container {
+    max-width: 100%;
+  }
+  
+  .face-circle {
+    width: 50%;
+    height: 70%;
+  }
+  
+  /* Steps component */
+  .ant-steps {
+    margin-bottom: 20px !important;
+  }
+  
+  .ant-steps-item-title {
+    font-size: 12px !important;
+  }
+  
+  /* Dashboard stats */
+  .ant-statistic-title {
+    font-size: 12px;
+  }
+  
+  .ant-statistic-content-value {
+    font-size: 20px;
+  }
+}
+
+/* Small devices (576px to 768px) */
+@media (min-width: 576px) and (max-width: 768px) {
+  .ant-layout-header {
+    padding: 0 12px;
+  }
+  
+  .ant-layout-header h4.ant-typography {
+    font-size: 16px !important;
+  }
+  
+  /* Collapse sidebar on tablets */
+  .ant-layout-sider {
+    flex: 0 0 80px !important;
+    max-width: 80px !important;
+    min-width: 80px !important;
+    width: 80px !important;
+  }
+  
+  .ant-layout-sider .ant-menu-item span,
+  .ant-layout-sider .ant-menu-title-content {
+    display: none;
+  }
+  
+  .ant-layout-sider .ant-menu-item {
+    padding: 0 24px !important;
+    text-align: center;
+  }
+  
+  /* Adjust content padding */
+  .ant-layout-content {
+    margin: 12px !important;
+  }
+  
+  /* Typography */
+  h1.ant-typography {
+    font-size: 28px !important;
+  }
+  
+  h2.ant-typography {
+    font-size: 22px !important;
+  }
+  
+  /* Grid adjustments */
+  .ant-row {
+    margin-left: -12px !important;
+    margin-right: -12px !important;
+  }
+  
+  .ant-col {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+}
+
+/* Medium devices (768px to 992px) */
+@media (min-width: 768px) and (max-width: 992px) {
+  .ant-layout-header {
+    padding: 0 16px;
+  }
+  
+  .ant-layout-sider {
+    flex: 0 0 200px !important;
+    max-width: 200px !important;
+    min-width: 200px !important;
+    width: 200px !important;
+  }
+  
+  .ant-layout-content {
+    margin: 16px !important;
+  }
+  
+  /* Adjust form layouts */
+  .ant-form .ant-row {
+    flex-direction: column;
+  }
+  
+  .ant-form .ant-col {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+}
+
+/* Large devices (992px to 1200px) */
+@media (min-width: 992px) and (max-width: 1200px) {
+  .ant-layout-sider {
+    flex: 0 0 240px !important;
+    max-width: 240px !important;
+    min-width: 240px !important;
+    width: 240px !important;
+  }
+}
+
+/* ========== SPECIFIC COMPONENT RESPONSIVENESS ========== */
+
+/* Dashboard Stats Grid */
+.dashboard-stats .ant-col {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .dashboard-stats .ant-col {
+    margin-bottom: 12px;
+  }
+}
+
+@media (max-width: 576px) {
+  .dashboard-stats .ant-col {
+    margin-bottom: 8px;
+  }
+}
+
+/* Enrollment Form Steps */
+.enrollment-steps .ant-steps-horizontal {
+  flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .enrollment-steps .ant-steps-horizontal {
+    flex-direction: column;
+  }
+  
+  .enrollment-steps .ant-steps-item {
+    margin-bottom: 8px;
+  }
+}
+
+/* Face Camera Container */
+.face-camera-container {
+  padding: 20px;
+}
+
+@media (max-width: 768px) {
+  .face-camera-container {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 576px) {
+  .face-camera-container {
+    padding: 8px;
+  }
+}
+
+/* Form Inputs */
+.ant-input,
+.ant-select-selector,
+.ant-picker {
+  font-size: 14px;
+}
+
+@media (max-width: 576px) {
+  .ant-input,
+  .ant-select-selector,
+  .ant-picker {
+    font-size: 16px; /* Larger for mobile touch */
+    height: 44px;
+  }
+  
+  .ant-input-affix-wrapper {
+    height: 44px;
+  }
+  
+  .ant-select-single .ant-select-selector {
+    height: 44px;
+    line-height: 44px;
+  }
+}
+
+/* Button Groups */
+.ant-btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 576px) {
+  .ant-btn-group {
+    flex-direction: column;
+  }
+  
+  .ant-btn-group > .ant-btn {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+}
+
+/* Alerts and Messages */
+.ant-alert {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 576px) {
+  .ant-alert {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+  }
+  
+  .ant-alert-description {
+    font-size: 14px;
+  }
+}
+
+/* Progress Bars */
+.ant-progress {
+  margin: 16px 0;
+}
+
+@media (max-width: 576px) {
+  .ant-progress {
+    margin: 12px 0;
+  }
+  
+  .ant-progress-text {
+    font-size: 12px;
+  }
+}
+
+/* Cards */
+.ant-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+  border-radius: 8px;
+}
+
+@media (max-width: 576px) {
+  .ant-card {
+    border-radius: 6px;
+  }
+  
+  .ant-card-head {
+    padding: 0 12px;
+  }
+  
+  .ant-card-head-title {
+    padding: 12px 0;
+    font-size: 16px;
+  }
+}
+
+/* Space Component */
+.ant-space {
+  gap: 8px !important;
+}
+
+@media (max-width: 576px) {
+  .ant-space {
+    gap: 6px !important;
+  }
+  
+  .ant-space-vertical {
+    gap: 12px !important;
+  }
+}
+
+/* ========== UTILITY CLASSES ========== */
+
+/* Hide on mobile */
+.mobile-hidden {
+  display: block;
+}
+
+@media (max-width: 576px) {
+  .mobile-hidden {
+    display: none !important;
+  }
+}
+
+/* Show only on mobile */
+.mobile-only {
+  display: none !important;
+}
+
+@media (max-width: 576px) {
+  .mobile-only {
+    display: block !important;
+  }
+}
+
+/* Text alignment */
+.text-left-mobile {
+  text-align: left;
+}
+
+@media (max-width: 576px) {
+  .text-left-mobile {
+    text-align: left;
+  }
+  
+  .text-center-mobile {
+    text-align: center;
+  }
+}
+
+/* ========== FIXES FOR ANT DESIGN COMPONENTS ========== */
+
+/* Fix menu collapse on mobile */
+.ant-menu-inline-collapsed {
+  width: 80px;
+}
+
+/* Fix table responsiveness */
+.ant-table {
+  overflow-x: auto;
+}
+
+.ant-table-thead > tr > th,
+.ant-table-tbody > tr > td {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .ant-table {
+    font-size: 12px;
+  }
+}
+
+/* Fix modal on mobile */
+.ant-modal {
+  max-width: calc(100vw - 32px);
+}
+
+@media (max-width: 576px) {
+  .ant-modal {
+    top: 16px;
+    padding-bottom: 16px;
+  }
+  
+  .ant-modal-body {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+}
+
+/* Fix drawer on mobile */
+.ant-drawer-content-wrapper {
+  max-width: 100vw;
+}
+
+/* Fix tooltips on mobile */
+@media (max-width: 576px) {
+  .ant-tooltip {
+    max-width: 200px;
+  }
+}
+
+/* ========== PRINT STYLES ========== */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .ant-layout-sider,
+  .ant-layout-header {
+    display: none !important;
+  }
+  
+  .ant-layout-content {
+    margin: 0 !important;
+    padding: 0 !important;
   }
 }
