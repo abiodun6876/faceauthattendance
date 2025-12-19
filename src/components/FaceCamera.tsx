@@ -1,7 +1,7 @@
-// src/components/FaceCamera.tsx - FIXED VERSION WITH BETTER ERROR HANDLING
+// src/components/FaceCamera.tsx - DEBUG VERSION
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, Button, Alert, Typography, Space, Progress, Row, Col, Modal } from 'antd';
-import { Camera, RefreshCw, CheckCircle, User, Video, VideoOff, HelpCircle } from 'lucide-react';
+import { Card, Button, Alert, Typography, Space, Progress, Row, Col } from 'antd';
+import { Camera, RefreshCw, CheckCircle, User, Video, VideoOff } from 'lucide-react';
 
 const { Title, Text } = Typography;
 
@@ -23,105 +23,167 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [showHelp, setShowHelp] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>({});
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Initialize camera with better error handling
-  const startCamera = async () => {
+  // Collect debug info
+  useEffect(() => {
+    const info = {
+      protocol: window.location.protocol,
+      hostname: window.location.hostname,
+      href: window.location.href,
+      mediaDevices: !!navigator.mediaDevices,
+      getUserMedia: !!navigator.mediaDevices?.getUserMedia,
+      isLocalhost: ['localhost', '127.0.0.1'].includes(window.location.hostname),
+      isHttps: window.location.protocol === 'https:',
+      userAgent: navigator.userAgent
+    };
+    setDebugInfo(info);
+    console.log('Debug Info:', info);
+  }, []);
+
+  // Test camera function - simpler approach
+  const testCamera = async () => {
+    console.log('Testing camera...');
+    
     try {
-      setIsLoading(true);
-      setError(null);
+      // First, list available devices
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log('Available devices:', devices);
       
-      // Check if we're on HTTPS or localhost (required for camera)
-      const isSecure = window.location.protocol === 'https:' || 
-                      window.location.hostname === 'localhost' || 
-                      window.location.hostname === '127.0.0.1';
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log('Video devices:', videoDevices);
       
-      if (!isSecure) {
-        setError('Camera access requires HTTPS or localhost. Current URL: ' + window.location.protocol + '//' + window.location.host);
-        setIsLoading(false);
-        return;
+      if (videoDevices.length === 0) {
+        setError('No camera found on your device.');
+        return false;
       }
 
-      // Check if mediaDevices is available
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError('Camera API not supported in this browser. Try Chrome, Firefox, or Edge.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Request camera access with multiple fallback options
+      // Try to get camera stream
       const constraints = {
         video: {
+          deviceId: videoDevices[0].deviceId ? { exact: videoDevices[0].deviceId } : undefined,
           width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user' // Front camera
+          height: { ideal: 480 }
         },
         audio: false
       };
 
+      console.log('Trying constraints:', constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Got stream:', stream);
       
+      return stream;
+    } catch (err: any) {
+      console.error('Camera test failed:', err);
+      setError(`Camera test failed: ${err.name} - ${err.message}`);
+      return null;
+    }
+  };
+
+  const startCamera = async () => {
+    console.log('Starting camera...');
+    setError(null);
+    
+    // Check basic requirements
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError('Your browser does not support camera access. Try Chrome, Firefox, or Edge.');
+      return;
+    }
+
+    // Check if we're on a secure context
+    const isSecure = window.location.protocol === 'https:' || 
+                    window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1';
+    
+    if (!isSecure) {
+      setError(`Camera requires HTTPS or localhost. You are on: ${window.location.protocol}//${window.location.hostname}`);
+      return;
+    }
+
+    try {
+      // Try multiple constraint options
+      const constraintsOptions = [
+        { video: true, audio: false }, // Simple
+        { video: { facingMode: 'user' }, audio: false }, // Front camera
+        { video: { facingMode: 'environment' }, audio: false }, // Back camera
+        { video: { width: 640, height: 480 }, audio: false } // Specific size
+      ];
+
+      let stream = null;
+      let lastError = null;
+
+      // Try each constraint until one works
+      for (const constraints of constraintsOptions) {
+        try {
+          console.log('Trying constraints:', constraints);
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          console.log('Success with constraints:', constraints);
+          break;
+        } catch (err) {
+          lastError = err;
+          console.log('Failed with constraints:', constraints, err);
+        }
+      }
+
+      if (!stream && lastError) {
+        throw lastError;
+      }
+
+      if (!stream) {
+        throw new Error('Could not access camera with any constraints');
+      }
+
       streamRef.current = stream;
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Wait for video to be ready
+        
+        // Wait for video to load
         await new Promise((resolve) => {
           if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => {
+            const onLoaded = () => {
+              videoRef.current?.removeEventListener('loadedmetadata', onLoaded);
               resolve(true);
             };
+            videoRef.current.addEventListener('loadedmetadata', onLoaded);
+          } else {
+            resolve(true);
           }
         });
+        
         setIsCameraActive(true);
+        console.log('Camera is now active');
       }
       
-      setError(null);
-      
     } catch (err: any) {
-      console.error('Camera error:', err);
+      console.error('Failed to start camera:', err);
+      let errorMessage = 'Failed to access camera: ';
       
-      let errorMessage = 'Camera access failed: ';
-      
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        errorMessage += 'Please allow camera access in your browser settings.';
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        errorMessage += 'No camera found. Please connect a camera.';
-      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        errorMessage += 'Camera is already in use by another application.';
-      } else if (err.name === 'OverconstrainedError') {
-        errorMessage += 'Camera constraints could not be satisfied.';
+      if (err.name === 'NotAllowedError') {
+        errorMessage = 'Camera access was denied. Please:';
+        errorMessage += '\n1. Click the camera icon in your address bar';
+        errorMessage += '\n2. Select "Allow" for camera access';
+        errorMessage += '\n3. Refresh the page and try again';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage = 'No camera found. Please connect a webcam.';
+      } else if (err.name === 'NotReadableError') {
+        errorMessage = 'Camera is already in use by another application.';
       } else {
-        errorMessage += err.message || 'Unknown error occurred.';
+        errorMessage += err.message || 'Unknown error';
       }
       
       setError(errorMessage);
       setIsCameraActive(false);
-      
-      // Try fallback simulation if camera fails
-      if (mode === 'enrollment') {
-        setTimeout(() => {
-          setError('Using simulation mode since camera is unavailable. ' + errorMessage);
-          simulateFaceCapture();
-        }, 2000);
-      }
-      
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // Stop camera
   const stopCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => {
-        track.stop();
-      });
+      streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     if (videoRef.current) {
@@ -131,123 +193,101 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     setCapturedImage(null);
   };
 
-  // Capture image from webcam
+  // Simple capture function
   const captureImage = () => {
-    if (!videoRef.current || !canvasRef.current) {
-      console.error('Video or canvas not available');
+    if (!isCameraActive || !videoRef.current || !canvasRef.current) {
+      setError('Camera is not ready');
       return null;
     }
-    
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d');
     
-    if (!context) {
-      console.error('Canvas context not available');
+    if (!ctx) {
+      setError('Canvas context not available');
       return null;
     }
-    
-    // Check if video is ready
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.error('Video not ready for capture');
-      return null;
-    }
-    
-    // Set canvas size to match video
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    // Draw video frame to canvas
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Convert to data URL
-    try {
-      return canvas.toDataURL('image/jpeg', 0.8);
-    } catch (err) {
-      console.error('Failed to convert canvas to image:', err);
-      return null;
-    }
+    return canvas.toDataURL('image/jpeg', 0.8);
   };
 
-  const handleCapture = async () => {
+  const handleCapture = () => {
     if (!isCameraActive) {
       setError('Please start the camera first');
       return;
     }
 
-    setIsCapturing(true);
-    setProgress(0);
-    setCapturedImage(null);
-
-    // Capture image
-    const imageData = captureImage();
-    
-    if (!imageData) {
-      setError('Failed to capture image. Please try again.');
-      setIsCapturing(false);
+    const image = captureImage();
+    if (!image) {
+      setError('Failed to capture image');
       return;
     }
 
-    setCapturedImage(imageData);
+    setCapturedImage(image);
+    processCapture(image);
+  };
 
-    // Simulate processing
+  const processCapture = (imageData: string) => {
+    setIsCapturing(true);
+    setProgress(0);
+
     const interval = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
           
-          // Generate result based on mode
           const result = {
             success: true,
-            message: mode === 'enrollment' 
-              ? 'Face enrolled successfully!' 
-              : 'Attendance recorded successfully!',
+            message: `${mode === 'enrollment' ? 'Enrollment' : 'Attendance'} successful!`,
             timestamp: new Date().toISOString(),
             photoUrl: imageData,
-            quality: 0.85 + Math.random() * 0.1
+            quality: 0.9
           };
 
           if (mode === 'enrollment') {
-            // For enrollment, add student data and embedding
             Object.assign(result, {
-              studentId: student?.id || `student_${Date.now()}`,
-              studentName: student?.name || 'Unknown Student',
-              embedding: Array.from({ length: 128 }, () => Math.random()),
+              studentId: student?.id,
+              studentName: student?.name,
+              embedding: []
             });
             
             setTimeout(() => {
               setIsCapturing(false);
               onEnrollmentComplete?.(result);
-            }, 500);
+            }, 1000);
           } else {
-            // For attendance, add student recognition data
             Object.assign(result, {
               student: {
-                id: student?.id || `student_${Math.floor(Math.random() * 1000)}`,
-                name: student?.name || 'Demo Student',
-                matric_number: student?.matric_number || `20/ABC${Math.floor(Math.random() * 1000)}`
+                id: student?.id,
+                name: student?.name,
+                matric_number: student?.matric_number
               },
-              confidence: 0.85 + Math.random() * 0.1,
+              confidence: 0.95
             });
             
             setTimeout(() => {
               setIsCapturing(false);
               onAttendanceComplete?.(result);
-            }, 500);
+            }, 1000);
           }
           
           return 100;
         }
         return prev + 20;
       });
-    }, 300);
+    }, 200);
   };
 
-  // Fallback simulation function
-  const simulateFaceCapture = () => {
+  // Fallback simulation
+  const useSimulation = () => {
     setIsCapturing(true);
     setProgress(0);
-    
+
     const interval = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
@@ -255,17 +295,17 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           
           const result = {
             success: true,
-            message: 'Face captured successfully (Simulation Mode)',
+            message: 'Simulation mode - Face captured successfully',
             timestamp: new Date().toISOString(),
-            photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${student?.matric_number || 'student'}`,
+            photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${student?.matric_number || 'test'}`,
             quality: 0.85
           };
 
           if (mode === 'enrollment') {
             Object.assign(result, {
-              studentId: student?.id || `student_${Date.now()}`,
-              studentName: student?.name || 'Unknown Student',
-              embedding: Array.from({ length: 128 }, () => Math.random()),
+              studentId: student?.id,
+              studentName: student?.name,
+              embedding: []
             });
             
             setTimeout(() => {
@@ -275,11 +315,11 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           } else {
             Object.assign(result, {
               student: {
-                id: student?.id || `student_${Math.floor(Math.random() * 1000)}`,
-                name: student?.name || 'Demo Student',
-                matric_number: student?.matric_number || `20/ABC${Math.floor(Math.random() * 1000)}`
+                id: student?.id,
+                name: student?.name,
+                matric_number: student?.matric_number
               },
-              confidence: 0.85,
+              confidence: 0.85
             });
             
             setTimeout(() => {
@@ -290,70 +330,71 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           
           return 100;
         }
-        return prev + 20;
+        return prev + 25;
       });
-    }, 300);
+    }, 250);
   };
 
-  const handleRetry = () => {
-    stopCamera();
-    setIsCapturing(false);
-    setProgress(0);
-    setCapturedImage(null);
-    setError(null);
-    setTimeout(() => {
-      startCamera();
-    }, 500);
-  };
-
-  // Start camera on component mount
+  // Auto-start camera on mount
   useEffect(() => {
-    startCamera();
-    
-    // Cleanup on unmount
+    const timer = setTimeout(() => {
+      startCamera();
+    }, 1000);
+
     return () => {
+      clearTimeout(timer);
       stopCamera();
     };
   }, []);
 
   return (
     <Card style={{ maxWidth: 800, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          {mode === 'enrollment' ? 'Face Enrollment' : 'Face Attendance'}
-        </Title>
-        <Button 
-          type="text" 
-          icon={<HelpCircle size={20} />}
-          onClick={() => setShowHelp(true)}
-        >
-          Help
-        </Button>
-      </div>
+      <Title level={4} style={{ textAlign: 'center', marginBottom: 20 }}>
+        {mode === 'enrollment' ? 'Face Enrollment' : 'Face Attendance'}
+      </Title>
       
-      {mode === 'enrollment' && student && (
+      {student && (
         <Alert
-          message={`Enrolling: ${student.name || 'Student'}`}
-          description={`Matric: ${student.matric_number || 'Not assigned'}`}
+          message={`${mode === 'enrollment' ? 'Enrolling' : 'Checking'}: ${student.name}`}
+          description={`Matric: ${student.matric_number}`}
           type="info"
           showIcon
-          icon={<User />}
           style={{ marginBottom: 20 }}
         />
       )}
 
+      {/* Debug Info */}
+      <Alert
+        message="Environment Check"
+        description={
+          <div style={{ fontSize: '12px', fontFamily: 'monospace' }}>
+            <div>URL: {debugInfo.href}</div>
+            <div>Protocol: {debugInfo.protocol} ({debugInfo.isHttps ? 'HTTPS ✓' : 'Not HTTPS ✗'})</div>
+            <div>Hostname: {debugInfo.hostname} ({debugInfo.isLocalhost ? 'Localhost ✓' : 'Not localhost ✗'})</div>
+            <div>MediaDevices: {debugInfo.mediaDevices ? 'Supported ✓' : 'Not supported ✗'}</div>
+            <div>getUserMedia: {debugInfo.getUserMedia ? 'Available ✓' : 'Not available ✗'}</div>
+            <div>Browser: {debugInfo.userAgent?.split(' ').slice(-2).join(' ')}</div>
+          </div>
+        }
+        type={debugInfo.isHttps || debugInfo.isLocalhost ? "success" : "warning"}
+        style={{ marginBottom: 20 }}
+      />
+
       {error && (
         <Alert
-          message="Camera Error"
+          message="Error"
           description={
             <div>
-              <p>{error}</p>
+              <p style={{ whiteSpace: 'pre-line' }}>{error}</p>
               <Button 
                 type="link" 
-                onClick={handleRetry}
-                style={{ padding: 0, height: 'auto' }}
+                onClick={() => {
+                  setError(null);
+                  startCamera();
+                }}
+                style={{ padding: 0 }}
               >
-                Click here to retry
+                Click to retry camera access
               </Button>
             </div>
           }
@@ -366,31 +407,30 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       <Row gutter={[24, 24]}>
         <Col xs={24} md={12}>
           <div style={{ textAlign: 'center' }}>
-            <Title level={5}>Live Camera Feed</Title>
+            <Title level={5}>Camera Feed</Title>
             
             <div style={{ 
-              position: 'relative',
               width: '100%',
               height: 300,
               backgroundColor: '#000',
               borderRadius: 8,
               overflow: 'hidden',
               marginBottom: 16,
-              border: isCameraActive ? '3px solid #52c41a' : '3px solid #ff4d4f'
+              border: isCameraActive ? '3px solid #52c41a' : '3px solid #d9d9d9'
             }}>
-              {isCameraActive ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
-                  }}
-                />
-              ) : (
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: isCameraActive ? 'block' : 'none'
+                }}
+              />
+              {!isCameraActive && (
                 <div style={{
                   width: '100%',
                   height: '100%',
@@ -398,80 +438,64 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fff',
-                  padding: 20
+                  color: '#fff'
                 }}>
                   <VideoOff size={48} />
-                  <Text style={{ color: '#fff', marginTop: 10, textAlign: 'center' }}>
-                    {isLoading ? 'Initializing camera...' : 'Camera inactive'}
+                  <Text style={{ color: '#fff', marginTop: 10 }}>
+                    Camera Preview
+                  </Text>
+                  <Text type="secondary" style={{ color: '#aaa', fontSize: 12 }}>
+                    {isCapturing ? 'Processing...' : 'Start camera to see preview'}
                   </Text>
                 </div>
               )}
             </div>
 
-            <Space wrap style={{ marginBottom: 16 }}>
-              {!isCameraActive ? (
-                <Button
-                  type="primary"
-                  icon={<Video size={16} />}
-                  onClick={startCamera}
-                  loading={isLoading}
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Starting...' : 'Start Camera'}
-                </Button>
-              ) : (
-                <Button
-                  icon={<VideoOff size={16} />}
-                  onClick={stopCamera}
-                >
-                  Stop Camera
-                </Button>
-              )}
+            <Space wrap style={{ marginBottom: 10 }}>
+              <Button
+                type={isCameraActive ? "default" : "primary"}
+                icon={isCameraActive ? <VideoOff size={16} /> : <Video size={16} />}
+                onClick={isCameraActive ? stopCamera : startCamera}
+                loading={isCapturing}
+                disabled={isCapturing}
+              >
+                {isCameraActive ? 'Stop Camera' : 'Start Camera'}
+              </Button>
               
-              {isCameraActive && !isCapturing && (
-                <Button
-                  type="primary"
-                  icon={<Camera size={16} />}
-                  onClick={handleCapture}
-                >
-                  Capture Face
-                </Button>
-              )}
+              <Button
+                type="primary"
+                icon={<Camera size={16} />}
+                onClick={handleCapture}
+                disabled={!isCameraActive || isCapturing}
+              >
+                Capture Face
+              </Button>
               
-              {!isCameraActive && !isLoading && (
-                <Button
-                  type="dashed"
-                  icon={<Camera size={16} />}
-                  onClick={simulateFaceCapture}
-                >
-                  Use Simulation
-                </Button>
-              )}
+              <Button
+                type="dashed"
+                icon={<Camera size={16} />}
+                onClick={useSimulation}
+                disabled={isCapturing}
+              >
+                Use Simulation
+              </Button>
               
               <Button
                 icon={<RefreshCw size={16} />}
-                onClick={handleRetry}
+                onClick={() => {
+                  stopCamera();
+                  setTimeout(startCamera, 500);
+                }}
               >
-                Retry
+                Refresh
               </Button>
             </Space>
-            
-            <div style={{ textAlign: 'left', backgroundColor: '#f6ffed', padding: 12, borderRadius: 6 }}>
-              <Text type="secondary">
-                <small>
-                  <strong>Status:</strong> {isCameraActive ? 'Camera Active ✓' : 'Camera Inactive ✗'} | 
-                  <strong> HTTPS:</strong> {window.location.protocol === 'https:' ? 'Yes ✓' : 'No ✗'} | 
-                  <strong> Localhost:</strong> {['localhost', '127.0.0.1'].includes(window.location.hostname) ? 'Yes ✓' : 'No ✗'}
-                </small>
-              </Text>
-            </div>
           </div>
         </Col>
 
         <Col xs={24} md={12}>
           <div style={{ textAlign: 'center' }}>
-            <Title level={5}>Capture Result</Title>
+            <Title level={5}>Result</Title>
             
             {isCapturing ? (
               <div style={{ padding: '40px 20px' }}>
@@ -484,35 +508,26 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  border: '3px solid #1890ff'
+                  border: '3px dashed #1890ff'
                 }}>
-                  <Camera size={48} color="#1890ff" />
+                  {progress < 100 ? (
+                    <Camera size={48} color="#1890ff" />
+                  ) : (
+                    <CheckCircle size={48} color="#52c41a" />
+                  )}
                 </div>
                 
                 <Text style={{ display: 'block', marginBottom: 20 }}>
-                  {progress < 100 
-                    ? 'Processing face data...' 
-                    : 'Processing complete!'
-                  }
+                  {progress < 100 ? 'Processing...' : 'Complete!'}
                 </Text>
                 
-                <Progress percent={progress} status="active" />
-                
-                {progress >= 100 && (
-                  <Alert
-                    message="Success!"
-                    description="Face data has been captured and processed"
-                    type="success"
-                    showIcon
-                    style={{ marginTop: 20 }}
-                  />
-                )}
+                <Progress percent={progress} status={progress < 100 ? "active" : "success"} />
               </div>
             ) : capturedImage ? (
               <div style={{ padding: '20px 0' }}>
                 <img
                   src={capturedImage}
-                  alt="Captured Face"
+                  alt="Captured"
                   style={{
                     width: 200,
                     height: 200,
@@ -523,35 +538,27 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                   }}
                 />
                 <Alert
-                  message="Face Captured"
-                  description="Face image has been successfully captured"
+                  message="Captured Successfully"
                   type="success"
                   showIcon
-                  style={{ marginBottom: 16 }}
                 />
-                <Button onClick={handleRetry}>
-                  <RefreshCw size={16} style={{ marginRight: 8 }} />
-                  Capture Again
-                </Button>
               </div>
             ) : (
               <div style={{ 
-                padding: '60px 20px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: 8,
-                marginBottom: 16,
                 height: 340,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                backgroundColor: '#fafafa',
+                borderRadius: 8,
+                border: '1px dashed #d9d9d9'
               }}>
-                <Camera size={48} color="#666" />
-                <Text style={{ display: 'block', marginTop: 16, textAlign: 'center' }}>
+                <Camera size={48} color="#bfbfbf" />
+                <Text type="secondary" style={{ marginTop: 16 }}>
                   {isCameraActive 
-                    ? 'Click "Capture Face" to take a photo' 
-                    : 'Start camera to begin face capture'
-                  }
+                    ? 'Click "Capture Face" to take photo' 
+                    : 'Start camera to begin'}
                 </Text>
               </div>
             )}
@@ -559,57 +566,18 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         </Col>
       </Row>
 
-      <div style={{ marginTop: 24 }}>
-        <Alert
-          message="Instructions for Camera Access"
-          description={
-            <div>
-              <p><strong>If camera doesn't work:</strong></p>
-              <ol style={{ margin: '8px 0', paddingLeft: 20 }}>
-                <li>Ensure you're on <strong>HTTPS</strong> or <strong>localhost</strong></li>
-                <li>Click "Allow" when browser asks for camera permission</li>
-                <li>Check browser settings if camera is blocked</li>
-                <li>Try "Use Simulation" button as fallback</li>
-                <li>Make sure no other app is using the camera</li>
-              </ol>
-              <p>Current URL: <code>{window.location.href}</code></p>
-            </div>
-          }
-          type="info"
-          showIcon
-        />
+      <div style={{ marginTop: 24, textAlign: 'center' }}>
+        <Text type="secondary">
+          <small>
+            {isCameraActive 
+              ? 'Camera is active. Make sure face is clearly visible.' 
+              : 'Camera access required for face capture.'}
+          </small>
+        </Text>
       </div>
 
-      {/* Hidden canvas for capturing images */}
-      <canvas
-        ref={canvasRef}
-        style={{ display: 'none' }}
-      />
-
-      {/* Help Modal */}
-      <Modal
-        title="Camera Help Guide"
-        open={showHelp}
-        onCancel={() => setShowHelp(false)}
-        footer={[
-          <Button key="close" onClick={() => setShowHelp(false)}>
-            Close
-          </Button>
-        ]}
-      >
-        <div>
-          <Title level={5}>Common Camera Issues & Solutions:</Title>
-          <ul>
-            <li><strong>Camera inactive:</strong> Make sure you're on HTTPS or localhost</li>
-            <li><strong>Permission denied:</strong> Check browser settings → Site permissions → Camera</li>
-            <li><strong>No camera found:</strong> Ensure webcam is connected and not in use by other apps</li>
-            <li><strong>On Chrome:</strong> Click the camera icon in address bar to manage permissions</li>
-            <li><strong>On Firefox:</strong> Go to Preferences → Privacy & Security → Permissions → Camera</li>
-          </ul>
-          <p><strong>Testing URL:</strong> Your current URL is: {window.location.href}</p>
-          <p><strong>Required:</strong> HTTPS:// or http://localhost or http://127.0.0.1</p>
-        </div>
-      </Modal>
+      {/* Hidden canvas */}
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
     </Card>
   );
 };
