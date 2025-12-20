@@ -40,28 +40,37 @@ const EnrollmentPage: React.FC = () => {
  const handleNext = async () => {
   try {
     if (currentStep === 0) {
-      await form.validateFields(['name']); // Only validate name
+      console.log('Current form values:', form.getFieldsValue());
+      console.log('Form validation status:', form.isFieldsTouched());
+      
+      // Try to validate all fields
+      try {
+        await form.validateFields();
+        console.log('Form validation passed');
+      } catch (validationError) {
+        console.log('Form validation errors:', validationError);
+        message.error('Please fix the form errors before proceeding');
+        return;
+      }
+      
       const values = form.getFieldsValue();
       
-      // ✅ Always generate matric number if not provided or empty
+      // Generate matric number if needed
       if (!values.matric_number?.trim()) {
         values.matric_number = generateMatricNumber();
         form.setFieldValue('matric_number', values.matric_number);
       }
 
+      console.log('Proceeding with values:', values);
+      
       setStudentData(values);
       setCurrentStep(1);
     } else if (currentStep === 1) {
       setCurrentStep(2);
     }
   } catch (error: any) {
-    console.error('Form validation failed:', error);
-    if (error.errorFields) {
-      const errorMessages = error.errorFields.map((field: any) => field.errors[0]).join(', ');
-      message.error(`Please fix: ${errorMessages}`);
-    } else {
-      message.error('Please fill all required fields');
-    }
+    console.error('Error in handleNext:', error);
+    message.error('Error: ' + (error.message || 'Unknown error'));
   }
 };
 
@@ -289,19 +298,32 @@ const EnrollmentPage: React.FC = () => {
           >
             <Row gutter={[16, 16]}>
               <Col span={24}>
-                <Form.Item
-                  label="Full Name *"
-                  name="name"
-                  rules={[
-                    { required: true, message: 'Please enter student name' },
-                    { min: 3, message: 'Name must be at least 3 characters' }
-                  ]}
-                >
-                  <Input 
-                    placeholder="Enter student full name" 
-                    size="large"
-                  />
-                </Form.Item>
+               // In the Basic Information form section, update the name field:
+<Form.Item
+  label="Full Name *"
+  name="name"
+  rules={[
+    { 
+      required: true, 
+      message: 'Please enter student name',
+      whitespace: true // ✅ This ensures empty strings are invalid
+    },
+    { 
+      min: 3, 
+      message: 'Name must be at least 3 characters' 
+    }
+  ]}
+  validateTrigger={['onChange', 'onBlur']} // ✅ Validate on multiple events
+>
+  <Input 
+    placeholder="Enter student full name" 
+    size="large"
+    onChange={(e) => {
+      // Update the form value immediately
+      form.setFieldValue('name', e.target.value);
+    }}
+  />
+</Form.Item>
               </Col>
             </Row>
 
