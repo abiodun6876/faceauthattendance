@@ -21,7 +21,7 @@ import { Camera } from 'lucide-react';
 import { UserAddOutlined, TeamOutlined } from '@ant-design/icons';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
-import { Student } from '../types/database';
+
 
 
 const { Title, Text } = Typography;
@@ -148,113 +148,67 @@ const fetchStudents = async (courseId: string) => {
     fetchStudents(courseId);
   };
 
-  const handleAttendanceComplete = async (result: any) => {
-    console.log('Attendance result:', result);
-    
-    if (result.success && result.student) {
-      try {
-        const today = new Date().toISOString().split('T')[0];
-        const studentId = result.student.student_id;
-        
-        if (!studentId) {
-          message.error('Student ID not found');
-          return;
-        }
-        
-        // Get selected course details
-        const selectedCourseData = courses.find(c => c.id === selectedCourse);
-        if (!selectedCourseData) {
-          message.error('Course not found');
-          return;
-        }
-        
-        // Check if attendance already exists for today
-        const { data: existingAttendance } = await supabase
-          .from('student_attendance')
-          .select('id, score')
-          .eq('student_id', studentId)
-          .eq('course_code', selectedCourseData.code)
-          .gte('check_in_time', `${today}T00:00:00`)
-          .lte('check_in_time', `${today}T23:59:59`)
-          .single();
-        
-        if (existingAttendance) {
-          // Update existing attendance
-          const { error } = await supabase
-            .from('student_attendance')
-            .update({
-              check_in_time: new Date().toISOString(),
-              verification_method: 'face_recognition',
-              confidence_score: result.confidence || 0.95,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingAttendance.id);
-          
-          if (error) throw error;
-        } else {
-          // Create new attendance record
-          const attendanceData = {
-            student_id: studentId,
-            student_name: result.student.name,
-            matric_number: result.student.matric_number,
-            course_code: selectedCourseData.code,
-            course_title: selectedCourseData.title,
-            level: selectedCourseData.level,
-            attendance_date: today,
-            check_in_time: new Date().toISOString(),
-            status: 'present',
-            verification_method: 'face_recognition',
-            confidence_score: result.confidence || 0.95,
-            score: 2.00, // Default full score for face recognition
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          
-          const { error } = await supabase
-            .from('student_attendance')
-            .insert([attendanceData]);
-          
-          if (error) throw error;
-        }
-        
-        message.success(`Attendance recorded for ${result.student.name}`);
-        fetchStudents(selectedCourse);
-        
-      } catch (error: any) {
-        console.error('Attendance error:', error);
-        message.error('Failed to save attendance: ' + error.message);
-      }
-    } else {
-      message.error(`Face recognition failed: ${result.message || 'Unknown error'}`);
-    }
-  };
 
-  const handleManualAttendance = (student: any) => {
-    setSelectedStudent(student);
-    setManualModalVisible(true);
-  };
 
-  const confirmManualAttendance = async () => {
-    if (!selectedStudent || !selectedCourse) return;
-    
+  
+ const handleAttendanceComplete = async (result: any) => {
+  console.log('Attendance result:', result);
+  
+  if (result.success && result.student) {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const selectedCourseData = courses.find(c => c.id === selectedCourse);
       
+      // Debug: Log what face recognition returns
+      console.log('Face recognition result:', result.student);
+      
+      // Check if student object has matric_number
+      if (!result.student.matric_number) {
+        console.error('No matric number in result:', result.student);
+        message.error('Student identification failed: No matric number found');
+        return;
+      }
+      
+      const matricNumber = result.student.matric_number;
+      
+      // Get selected course details
+      const selectedCourseData = courses.find(c => c.id === selectedCourse);
       if (!selectedCourseData) {
         message.error('Course not found');
         return;
       }
       
+      // Find student by matric_number in our current student list
+      const existingStudent = students.find(s => 
+        s.matric_number === matricNumber
+      );
+      
+      if (!existingStudent) {
+        console.error('Student not found in course list:', matricNumber);
+        console.error('Available students:', students.map(s => s.matric_number));
+        message.error(`Student ${result.student.name} (${matricNumber}) not enrolled in this course`);
+        return;
+      }
+      
+      // Use the student_id from our database record
+      const studentId = existingStudent.student_id;
+      const studentName = existingStudent.name;
+      
+      console.log('Matched student:', existingStudent);
+      
       // Check if attendance already exists for today
-      const { data: existingAttendance } = await supabase
+      const { data: existingAttendance, error: fetchError } = await supabase
         .from('student_attendance')
         .select('id, score')
-        .eq('student_id', selectedStudent.student_id)
+        .eq('student_id', studentId)
         .eq('course_code', selectedCourseData.code)
         .gte('check_in_time', `${today}T00:00:00`)
         .lte('check_in_time', `${today}T23:59:59`)
         .single();
+      
+      // It's okay if no record is found (PGRST116 is "not found" error)
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
       
       if (existingAttendance) {
         // Update existing attendance
@@ -262,48 +216,154 @@ const fetchStudents = async (courseId: string) => {
           .from('student_attendance')
           .update({
             check_in_time: new Date().toISOString(),
-            verification_method: 'manual',
+            verification_method: 'face_recognition',
+            confidence_score: result.confidence || 0.95,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingAttendance.id);
         
         if (error) throw error;
+        message.success(`Attendance updated for ${studentName}`);
       } else {
         // Create new attendance record
         const attendanceData = {
-          student_id: selectedStudent.student_id,
-          student_name: selectedStudent.name,
-          matric_number: selectedStudent.matric_number,
+          student_id: studentId,
+          student_name: studentName,
+          matric_number: matricNumber,
           course_code: selectedCourseData.code,
           course_title: selectedCourseData.title,
           level: selectedCourseData.level,
           attendance_date: today,
           check_in_time: new Date().toISOString(),
           status: 'present',
-          verification_method: 'manual',
-          score: 2.00, // Default full score for manual entry
+          verification_method: 'face_recognition',
+          confidence_score: result.confidence || 0.95,
+          score: 2.00,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
+        
+        console.log('Inserting attendance:', attendanceData);
         
         const { error } = await supabase
           .from('student_attendance')
           .insert([attendanceData]);
         
-        if (error) throw error;
+        if (error) {
+          console.error('Insert error:', error);
+          throw error;
+        }
+        message.success(`Attendance recorded for ${studentName}`);
       }
       
-      message.success(`Manual attendance recorded for ${selectedStudent.name}`);
+      // Refresh the student list
       fetchStudents(selectedCourse);
       
     } catch (error: any) {
-      console.error('Manual attendance error:', error);
-      message.error('Failed to record manual attendance: ' + error.message);
+      console.error('Attendance error details:', error);
+      
+      if (error.code === '42P01') {
+        message.error('Attendance table not created. Please run SQL to create student_attendance table.');
+      } else if (error.message.includes('student_attendance')) {
+        message.error('Database error with attendance table.');
+      } else {
+        message.error('Failed to save attendance: ' + error.message);
+      }
+    }
+  } else {
+    console.error('Face recognition failed:', result);
+    message.error(`Face recognition failed: ${result.message || 'Unknown error'}`);
+  }
+};
+
+  const handleManualAttendance = (student: any) => {
+    setSelectedStudent(student);
+    setManualModalVisible(true);
+  };
+
+  const confirmManualAttendance = async () => {
+  if (!selectedStudent || !selectedCourse) return;
+  
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const selectedCourseData = courses.find(c => c.id === selectedCourse);
+    
+    if (!selectedCourseData) {
+      message.error('Course not found');
+      return;
     }
     
-    setManualModalVisible(false);
-    setSelectedStudent(null);
-  };
+    // Check if attendance already exists for today
+    const { data: existingAttendance, error: fetchError } = await supabase
+      .from('student_attendance')
+      .select('id, score')
+      .eq('student_id', selectedStudent.student_id)
+      .eq('course_code', selectedCourseData.code)
+      .gte('check_in_time', `${today}T00:00:00`)
+      .lte('check_in_time', `${today}T23:59:59`)
+      .single();
+    
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
+    
+    if (existingAttendance) {
+      // Update existing attendance
+      const { error } = await supabase
+        .from('student_attendance')
+        .update({
+          check_in_time: new Date().toISOString(),
+          verification_method: 'manual',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingAttendance.id);
+      
+      if (error) throw error;
+      message.success(`Attendance updated for ${selectedStudent.name}`);
+    } else {
+      // Create new attendance record
+      const attendanceData = {
+        student_id: selectedStudent.student_id,
+        student_name: selectedStudent.name,
+        matric_number: selectedStudent.matric_number, // Use matric_number
+        course_code: selectedCourseData.code,
+        course_title: selectedCourseData.title,
+        level: selectedCourseData.level,
+        attendance_date: today,
+        check_in_time: new Date().toISOString(),
+        status: 'present',
+        verification_method: 'manual',
+        score: 2.00,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('Manual attendance data:', attendanceData);
+      
+      const { error } = await supabase
+        .from('student_attendance')
+        .insert([attendanceData]);
+      
+      if (error) throw error;
+      message.success(`Manual attendance recorded for ${selectedStudent.name}`);
+    }
+    
+    // Refresh the student list
+    fetchStudents(selectedCourse);
+    
+  } catch (error: any) {
+    console.error('Manual attendance error:', error);
+    
+    if (error.code === '42P01') {
+      message.error('Please create the student_attendance table first. Run SQL: CREATE TABLE student_attendance...');
+    } else {
+      message.error('Failed to record manual attendance: ' + error.message);
+    }
+  }
+  
+  setManualModalVisible(false);
+  setSelectedStudent(null);
+};
 
   const updateStudentScore = (student: any) => {
     setSelectedStudent(student);
@@ -395,7 +455,34 @@ const fetchStudents = async (courseId: string) => {
   };
 
 
+const checkAttendanceTable = async () => {
+  try {
+    // Simple query to check if table exists
+    const { error } = await supabase
+      .from('student_attendance')
+      .select('count', { count: 'exact', head: true })
+      .limit(1);
+    
+    if (error && error.code === '42P01') {
+      return false; // Table doesn't exist
+    }
+    return true; // Table exists
+  } catch (error) {
+    console.error('Table check error:', error);
+    return false;
+  }
+};
 
+// Then in your component, add a useEffect to check on load
+useEffect(() => {
+  const checkTable = async () => {
+    const tableExists = await checkAttendanceTable();
+    if (!tableExists) {
+      message.warning('Attendance table not found. Please create it in Supabase.');
+    }
+  };
+  checkTable();
+}, []);
 
   const handleMarkAllPresent = async () => {
     if (!selectedCourse || students.length === 0) return;
