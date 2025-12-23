@@ -43,6 +43,7 @@ const CourseRegistrationPage: React.FC = () => {
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
   const [availableCourses, setAvailableCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [students, setStudents] = useState<any[]>([]);
   const [matricNumber, setMatricNumber] = useState('');
@@ -65,9 +66,14 @@ const CourseRegistrationPage: React.FC = () => {
 
       if (!error) {
         setCourses(data || []);
+        console.log('Courses loaded:', data?.length);
+      } else {
+        console.error('Error fetching courses:', error);
+        message.error('Failed to load courses');
       }
     } catch (error) {
       console.error('Error fetching courses:', error);
+      message.error('Failed to load courses');
     } finally {
       setLoading(false);
     }
@@ -75,74 +81,134 @@ const CourseRegistrationPage: React.FC = () => {
 
   const fetchStudents = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('students')
-        .select('*')
+        .select('id, name, matric_number, level, department, email, phone, is_active')
         .eq('is_active', true)
         .order('name');
 
       if (!error) {
         setStudents(data || []);
+        console.log('Students loaded:', data?.length);
+        console.log('Sample student:', data?.[0]);
+      } else {
+        console.error('Error fetching students:', error);
+        message.error('Failed to load students');
       }
     } catch (error) {
       console.error('Error fetching students:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const findStudentByMatric = async (matric: string) => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase
+      setSearching(true);
+      console.log('Searching for matric:', matric);
+      
+      // Try different search approaches
+      const cleanMatric = matric.trim().toUpperCase();
+      
+      // First try exact match
+      let { data, error } = await supabase
         .from('students')
         .select('*')
-        .eq('matric_number', matric.toUpperCase())
-        .eq('is_active', true)
-        .single();
-
+        .eq('matric_number', cleanMatric)
+        .eq('is_active', true);
+      
+      console.log('Exact match result:', data, error);
+      
+      // If no exact match, try case-insensitive search
+      if (!data || data.length === 0) {
+        const { data: data2, error: error2 } = await supabase
+          .from('students')
+          .select('*')
+          .ilike('matric_number', `%${cleanMatric}%`)
+          .eq('is_active', true);
+        
+        console.log('Partial match result:', data2, error2);
+        data = data2;
+        error = error2;
+      }
+      
       if (error) {
-        if (error.code === 'PGRST116') {
-          message.error('Student not found');
-        } else {
-          throw error;
-        }
+        console.error('Database error:', error);
+        message.error(`Database error: ${error.message}`);
         return null;
       }
-
-      setSelectedStudent(data);
-      fetchStudentEnrollments(data.id);
-      return data;
-    } catch (error) {
+      
+      if (!data || data.length === 0) {
+        message.error(`No active student found with matric number: ${cleanMatric}`);
+        return null;
+      }
+      
+      if (data.length > 1) {
+        console.warn('Multiple students found:', data);
+        // If multiple matches, use the first one
+        message.warning('Multiple students found, using the first match');
+      }
+      
+      const student = data[0];
+      console.log('Found student:', student);
+      return student;
+      
+    } catch (error: any) {
       console.error('Error finding student:', error);
-      message.error('Failed to find student');
+      message.error(`Search error: ${error.message}`);
       return null;
     } finally {
-      setLoading(false);
+      setSearching(false);
     }
   };
 
   const fetchStudentEnrollments = async (studentId: string) => {
     try {
       setLoading(true);
+      console.log('Fetching enrollments for student:', studentId);
+      
       const { data, error } = await supabase
         .from('enrollments')
-        .select('*, course:courses(*)')
+        .select(`
+          *,
+          course:courses(
+            id,
+            code,
+            title,
+            level,
+            credit_units,
+            lecturer_name,
+            department_id
+          )
+        `)
         .eq('student_id', studentId)
         .eq('status', 'active')
         .order('enrollment_date', { ascending: false });
 
-      if (!error) {
-        setEnrolledCourses(data || []);
-        
-        // Filter available courses (not enrolled and matching student level)
-        const enrolledCourseIds = (data || []).map((e: any) => e.course_id);
-        const available = courses.filter(c => 
-          !enrolledCourseIds.includes(c.id) && 
-          c.level === selectedStudent?.level
-        );
-        setAvailableCourses(available);
-        setSelectedCourses([]);
-        setIsSelectAll(false);
+      if (error) {
+        console.error('Error fetching enrollments:', error);
+        message.error('Failed to load enrolled courses');
+        return;
       }
+      
+      console.log('Enrollments loaded:', data);
+      setEnrolledCourses(data || []);
+      
+      // Filter available courses (not enrolled and matching student level)
+      const enrolledCourseIds = (data || []).map((e: any) => e.course_id);
+      console.log('Enrolled course IDs:', enrolledCourseIds);
+      
+      const available = courses.filter(c => 
+        !enrolledCourseIds.includes(c.id) && 
+        c.level === selectedStudent?.level
+      );
+      
+      console.log('Available courses:', available);
+      setAvailableCourses(available);
+      setSelectedCourses([]);
+      setIsSelectAll(false);
+      
     } catch (error) {
       console.error('Error fetching enrollments:', error);
     } finally {
@@ -156,8 +222,15 @@ const CourseRegistrationPage: React.FC = () => {
       return;
     }
 
+    console.log('Starting search for:', matricNumber);
+    
     const student = await findStudentByMatric(matricNumber);
-    if (!student) {
+    if (student) {
+      console.log('Setting selected student:', student);
+      setSelectedStudent(student);
+      await fetchStudentEnrollments(student.id);
+    } else {
+      console.log('Student not found');
       setSelectedStudent(null);
       setEnrolledCourses([]);
       setAvailableCourses([]);
@@ -169,6 +242,7 @@ const CourseRegistrationPage: React.FC = () => {
       setSelectedCourses([...selectedCourses, courseId]);
     } else {
       setSelectedCourses(selectedCourses.filter(id => id !== courseId));
+      setIsSelectAll(false);
     }
   };
 
@@ -198,26 +272,38 @@ const CourseRegistrationPage: React.FC = () => {
         student_id: selectedStudent.id,
         course_id: courseId,
         enrollment_date: new Date().toISOString().split('T')[0],
-        academic_session: '2024/2025', // You might want to make this dynamic
+        academic_session: '2024/2025',
         status: 'active'
       }));
 
-      const { error } = await supabase
+      console.log('Enrolling courses:', enrollments);
+
+      const { data, error } = await supabase
         .from('enrollments')
-        .insert(enrollments);
+        .insert(enrollments)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Enrollment database error:', error);
+        throw error;
+      }
 
+      console.log('Enrollment successful:', data);
       message.success(`Successfully enrolled in ${selectedCourses.length} course(s)`);
-      fetchStudentEnrollments(selectedStudent.id);
+      
+      // Refresh data
+      await fetchStudentEnrollments(selectedStudent.id);
+      
     } catch (error: any) {
       console.error('Enrollment error:', error);
-      message.error(`Failed to enroll: ${error.message}`);
+      message.error(`Failed to enroll: ${error.message || 'Unknown error'}`);
     }
   };
 
   const unenrollCourse = async (enrollmentId: string) => {
     try {
+      console.log('Unenrolling enrollment:', enrollmentId);
+      
       const { error } = await supabase
         .from('enrollments')
         .update({ 
@@ -226,13 +312,17 @@ const CourseRegistrationPage: React.FC = () => {
         })
         .eq('id', enrollmentId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Unenrollment database error:', error);
+        throw error;
+      }
 
       message.success('Course unenrolled successfully');
-      fetchStudentEnrollments(selectedStudent?.id || '');
+      await fetchStudentEnrollments(selectedStudent?.id || '');
+      
     } catch (error: any) {
       console.error('Unenrollment error:', error);
-      message.error(`Failed to unenroll: ${error.message}`);
+      message.error(`Failed to unenroll: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -298,26 +388,41 @@ const CourseRegistrationPage: React.FC = () => {
           <Col xs={24} md={12}>
             <Space.Compact style={{ width: '100%' }}>
               <Input
-                placeholder="Enter Matric Number"
+                placeholder="Enter Matric Number (e.g., ABU24007)"
                 value={matricNumber}
                 onChange={(e) => setMatricNumber(e.target.value)}
                 onPressEnter={handleMatricSearch}
                 allowClear
+                disabled={searching}
               />
               <Button 
                 type="primary" 
                 onClick={handleMatricSearch}
-                loading={loading}
+                loading={searching}
+                icon={<Search size={16} />}
               >
-                <Search size={16} /> Search
+                {searching ? 'Searching...' : 'Search'}
               </Button>
             </Space.Compact>
+            <Text type="secondary" style={{ fontSize: '12px', marginTop: 4, display: 'block' }}>
+              Enter student matriculation number (case-insensitive)
+            </Text>
           </Col>
           <Col xs={24} md={12}>
             {selectedStudent && (
               <Alert
-                message={`Selected Student: ${selectedStudent.name}`}
-                description={`Matric: ${selectedStudent.matric_number} | Level: ${selectedStudent.level} | Department: ${selectedStudent.department}`}
+                message={
+                  <div>
+                    <strong>Selected Student:</strong> {selectedStudent.name}
+                  </div>
+                }
+                description={
+                  <div>
+                    <div><strong>Matric:</strong> {selectedStudent.matric_number}</div>
+                    <div><strong>Level:</strong> {selectedStudent.level}</div>
+                    <div><strong>Department:</strong> {selectedStudent.department || 'Not specified'}</div>
+                  </div>
+                }
                 type="info"
                 showIcon
               />
@@ -325,12 +430,13 @@ const CourseRegistrationPage: React.FC = () => {
           </Col>
         </Row>
 
-        {selectedStudent && (
+        {selectedStudent ? (
           <>
             <div style={{ marginBottom: 30 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Title level={4} style={{ margin: 0 }}>
                   Available Courses (Level {selectedStudent.level})
+                  {availableCourses.length > 0 && ` - ${availableCourses.length} available`}
                 </Title>
                 <Space>
                   <Checkbox
@@ -338,47 +444,66 @@ const CourseRegistrationPage: React.FC = () => {
                     onChange={(e) => handleSelectAll(e.target.checked)}
                     disabled={availableCourses.length === 0}
                   >
-                    Select All ({availableCourses.length} courses)
+                    Select All
                   </Checkbox>
                   <Button
                     type="primary"
                     icon={<Plus size={16} />}
                     onClick={enrollInCourses}
                     disabled={selectedCourses.length === 0}
+                    loading={loading}
                   >
                     Enroll Selected ({selectedCourses.length})
                   </Button>
                 </Space>
               </div>
               
-              {availableCourses.length > 0 ? (
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>
+                  <Spin size="large" />
+                  <div style={{ marginTop: 16 }}>Loading courses...</div>
+                </div>
+              ) : availableCourses.length > 0 ? (
                 <Row gutter={[16, 16]}>
                   {availableCourses.map(course => (
                     <Col xs={24} md={12} lg={8} key={course.id}>
-                      <Card size="small" hoverable>
+                      <Card size="small" hoverable style={{ height: '100%' }}>
                         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                           <Checkbox
                             checked={selectedCourses.includes(course.id)}
                             onChange={(e) => handleCourseSelect(course.id, e.target.checked)}
+                            style={{ marginTop: 4 }}
                           />
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <div>
-                                <Text strong style={{ display: 'block' }}>{course.code}</Text>
-                                <Text type="secondary" style={{ fontSize: '12px' }}>{course.title}</Text>
+                                <Text strong style={{ display: 'block', fontSize: '14px' }}>
+                                  {course.code}
+                                </Text>
+                                <Text type="secondary" style={{ fontSize: '12px' }}>
+                                  {course.title}
+                                </Text>
                               </div>
-                              <Tag color="blue">Level {course.level}</Tag>
+                              <Tag color="blue" style={{ margin: 0 }}>
+                                Level {course.level}
+                              </Tag>
                             </div>
                             <div style={{ marginTop: 8 }}>
-                              <Tag color="green">{course.credit_units} Credits</Tag>
+                              <Tag color="green" style={{ fontSize: '11px' }}>
+                                {course.credit_units} Credits
+                              </Tag>
                               {course.lecturer_name && (
-                                <Tag color="purple">{course.lecturer_name}</Tag>
+                                <Tag color="purple" style={{ fontSize: '11px' }}>
+                                  {course.lecturer_name}
+                                </Tag>
                               )}
                             </div>
-                            {course.department && (
-                              <Text style={{ display: 'block', marginTop: 8, fontSize: '12px' }}>
-                                Department: {course.department.name}
-                              </Text>
+                            {course.department?.name && (
+                              <div style={{ marginTop: 8 }}>
+                                <Text style={{ fontSize: '11px', color: '#666' }}>
+                                  Department: {course.department.name}
+                                </Text>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -389,7 +514,7 @@ const CourseRegistrationPage: React.FC = () => {
               ) : (
                 <Alert
                   message="No available courses"
-                  description="All courses for this level have been enrolled"
+                  description="All courses for this level have been enrolled or no courses exist for this level."
                   type="info"
                   showIcon
                 />
@@ -397,28 +522,35 @@ const CourseRegistrationPage: React.FC = () => {
             </div>
 
             <div>
-              <Title level={4}>Enrolled Courses</Title>
-              <Table
-                columns={columns}
-                dataSource={enrolledCourses}
-                rowKey="id"
-                loading={loading}
-                pagination={{ pageSize: 5 }}
-                locale={{
-                  emptyText: 'No courses enrolled yet'
-                }}
-              />
+              <Title level={4}>
+                Enrolled Courses
+                {enrolledCourses.length > 0 && ` (${enrolledCourses.length} courses)`}
+              </Title>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <Spin />
+                </div>
+              ) : (
+                <Table
+                  columns={columns}
+                  dataSource={enrolledCourses}
+                  rowKey="id"
+                  loading={loading}
+                  pagination={{ pageSize: 5 }}
+                  locale={{
+                    emptyText: 'No courses enrolled yet'
+                  }}
+                />
+              )}
             </div>
           </>
-        )}
-
-        {!selectedStudent && matricNumber && (
+        ) : (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <User size={48} style={{ color: '#d9d9d9', marginBottom: 16 }} />
-            <Text type="secondary">Student not found or matric number is invalid</Text>
+            <Text type="secondary">Enter a matric number to search for a student</Text>
             <br />
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              Please check the matric number and try again
+            <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginTop: 8 }}>
+              Example: ABU24007
             </Text>
           </div>
         )}
