@@ -16,7 +16,9 @@ import {
   Checkbox,
   message,
   Modal,
-  Form
+  Form,
+  Popconfirm,
+  Tooltip
 } from 'antd';
 import {
   Book,
@@ -28,7 +30,8 @@ import {
   Filter,
   Download,
   Plus,
-  Users
+  Users,
+  Delete
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -37,14 +40,14 @@ const { Search: AntdSearch } = Input;
 
 const CourseRegistrationPage: React.FC = () => {
   const [courses, setCourses] = useState<any[]>([]);
-  const [registeredCourses, setRegisteredCourses] = useState<any[]>([]);
+  const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
   const [availableCourses, setAvailableCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [students, setStudents] = useState<any[]>([]);
-  const [searchText, setSearchText] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState<string>('');
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [matricNumber, setMatricNumber] = useState('');
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const [isSelectAll, setIsSelectAll] = useState(false);
 
   useEffect(() => {
     fetchCourses();
@@ -56,7 +59,7 @@ const CourseRegistrationPage: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('courses')
-        .select('*, faculty:faculties(*), department:departments(*)')
+        .select('*, department:departments(*)')
         .eq('is_active', true)
         .order('level');
 
@@ -86,81 +89,150 @@ const CourseRegistrationPage: React.FC = () => {
     }
   };
 
-  const fetchStudentRegistrations = async (studentId: string) => {
+  const findStudentByMatric = async (matric: string) => {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('course_registrations')
-        .select('*, course:courses(*)')
-        .eq('student_id', studentId)
-        .eq('is_registered', true);
+        .from('students')
+        .select('*')
+        .eq('matric_number', matric.toUpperCase())
+        .eq('is_active', true)
+        .single();
 
-      if (!error) {
-        setRegisteredCourses(data || []);
-        
-        // Filter available courses (not registered)
-        const registeredCourseIds = (data || []).map((r: any) => r.course_id);
-        const available = courses.filter(c => 
-          !registeredCourseIds.includes(c.id) && 
-          c.level === selectedStudent?.level
-        );
-        setAvailableCourses(available);
+      if (error) {
+        if (error.code === 'PGRST116') {
+          message.error('Student not found');
+        } else {
+          throw error;
+        }
+        return null;
       }
+
+      setSelectedStudent(data);
+      fetchStudentEnrollments(data.id);
+      return data;
     } catch (error) {
-      console.error('Error fetching registrations:', error);
+      console.error('Error finding student:', error);
+      message.error('Failed to find student');
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStudentSelect = (studentId: string) => {
-    const student = students.find(s => s.id === studentId);
-    if (student) {
-      setSelectedStudent(student);
-      fetchStudentRegistrations(studentId);
+  const fetchStudentEnrollments = async (studentId: string) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('enrollments')
+        .select('*, course:courses(*)')
+        .eq('student_id', studentId)
+        .eq('status', 'active')
+        .order('enrollment_date', { ascending: false });
+
+      if (!error) {
+        setEnrolledCourses(data || []);
+        
+        // Filter available courses (not enrolled and matching student level)
+        const enrolledCourseIds = (data || []).map((e: any) => e.course_id);
+        const available = courses.filter(c => 
+          !enrolledCourseIds.includes(c.id) && 
+          c.level === selectedStudent?.level
+        );
+        setAvailableCourses(available);
+        setSelectedCourses([]);
+        setIsSelectAll(false);
+      }
+    } catch (error) {
+      console.error('Error fetching enrollments:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const registerCourse = async (courseId: string) => {
+  const handleMatricSearch = async () => {
+    if (!matricNumber.trim()) {
+      message.error('Please enter a matric number');
+      return;
+    }
+
+    const student = await findStudentByMatric(matricNumber);
+    if (!student) {
+      setSelectedStudent(null);
+      setEnrolledCourses([]);
+      setAvailableCourses([]);
+    }
+  };
+
+  const handleCourseSelect = (courseId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedCourses([...selectedCourses, courseId]);
+    } else {
+      setSelectedCourses(selectedCourses.filter(id => id !== courseId));
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    setIsSelectAll(checked);
+    if (checked) {
+      const allCourseIds = availableCourses.map(course => course.id);
+      setSelectedCourses(allCourseIds);
+    } else {
+      setSelectedCourses([]);
+    }
+  };
+
+  const enrollInCourses = async () => {
     if (!selectedStudent) {
       message.error('Please select a student first');
       return;
     }
 
+    if (selectedCourses.length === 0) {
+      message.error('Please select at least one course');
+      return;
+    }
+
     try {
+      const enrollments = selectedCourses.map(courseId => ({
+        student_id: selectedStudent.id,
+        course_id: courseId,
+        enrollment_date: new Date().toISOString().split('T')[0],
+        academic_session: '2024/2025', // You might want to make this dynamic
+        status: 'active'
+      }));
+
       const { error } = await supabase
-        .from('course_registrations')
-        .insert({
-          student_id: selectedStudent.id,
-          course_id: courseId,
-          is_registered: true,
-          registration_date: new Date().toISOString().split('T')[0]
-        });
+        .from('enrollments')
+        .insert(enrollments);
 
       if (error) throw error;
 
-      message.success('Course registered successfully');
-      fetchStudentRegistrations(selectedStudent.id);
+      message.success(`Successfully enrolled in ${selectedCourses.length} course(s)`);
+      fetchStudentEnrollments(selectedStudent.id);
     } catch (error: any) {
-      console.error('Registration error:', error);
-      message.error(`Failed to register: ${error.message}`);
+      console.error('Enrollment error:', error);
+      message.error(`Failed to enroll: ${error.message}`);
     }
   };
 
-  const unregisterCourse = async (registrationId: string) => {
+  const unenrollCourse = async (enrollmentId: string) => {
     try {
       const { error } = await supabase
-        .from('course_registrations')
-        .update({ is_registered: false })
-        .eq('id', registrationId);
+        .from('enrollments')
+        .update({ 
+          status: 'inactive',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', enrollmentId);
 
       if (error) throw error;
 
-      message.success('Course unregistered successfully');
-      fetchStudentRegistrations(selectedStudent?.id || '');
+      message.success('Course unenrolled successfully');
+      fetchStudentEnrollments(selectedStudent?.id || '');
     } catch (error: any) {
-      console.error('Unregistration error:', error);
-      message.error(`Failed to unregister: ${error.message}`);
+      console.error('Unenrollment error:', error);
+      message.error(`Failed to unenroll: ${error.message}`);
     }
   };
 
@@ -183,65 +255,69 @@ const CourseRegistrationPage: React.FC = () => {
       render: (level: number) => `Level ${level}`,
     },
     {
-      title: 'Lecturer',
-      dataIndex: ['course', 'lecturer_name'],
-      key: 'lecturer',
-    },
-    {
       title: 'Credit Units',
       dataIndex: ['course', 'credit_units'],
       key: 'credits',
     },
     {
-      title: 'Registration Date',
-      dataIndex: 'registration_date',
+      title: 'Enrollment Date',
+      dataIndex: 'enrollment_date',
       key: 'date',
     },
     {
       title: 'Actions',
       key: 'actions',
       render: (_: any, record: any) => (
-        <Button
-          danger
-          size="small"
-          onClick={() => unregisterCourse(record.id)}
+        <Popconfirm
+          title="Are you sure you want to unenroll from this course?"
+          onConfirm={() => unenrollCourse(record.id)}
+          okText="Yes"
+          cancelText="No"
         >
-          Unregister
-        </Button>
+          <Button
+            danger
+            size="small"
+            icon={<Delete size={14} />}
+          >
+            Unenroll
+          </Button>
+        </Popconfirm>
       ),
     },
   ];
 
   return (
     <div style={{ padding: '20px' }}>
-      <Title level={2}>Student Course Registration</Title>
+      <Title level={2}>Student Course Enrollment</Title>
       <Text type="secondary">
-        Register students for courses
+        Enroll students in courses
       </Text>
 
       <Card style={{ marginTop: 20 }}>
         <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
           <Col xs={24} md={12}>
-            <Select
-              placeholder="Select Student"
-              style={{ width: '100%' }}
-              showSearch
-              optionFilterProp="children"
-              onChange={handleStudentSelect}
-              loading={loading}
-            >
-              {students.map(student => (
-                <Select.Option key={student.id} value={student.id}>
-                  {student.name} - {student.matric_number} (Level {student.level})
-                </Select.Option>
-              ))}
-            </Select>
+            <Space.Compact style={{ width: '100%' }}>
+              <Input
+                placeholder="Enter Matric Number"
+                value={matricNumber}
+                onChange={(e) => setMatricNumber(e.target.value)}
+                onPressEnter={handleMatricSearch}
+                allowClear
+              />
+              <Button 
+                type="primary" 
+                onClick={handleMatricSearch}
+                loading={loading}
+              >
+                <Search size={16} /> Search
+              </Button>
+            </Space.Compact>
           </Col>
           <Col xs={24} md={12}>
             {selectedStudent && (
               <Alert
-                message={`Selected: ${selectedStudent.name}`}
-                description={`Matric: ${selectedStudent.matric_number} | Level: ${selectedStudent.level}`}
+                message={`Selected Student: ${selectedStudent.name}`}
+                description={`Matric: ${selectedStudent.matric_number} | Level: ${selectedStudent.level} | Department: ${selectedStudent.department}`}
                 type="info"
                 showIcon
               />
@@ -252,61 +328,99 @@ const CourseRegistrationPage: React.FC = () => {
         {selectedStudent && (
           <>
             <div style={{ marginBottom: 30 }}>
-              <Title level={4}>Available Courses (Level {selectedStudent.level})</Title>
-              <Row gutter={[16, 16]}>
-                {availableCourses.map(course => (
-                  <Col xs={24} md={12} lg={8} key={course.id}>
-                    <Card size="small">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                        <div>
-                          <Text strong style={{ display: 'block' }}>{course.code}</Text>
-                          <Text type="secondary" style={{ fontSize: '12px' }}>{course.title}</Text>
-                          <div style={{ marginTop: 8 }}>
-                            <Tag color="blue">Level {course.level}</Tag>
-                            <Tag color="green">{course.credit_units} Credits</Tag>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Title level={4} style={{ margin: 0 }}>
+                  Available Courses (Level {selectedStudent.level})
+                </Title>
+                <Space>
+                  <Checkbox
+                    checked={isSelectAll}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    disabled={availableCourses.length === 0}
+                  >
+                    Select All ({availableCourses.length} courses)
+                  </Checkbox>
+                  <Button
+                    type="primary"
+                    icon={<Plus size={16} />}
+                    onClick={enrollInCourses}
+                    disabled={selectedCourses.length === 0}
+                  >
+                    Enroll Selected ({selectedCourses.length})
+                  </Button>
+                </Space>
+              </div>
+              
+              {availableCourses.length > 0 ? (
+                <Row gutter={[16, 16]}>
+                  {availableCourses.map(course => (
+                    <Col xs={24} md={12} lg={8} key={course.id}>
+                      <Card size="small" hoverable>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                          <Checkbox
+                            checked={selectedCourses.includes(course.id)}
+                            onChange={(e) => handleCourseSelect(course.id, e.target.checked)}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div>
+                                <Text strong style={{ display: 'block' }}>{course.code}</Text>
+                                <Text type="secondary" style={{ fontSize: '12px' }}>{course.title}</Text>
+                              </div>
+                              <Tag color="blue">Level {course.level}</Tag>
+                            </div>
+                            <div style={{ marginTop: 8 }}>
+                              <Tag color="green">{course.credit_units} Credits</Tag>
+                              {course.lecturer_name && (
+                                <Tag color="purple">{course.lecturer_name}</Tag>
+                              )}
+                            </div>
+                            {course.department && (
+                              <Text style={{ display: 'block', marginTop: 8, fontSize: '12px' }}>
+                                Department: {course.department.name}
+                              </Text>
+                            )}
                           </div>
-                          <Text style={{ display: 'block', marginTop: 8, fontSize: '12px' }}>
-                            Lecturer: {course.lecturer_name}
-                          </Text>
                         </div>
-                        <Button
-                          type="primary"
-                          size="small"
-                          onClick={() => registerCourse(course.id)}
-                        >
-                          Register
-                        </Button>
-                      </div>
-                    </Card>
-                  </Col>
-                ))}
-                {availableCourses.length === 0 && (
-                  <Col span={24}>
-                    <Alert
-                      message="No available courses"
-                      description="All courses for this level have been registered"
-                      type="info"
-                      showIcon
-                    />
-                  </Col>
-                )}
-              </Row>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              ) : (
+                <Alert
+                  message="No available courses"
+                  description="All courses for this level have been enrolled"
+                  type="info"
+                  showIcon
+                />
+              )}
             </div>
 
             <div>
-              <Title level={4}>Registered Courses</Title>
+              <Title level={4}>Enrolled Courses</Title>
               <Table
                 columns={columns}
-                dataSource={registeredCourses}
+                dataSource={enrolledCourses}
                 rowKey="id"
                 loading={loading}
                 pagination={{ pageSize: 5 }}
                 locale={{
-                  emptyText: 'No courses registered yet'
+                  emptyText: 'No courses enrolled yet'
                 }}
               />
             </div>
           </>
+        )}
+
+        {!selectedStudent && matricNumber && (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <User size={48} style={{ color: '#d9d9d9', marginBottom: 16 }} />
+            <Text type="secondary">Student not found or matric number is invalid</Text>
+            <br />
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Please check the matric number and try again
+            </Text>
+          </div>
         )}
       </Card>
     </div>
