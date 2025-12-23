@@ -16,18 +16,17 @@ import {
   InputNumber,
   message,
   Grid,
-  Input,
   DatePicker,
-  Tabs
+  Tabs,
+  Progress,
+  Badge
 } from 'antd';
-import { Camera, Search, Filter, Calendar } from 'lucide-react';
-import { UserAddOutlined, TeamOutlined } from '@ant-design/icons';
+import { Camera, Calendar, CheckCircle, XCircle, Users } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 const { useBreakpoint } = Grid;
 const { TabPane } = Tabs;
 
@@ -37,29 +36,33 @@ const AttendancePage: React.FC = () => {
   
   const [courses, setCourses] = useState<any[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('');
-  const [allStudents, setAllStudents] = useState<any[]>([]);
-  const [filteredStudents, setFilteredStudents] = useState<any[]>([]);
+  const [selectedCourseData, setSelectedCourseData] = useState<any>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [manualModalVisible, setManualModalVisible] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [scoreModalVisible, setScoreModalVisible] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [scoreInputValue, setScoreInputValue] = useState<number>(0);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
   const [activeTab, setActiveTab] = useState('attendance');
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    presentToday: 0,
+    attendanceRate: 0
+  });
 
-  // Fetch courses
+  // Fetch all courses
   const fetchCourses = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('courses')
-        .select('id, code, title, level, semester, lecturer_name')
+        .select('*')
         .order('code');
       
       if (error) throw error;
       setCourses(data || []);
+      console.log('Courses loaded:', data?.length);
     } catch (error: any) {
       console.error('Error fetching courses:', error);
       message.error('Failed to load courses');
@@ -68,182 +71,85 @@ const AttendancePage: React.FC = () => {
     }
   };
 
-  // Fetch ALL enrolled students
-  const fetchAllStudents = async () => {
+  // Fetch attendance records for selected course and date
+  const fetchAttendanceRecords = async () => {
+    if (!selectedCourse) return;
+    
     try {
       setLoading(true);
-      
-      // Get all students with enrollment_status = 'enrolled'
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('enrollment_status', 'enrolled')
-        .order('name');
-      
-      if (studentsError) throw studentsError;
-      
-      if (studentsData) {
-        // Process each student with today's attendance data
-        const studentsWithAttendance = await Promise.all(
-          studentsData.map(async (student) => {
-            // Fetch attendance records for selected date
-            const { data: attendanceRecords } = await supabase
-              .from('student_attendance')
-              .select('*')
-              .eq('student_id', student.student_id)
-              .eq('attendance_date', selectedDate)
-              .order('check_in_time', { ascending: false });
-            
-            return {
-              ...student,
-              attendance_record: attendanceRecords || [],
-              key: student.student_id
-            };
-          })
-        );
-        
-        setAllStudents(studentsWithAttendance);
-        setFilteredStudents(studentsWithAttendance);
+      const course = courses.find(c => c.id === selectedCourse);
+      if (!course) {
+        message.error('Course not found');
+        return;
       }
+      setSelectedCourseData(course);
+      
+      // Fetch attendance for this course on selected date
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from('student_attendance')
+        .select('*')
+        .eq('course_code', course.code)
+        .eq('attendance_date', selectedDate)
+        .order('check_in_time', { ascending: false });
+      
+      if (attendanceError) throw attendanceError;
+      
+      setAttendanceRecords(attendanceData || []);
+      
+      // Fetch all enrolled students to get total count
+      const { data: studentsData } = await supabase
+        .from('students')
+        .select('student_id')
+        .eq('enrollment_status', 'enrolled');
+      
+      const totalStudents = studentsData?.length || 0;
+      const presentToday = attendanceData?.length || 0;
+      const attendanceRate = totalStudents > 0 ? (presentToday / totalStudents) * 100 : 0;
+      
+      setStats({
+        totalStudents,
+        presentToday,
+        attendanceRate
+      });
       
     } catch (error: any) {
-      console.error('Error fetching students:', error);
-      message.error('Failed to load students');
+      console.error('Error fetching attendance:', error);
+      message.error('Failed to load attendance records');
     } finally {
       setLoading(false);
     }
   };
 
- const fetchCourseAttendance = async (courseId: string) => {
-  if (!courseId) return;
-  
-  try {
-    setLoading(true);
-    const { data: courseData, error: courseError } = await supabase
-      .from('courses')
-      .select('id, code, title')
-      .eq('id', courseId)
-      .single();
-    
-    if (courseError) throw courseError;
-    
-    // Fetch attendance for this course on selected date
-    const { data: attendanceData, error: attendanceError } = await supabase
-      .from('student_attendance')
-      .select('*')
-      .eq('course_code', courseData.code)
-      .eq('attendance_date', selectedDate)
-      .order('check_in_time', { ascending: false });
-    
-    if (attendanceError) throw attendanceError;
-    
-    // Get unique student IDs from attendance (compatible version)
-    const studentIdMap: Record<string, boolean> = {};
-    const attendedStudentIds: string[] = [];
-    if (attendanceData) {
-      attendanceData.forEach(a => {
-        if (a.student_id && !studentIdMap[a.student_id]) {
-          studentIdMap[a.student_id] = true;
-          attendedStudentIds.push(a.student_id);
-        }
-      });
-    }
-    
-    // Fetch those students' details
-    if (attendedStudentIds.length > 0) {
-      const { data: attendedStudents, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .in('student_id', attendedStudentIds)
-        .order('name');
-      
-      if (studentsError) throw studentsError;
-      
-      // Combine student data with attendance records
-      const studentsWithAttendance = attendedStudents?.map(student => {
-        const studentAttendance = attendanceData?.filter(a => a.student_id === student.student_id);
-        return {
-          ...student,
-          attendance_record: studentAttendance || [],
-          key: student.student_id
-        };
-      }) || [];
-      
-      setFilteredStudents(studentsWithAttendance);
-    } else {
-      setFilteredStudents([]);
-    }
-    
-  } catch (error: any) {
-    console.error('Error fetching course attendance:', error);
-    message.error('Failed to load attendance data');
-  } finally {
-    setLoading(false);
-  }
-};
-
-  useEffect(() => {
-    fetchCourses();
-    fetchAllStudents();
-  }, [selectedDate]);
-
-  const handleCourseSelect = (courseId: string) => {
-    setSelectedCourse(courseId);
-    if (courseId) {
-      fetchCourseAttendance(courseId);
-    } else {
-      setFilteredStudents(allStudents);
-    }
-  };
-
-  const handleSearch = (value: string) => {
-    setSearchQuery(value);
-    if (!value.trim()) {
-      setFilteredStudents(allStudents);
-      return;
-    }
-    
-    const query = value.toLowerCase();
-    const filtered = allStudents.filter(student =>
-      student.name.toLowerCase().includes(query) ||
-      student.student_id.toLowerCase().includes(query) ||
-      student.matric_number?.toLowerCase().includes(query)
-    );
-    setFilteredStudents(filtered);
-  };
-
+  // Handle face recognition result
   const handleAttendanceComplete = async (result: any) => {
     console.log('Face recognition result:', result);
     
     if (result.success && result.student) {
       try {
-        if (!selectedCourse) {
+        if (!selectedCourseData) {
           message.error('Please select a course first');
           return;
         }
         
         const attendanceDate = selectedDate;
+        const student = result.student;
+        const matricNumber = student.matric_number;
         
-        // Get selected course details
-        const selectedCourseData = courses.find(c => c.id === selectedCourse);
-        if (!selectedCourseData) {
-          message.error('Course not found');
+        // Find student in database by matric number
+        const { data: studentData, error: studentError } = await supabase
+          .from('students')
+          .select('*')
+          .eq('matric_number', matricNumber)
+          .eq('enrollment_status', 'enrolled')
+          .maybeSingle();
+        
+        if (studentError || !studentData) {
+          message.error(`Student ${student.name} not found or not enrolled`);
           return;
         }
         
-        // Find student in our database
-        const matricNumber = result.student.matric_number;
-        const existingStudent = allStudents.find(s => 
-          s.matric_number === matricNumber
-        );
-        
-        if (!existingStudent) {
-          message.error(`Student ${result.student.name} not found in enrolled students`);
-          return;
-        }
-        
-        const studentId = existingStudent.student_id;
-        const studentName = existingStudent.name;
+        const studentId = studentData.student_id;
+        const studentName = studentData.name;
         
         // Check if attendance already exists for today and this course
         const { data: existingAttendance, error: fetchError } = await supabase
@@ -280,7 +186,7 @@ const AttendancePage: React.FC = () => {
             matric_number: matricNumber,
             course_code: selectedCourseData.code,
             course_title: selectedCourseData.title,
-            level: selectedCourseData.level,
+            level: studentData.level || selectedCourseData.level,
             attendance_date: attendanceDate,
             check_in_time: new Date().toISOString(),
             status: 'present',
@@ -299,12 +205,8 @@ const AttendancePage: React.FC = () => {
           message.success(`Attendance recorded for ${studentName}`);
         }
         
-        // Refresh data
-        if (selectedCourse) {
-          fetchCourseAttendance(selectedCourse);
-        } else {
-          fetchAllStudents();
-        }
+        // Refresh attendance records
+        fetchAttendanceRecords();
         
       } catch (error: any) {
         console.error('Attendance error:', error);
@@ -315,130 +217,100 @@ const AttendancePage: React.FC = () => {
     }
   };
 
-  const handleManualAttendance = (student: any) => {
-    if (!selectedCourse) {
+  const handleMarkAllPresent = async () => {
+    if (!selectedCourseData) {
       message.error('Please select a course first');
       return;
     }
-    setSelectedStudent(student);
-    setManualModalVisible(true);
+    
+    Modal.confirm({
+      title: 'Mark All Present',
+      content: `Are you sure you want to mark all enrolled students as present for ${selectedCourseData.title}?`,
+      onOk: async () => {
+        setLoading(true);
+        try {
+          const attendanceDate = selectedDate;
+          
+          // Get all enrolled students
+          const { data: studentsData, error: studentsError } = await supabase
+            .from('students')
+            .select('student_id, name, matric_number, level')
+            .eq('enrollment_status', 'enrolled');
+          
+          if (studentsError) throw studentsError;
+          
+          if (!studentsData || studentsData.length === 0) {
+            message.warning('No enrolled students found');
+            return;
+          }
+          
+          // Get already marked students for this course and date
+          const { data: existingAttendance } = await supabase
+            .from('student_attendance')
+            .select('student_id')
+            .eq('course_code', selectedCourseData.code)
+            .eq('attendance_date', attendanceDate);
+          
+          const markedStudentIds = new Set(existingAttendance?.map(a => a.student_id) || []);
+          
+          // Create attendance records for unmarked students
+          const attendanceRecords = studentsData
+            .filter(student => !markedStudentIds.has(student.student_id))
+            .map(student => ({
+              student_id: student.student_id,
+              student_name: student.name,
+              matric_number: student.matric_number,
+              course_code: selectedCourseData.code,
+              course_title: selectedCourseData.title,
+              level: student.level || selectedCourseData.level,
+              attendance_date: attendanceDate,
+              check_in_time: new Date().toISOString(),
+              status: 'present',
+              verification_method: 'batch',
+              score: 2.00,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }));
+          
+          if (attendanceRecords.length > 0) {
+            const { error } = await supabase
+              .from('student_attendance')
+              .insert(attendanceRecords);
+            
+            if (error) throw error;
+          }
+          
+          message.success(`Marked ${attendanceRecords.length} students as present`);
+          fetchAttendanceRecords();
+          
+        } catch (error: any) {
+          console.error('Mark all error:', error);
+          message.error('Failed to mark all students: ' + error.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
   };
 
-  const confirmManualAttendance = async () => {
-    if (!selectedStudent || !selectedCourse) return;
-    
-    try {
-      const attendanceDate = selectedDate;
-      const selectedCourseData = courses.find(c => c.id === selectedCourse);
-      
-      if (!selectedCourseData) {
-        message.error('Course not found');
-        return;
-      }
-      
-      // Check if attendance already exists for today and this course
-      const { data: existingAttendance, error: fetchError } = await supabase
-        .from('student_attendance')
-        .select('id, score')
-        .eq('student_id', selectedStudent.student_id)
-        .eq('course_code', selectedCourseData.code)
-        .eq('attendance_date', attendanceDate)
-        .single();
-      
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-      
-      if (existingAttendance) {
-        // Update existing attendance
-        const { error } = await supabase
-          .from('student_attendance')
-          .update({
-            check_in_time: new Date().toISOString(),
-            verification_method: 'manual',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingAttendance.id);
-        
-        if (error) throw error;
-        message.success(`Attendance updated for ${selectedStudent.name}`);
-      } else {
-        // Create new attendance record
-        const attendanceData = {
-          student_id: selectedStudent.student_id,
-          student_name: selectedStudent.name,
-          matric_number: selectedStudent.matric_number,
-          course_code: selectedCourseData.code,
-          course_title: selectedCourseData.title,
-          level: selectedCourseData.level,
-          attendance_date: attendanceDate,
-          check_in_time: new Date().toISOString(),
-          status: 'present',
-          verification_method: 'manual',
-          score: 2.00,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        const { error } = await supabase
-          .from('student_attendance')
-          .insert([attendanceData]);
-        
-        if (error) throw error;
-        message.success(`Manual attendance recorded for ${selectedStudent.name}`);
-      }
-      
-      // Refresh data
-      if (selectedCourse) {
-        fetchCourseAttendance(selectedCourse);
-      } else {
-        fetchAllStudents();
-      }
-      
-    } catch (error: any) {
-      console.error('Manual attendance error:', error);
-      message.error('Failed to record manual attendance: ' + error.message);
-    }
-    
-    setManualModalVisible(false);
-    setSelectedStudent(null);
-  };
-
-  const updateStudentScore = (student: any) => {
-    if (!selectedCourse) {
-      message.error('Please select a course first');
-      return;
-    }
-    setSelectedStudent(student);
-    const currentScore = student.attendance_record?.[0]?.score || 2.00;
-    setScoreInputValue(currentScore);
+  const handleManualMarkPresent = (record: any) => {
+    setSelectedStudent(record);
+    setScoreInputValue(record.score || 2.00);
     setScoreModalVisible(true);
   };
 
-  const saveStudentScore = async () => {
-    if (!selectedStudent || !selectedCourse) {
+  const saveManualAttendance = async () => {
+    if (!selectedStudent || !selectedCourseData) {
       message.error('No student or course selected');
       return;
     }
     
-    const score = scoreInputValue;
-    const maxScore = 2.00;
-    
-    if (score < 0 || score > maxScore) {
-      message.error(`Invalid score. Must be between 0 and ${maxScore}`);
-      return;
-    }
+    const score = Math.min(Math.max(scoreInputValue, 0), 2.00);
     
     try {
       const attendanceDate = selectedDate;
-      const selectedCourseData = courses.find(c => c.id === selectedCourse);
       
-      if (!selectedCourseData) {
-        message.error('Course not found');
-        return;
-      }
-      
-      // Check if attendance record exists for selected date and course
+      // Check if attendance record exists
       const { data: existingAttendance, error: fetchError } = await supabase
         .from('student_attendance')
         .select('id')
@@ -452,29 +324,32 @@ const AttendancePage: React.FC = () => {
       }
       
       if (existingAttendance) {
-        // Update existing record score
+        // Update existing record
         const { error } = await supabase
           .from('student_attendance')
           .update({ 
             score: score,
+            check_in_time: new Date().toISOString(),
+            verification_method: 'manual',
             updated_at: new Date().toISOString()
           })
           .eq('id', existingAttendance.id);
         
         if (error) throw error;
+        message.success(`Attendance updated for ${selectedStudent.student_name}`);
       } else {
-        // Create new record with score
+        // Create new record
         const attendanceData = {
           student_id: selectedStudent.student_id,
-          student_name: selectedStudent.name,
+          student_name: selectedStudent.student_name,
           matric_number: selectedStudent.matric_number,
           course_code: selectedCourseData.code,
           course_title: selectedCourseData.title,
-          level: selectedCourseData.level,
+          level: selectedStudent.level || selectedCourseData.level,
           attendance_date: attendanceDate,
           check_in_time: new Date().toISOString(),
           status: 'present',
-          verification_method: 'manual_score',
+          verification_method: 'manual',
           score: score,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -485,88 +360,19 @@ const AttendancePage: React.FC = () => {
           .insert([attendanceData]);
         
         if (error) throw error;
+        message.success(`Manual attendance recorded for ${selectedStudent.student_name}`);
       }
       
-      message.success(`Score updated to ${score} for ${selectedStudent.name}`);
-      if (selectedCourse) {
-        fetchCourseAttendance(selectedCourse);
-      } else {
-        fetchAllStudents();
-      }
+      fetchAttendanceRecords();
       
     } catch (error: any) {
-      console.error('Score update error:', error);
-      message.error('Failed to update score: ' + error.message);
+      console.error('Manual attendance error:', error);
+      message.error('Failed to record attendance: ' + error.message);
     } finally {
       setScoreModalVisible(false);
       setSelectedStudent(null);
       setScoreInputValue(0);
     }
-  };
-
-  const handleMarkAllPresent = async () => {
-    if (!selectedCourse || filteredStudents.length === 0) {
-      message.error('Please select a course and ensure there are students');
-      return;
-    }
-    
-    Modal.confirm({
-      title: 'Mark All Present',
-      content: `Are you sure you want to mark all ${filteredStudents.length} students as present for this course?`,
-      onOk: async () => {
-        setLoading(true);
-        try {
-          const attendanceDate = selectedDate;
-          const selectedCourseData = courses.find(c => c.id === selectedCourse);
-          
-          if (!selectedCourseData) {
-            message.error('Course not found');
-            return;
-          }
-          
-          // Get students who are not already marked present for this course
-          const absentStudents = filteredStudents.filter(student => {
-            const hasAttendance = student.attendance_record?.some(
-              (record: any) => record.course_code === selectedCourseData.code
-            );
-            return !hasAttendance;
-          });
-          
-          // Create attendance records for all absent students
-          const attendanceRecords = absentStudents.map(student => ({
-            student_id: student.student_id,
-            student_name: student.name,
-            matric_number: student.matric_number,
-            course_code: selectedCourseData.code,
-            course_title: selectedCourseData.title,
-            level: selectedCourseData.level,
-            attendance_date: attendanceDate,
-            check_in_time: new Date().toISOString(),
-            status: 'present',
-            verification_method: 'batch',
-            score: 2.00,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }));
-          
-          if (attendanceRecords.length > 0) {
-            const { error } = await supabase
-              .from('student_attendance')
-              .insert(attendanceRecords);
-            
-            if (error) throw error;
-          }
-          
-          message.success(`Marked ${attendanceRecords.length} students as present`);
-          fetchCourseAttendance(selectedCourse);
-        } catch (error: any) {
-          console.error('Mark all error:', error);
-          message.error('Failed to mark all students: ' + error.message);
-        } finally {
-          setLoading(false);
-        }
-      }
-    });
   };
 
   const columns = [
@@ -577,8 +383,8 @@ const AttendancePage: React.FC = () => {
     },
     {
       title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
+      dataIndex: 'student_name',
+      key: 'student_name',
     },
     {
       title: 'Matric Number',
@@ -586,100 +392,75 @@ const AttendancePage: React.FC = () => {
       key: 'matric_number',
     },
     {
-      title: 'Program',
-      dataIndex: 'program',
-      key: 'program',
-      render: (program: string) => program || 'Not specified',
-    },
-    {
       title: 'Level',
       dataIndex: 'level',
       key: 'level',
-      render: (level: number) => level ? `Level ${level}` : 'Not specified',
+      render: (level: number) => level ? `Level ${level}` : 'N/A',
+    },
+    {
+      title: 'Check-in Time',
+      dataIndex: 'check_in_time',
+      key: 'check_in_time',
+      render: (time: string) => time ? dayjs(time).format('HH:mm:ss') : 'N/A',
     },
     {
       title: 'Score',
+      dataIndex: 'score',
       key: 'score',
-      render: (_: any, record: any) => {
-        const hasAttendance = record.attendance_record?.length > 0;
-        const courseAttendance = selectedCourse 
-          ? record.attendance_record?.find((a: any) => a.course_code === courses.find(c => c.id === selectedCourse)?.code)
-          : record.attendance_record?.[0];
-        
-        const score = courseAttendance?.score || 0;
-        const maxScore = 2.00;
-        
-        return (
-          <div>
-            <span style={{ fontWeight: 'bold' }}>{score.toFixed(2)} / {maxScore}</span>
-            <div style={{ width: 100, height: 8, backgroundColor: '#f0f0f0', borderRadius: 4, marginTop: 4 }}>
-              <div 
-                style={{ 
-                  width: `${(score / maxScore) * 100}%`, 
-                  height: '100%', 
-                  backgroundColor: score >= maxScore * 0.5 ? '#52c41a' : '#f5222d',
-                  borderRadius: 4
-                }} 
-              />
-            </div>
-          </div>
-        );
-      },
+      render: (score: number) => (
+        <div>
+          <span style={{ fontWeight: 'bold' }}>{score?.toFixed(2) || '0.00'} / 2.00</span>
+          <Progress 
+            percent={((score || 0) / 2.00) * 100} 
+            size="small" 
+            strokeColor={score >= 1.00 ? '#52c41a' : '#fa8c16'}
+            showInfo={false}
+          />
+        </div>
+      ),
     },
     {
-      title: 'Status',
-      key: 'status',
-      render: (_: any, record: any) => {
-        const hasAttendance = record.attendance_record?.length > 0;
-        const courseAttendance = selectedCourse 
-          ? record.attendance_record?.find((a: any) => a.course_code === courses.find(c => c.id === selectedCourse)?.code)
-          : record.attendance_record?.[0];
-        
-        return courseAttendance ? (
-          <Tag color="green">Present</Tag>
-        ) : (
-          <Tag color="red">Absent</Tag>
-        );
-      },
+      title: 'Method',
+      dataIndex: 'verification_method',
+      key: 'verification_method',
+      render: (method: string) => (
+        <Tag color={method === 'face_recognition' ? 'green' : 'blue'}>
+          {method === 'face_recognition' ? 'Face' : method === 'manual' ? 'Manual' : method}
+        </Tag>
+      ),
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: any, record: any) => {
-        const hasAttendance = record.attendance_record?.length > 0;
-        const courseAttendance = selectedCourse 
-          ? record.attendance_record?.find((a: any) => a.course_code === courses.find(c => c.id === selectedCourse)?.code)
-          : record.attendance_record?.[0];
-        
-        return (
-          <Space>
-            <Button
-              size="small"
-              onClick={() => handleManualAttendance(record)}
-              disabled={!!courseAttendance}
-            >
-              Mark Present
-            </Button>
-            {courseAttendance && (
-              <Button
-                size="small"
-                type="link"
-                onClick={() => updateStudentScore(record)}
-              >
-                Adjust Score
-              </Button>
-            )}
-          </Space>
-        );
-      },
+      render: (_: any, record: any) => (
+        <Space>
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => handleManualMarkPresent(record)}
+          >
+            Edit Score
+          </Button>
+        </Space>
+      ),
     },
   ];
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  useEffect(() => {
+    if (selectedCourse) {
+      fetchAttendanceRecords();
+    }
+  }, [selectedCourse, selectedDate]);
 
   return (
     <div style={{ padding: '20px' }}>
       <Title level={2}>Take Attendance</Title>
       <Text type="secondary">
-        Mark attendance for any enrolled student. Select a course and mark students as present.
+        Select a course, capture student's face, and attendance will be automatically marked.
       </Text>
 
       <Card style={{ marginBottom: 20 }}>
@@ -697,78 +478,81 @@ const AttendancePage: React.FC = () => {
                 />
               </Col>
               
-              <Col xs={24} md={6}>
+              <Col xs={24} md={12}>
                 <Text strong>Select Course:</Text>
                 <Select
                   style={{ width: '100%', marginTop: 8 }}
-                  placeholder="Choose a course"
+                  placeholder="Choose a course to mark attendance"
                   value={selectedCourse}
-                  onChange={handleCourseSelect}
+                  onChange={(value) => setSelectedCourse(value)}
                   loading={loading}
                   size="large"
-                  allowClear
                   showSearch
-                  filterOption={(input, option) => {
-                    const course = courses.find(c => c.id === option?.value);
-                    if (!course) return false;
-                    
-                    const searchText = input.toLowerCase();
-                    return (
-                      course.code.toLowerCase().includes(searchText) ||
-                      course.title.toLowerCase().includes(searchText) ||
-                      (course.lecturer_name?.toLowerCase() || '').includes(searchText)
-                    );
-                  }}
-                >
-                  <Select.Option value="">All Students (No Course Filter)</Select.Option>
-                  {courses.map(course => (
-                    <Select.Option key={course.id} value={course.id}>
-                      {course.code} - {course.title} 
-                      {course.lecturer_name && ` (${course.lecturer_name})`}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Col>
-              
-              <Col xs={24} md={6}>
-                <Text strong>Search Students:</Text>
-                <Input
-                  placeholder="Search by name, ID, or matric"
-                  prefix={<Search size={16} />}
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  style={{ marginTop: 8 }}
-                  size="large"
                   allowClear
+                  filterOption={(input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  options={courses.map(course => ({
+                    value: course.id,
+                    label: `${course.code} - ${course.title} (Level ${course.level})`,
+                    course: course
+                  }))}
                 />
               </Col>
               
               <Col xs={24} md={6}>
                 <Statistic
-                  title="Showing Students"
-                  value={filteredStudents.length}
-                  prefix={<TeamOutlined />}
-                  suffix={`/ ${allStudents.length} enrolled`}
+                  title="Attendance Rate"
+                  value={stats.attendanceRate.toFixed(1)}
+                  suffix="%"
+                  prefix={<Users size={16} />}
+                  valueStyle={{ color: stats.attendanceRate >= 70 ? '#3f8600' : '#cf1322' }}
                 />
               </Col>
             </Row>
           </TabPane>
-          
-          <TabPane tab="Attendance Report" key="report">
-            <Alert
-              message="Attendance Report"
-              description="View attendance statistics and reports for selected date and course."
-              type="info"
-              showIcon
-            />
-          </TabPane>
         </Tabs>
       </Card>
 
-      {activeTab === 'attendance' && (
+      {selectedCourse ? (
         <>
           <Card style={{ marginBottom: 20 }}>
-            <div style={{ textAlign: 'center' }}>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={8}>
+                <Card size="small">
+                  <Statistic
+                    title="Total Enrolled Students"
+                    value={stats.totalStudents}
+                    prefix={<Users size={16} />}
+                  />
+                </Card>
+              </Col>
+              
+              <Col xs={24} md={8}>
+                <Card size="small">
+                  <Statistic
+                    title="Present Today"
+                    value={stats.presentToday}
+                    prefix={<CheckCircle size={16} color="#52c41a" />}
+                    suffix={`/ ${stats.totalStudents}`}
+                    valueStyle={{ color: '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+              
+              <Col xs={24} md={8}>
+                <Card size="small">
+                  <Statistic
+                    title="Absent Today"
+                    value={stats.totalStudents - stats.presentToday}
+                    prefix={<XCircle size={16} color="#f5222d" />}
+                    valueStyle={{ color: '#f5222d' }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+            
+            <div style={{ textAlign: 'center', marginTop: 20 }}>
               <Space direction={isMobile ? "vertical" : "horizontal"} size="large">
                 <Button
                   type="primary"
@@ -776,7 +560,6 @@ const AttendancePage: React.FC = () => {
                   icon={<Camera />}
                   onClick={() => setIsCameraActive(true)}
                   loading={loading}
-                  disabled={!selectedCourse}
                 >
                   Start Face Attendance
                 </Button>
@@ -786,105 +569,137 @@ const AttendancePage: React.FC = () => {
                   size="large"
                   onClick={handleMarkAllPresent}
                   loading={loading}
-                  disabled={!selectedCourse || filteredStudents.length === 0}
                 >
                   Mark All Present
                 </Button>
-                
-                {!selectedCourse && (
-                  <Alert
-                    message="Course Required"
-                    description="Please select a course to mark attendance"
-                    type="warning"
-                    showIcon
-                    style={{ display: 'inline-block' }}
-                  />
-                )}
               </Space>
+              
+              {selectedCourseData && (
+                <div style={{ marginTop: 16 }}>
+                  <Tag color="blue">{selectedCourseData.code}</Tag>
+                  <Tag color="green">{selectedCourseData.title}</Tag>
+                  <Tag color="purple">Level {selectedCourseData.level}</Tag>
+                  <Tag color="orange">{dayjs(selectedDate).format('DD/MM/YYYY')}</Tag>
+                </div>
+              )}
             </div>
           </Card>
 
           <Card title={
             <div>
-              <span>Student List</span>
-              {selectedCourse && (
-                <Tag color="blue" style={{ marginLeft: 10 }}>
-                  Course: {courses.find(c => c.id === selectedCourse)?.title}
-                </Tag>
-              )}
-              <Tag color="green" style={{ marginLeft: 10 }}>
-                Date: {dayjs(selectedDate).format('DD/MM/YYYY')}
-              </Tag>
+              <span>Attendance Records</span>
+              <Badge 
+                count={stats.presentToday} 
+                showZero 
+                style={{ marginLeft: 10, backgroundColor: '#52c41a' }} 
+              />
             </div>
           }>
             <Table
               columns={columns}
-              dataSource={filteredStudents}
+              dataSource={attendanceRecords}
               loading={loading}
               pagination={{ pageSize: 10 }}
               scroll={{ x: true }}
+              locale={{
+                emptyText: 'No attendance records yet for this course'
+              }}
             />
           </Card>
 
           {isCameraActive && (
-            <div style={{ marginTop: 20 }}>
-              <FaceCamera
-                mode="attendance"
-                onAttendanceComplete={handleAttendanceComplete}
-              />
-              <div style={{ textAlign: 'center', marginTop: 20 }}>
-                <Button onClick={() => setIsCameraActive(false)}>
-                  Stop Camera
-                </Button>
+            <Card style={{ marginTop: 20 }}>
+              <div style={{ textAlign: 'center' }}>
+                <Alert
+                  message="Face Attendance Active"
+                  description={`Position student in front of camera. System will automatically mark attendance for ${selectedCourseData?.title}.`}
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 20 }}
+                />
+                
+                <FaceCamera
+                  mode="attendance"
+                  onAttendanceComplete={handleAttendanceComplete}
+                />
+                
+                <div style={{ marginTop: 20 }}>
+                  <Button 
+                    type="default" 
+                    size="large"
+                    onClick={() => setIsCameraActive(false)}
+                  >
+                    Stop Camera
+                  </Button>
+                </div>
               </div>
-            </div>
+            </Card>
           )}
         </>
-      )}
-
-      {/* Manual Attendance Modal */}
-      <Modal
-        title="Manual Attendance"
-        open={manualModalVisible}
-        onCancel={() => setManualModalVisible(false)}
-        onOk={confirmManualAttendance}
-        confirmLoading={loading}
-      >
-        {selectedStudent && selectedCourse && (
-          <div>
-            <p>Mark <strong>{selectedStudent.name}</strong> as present?</p>
-            <p>Student ID: {selectedStudent.student_id}</p>
-            <p>Matric: {selectedStudent.matric_number}</p>
-            <p>Course: {courses.find(c => c.id === selectedCourse)?.title}</p>
-            <p>Date: {dayjs(selectedDate).format('DD/MM/YYYY')}</p>
-            <p>Score: 2.00 points (default)</p>
+      ) : (
+        <Card style={{ marginTop: 20 }}>
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <Camera size={48} style={{ color: '#d9d9d9', marginBottom: 16 }} />
+            <Title level={4}>Select a Course</Title>
+            <Text type="secondary">
+              Please select a course from the dropdown above to start marking attendance.
+            </Text>
+            <div style={{ marginTop: 20 }}>
+              <Text strong>How it works:</Text>
+              <ol style={{ textAlign: 'left', maxWidth: 500, margin: '20px auto' }}>
+                <li>Select a course and date</li>
+                <li>Click "Start Face Attendance" to activate camera</li>
+                <li>Student faces the camera</li>
+                <li>System automatically identifies student and marks attendance</li>
+                <li>Or use "Mark All Present" for bulk marking</li>
+              </ol>
+            </div>
           </div>
-        )}
-      </Modal>
+        </Card>
+      )}
 
       {/* Score Adjustment Modal */}
       <Modal
-        title="Adjust Score"
+        title="Adjust Attendance Score"
         open={scoreModalVisible}
         onCancel={() => setScoreModalVisible(false)}
-        onOk={saveStudentScore}
+        onOk={saveManualAttendance}
         confirmLoading={loading}
       >
-        {selectedStudent && selectedCourse && (
+        {selectedStudent && (
           <div>
-            <p>Student: <strong>{selectedStudent.name}</strong></p>
-            <p>Course: {courses.find(c => c.id === selectedCourse)?.title}</p>
-            <p>Date: {dayjs(selectedDate).format('DD/MM/YYYY')}</p>
-            <p>Max possible score: 2.00</p>
-            <InputNumber
-              min={0}
-              max={2.00}
-              value={scoreInputValue}
-              onChange={(value) => setScoreInputValue(value || 0)}
-              style={{ width: '100%', marginTop: 10 }}
-              step={0.25}
-              precision={2}
+            <Alert
+              message="Manual Attendance"
+              description="Adjust score for this student's attendance record."
+              type="info"
+              showIcon
+              style={{ marginBottom: 20 }}
             />
+            
+            <p><strong>Student:</strong> {selectedStudent.student_name}</p>
+            <p><strong>Matric:</strong> {selectedStudent.matric_number}</p>
+            <p><strong>Course:</strong> {selectedCourseData?.title}</p>
+            <p><strong>Date:</strong> {dayjs(selectedDate).format('DD/MM/YYYY')}</p>
+            
+            <div style={{ marginTop: 20 }}>
+              <Text strong>Attendance Score (Max: 2.00):</Text>
+              <InputNumber
+                min={0}
+                max={2.00}
+                value={scoreInputValue}
+                onChange={(value) => setScoreInputValue(value || 0)}
+                style={{ width: '100%', marginTop: 10 }}
+                step={0.25}
+                precision={2}
+              />
+              <div style={{ marginTop: 8 }}>
+                <Progress 
+                  percent={((scoreInputValue || 0) / 2.00) * 100} 
+                  strokeColor={scoreInputValue >= 1.00 ? '#52c41a' : '#fa8c16'}
+                  format={() => `${scoreInputValue.toFixed(2)} / 2.00`}
+                />
+              </div>
+            </div>
           </div>
         )}
       </Modal>
