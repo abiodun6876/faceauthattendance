@@ -519,12 +519,7 @@ npm start
               }}>
                 {!user ? (
                   <div style={{ textAlign: 'center', padding: isMobile ? '20px' : '50px' }}>
-                    <Alert
-                      title="Authentication Required"
-                      description="Please login to access the face authentication system"
-                      type="warning"
-                      showIcon
-                    />
+                    
                     <div style={{ marginTop: '20px' }}>
                       <Button 
                         type="primary" 
