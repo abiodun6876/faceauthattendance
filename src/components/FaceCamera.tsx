@@ -223,14 +223,20 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     });
   };
 
-  // Simple capture function
-  const captureImage = () => {
+  // Simple capture function (removed old one - we'll use the typed version below)
+  // const captureImage = () => { ... } // REMOVED
+
+  // Typed capture function
+  const captureAndProcessImage = async (): Promise<{
+    base64: string;
+    blob?: Blob;
+    width: number;
+    height: number;
+    format: string;
+    size?: number;
+  } | null> => {
     if (!isCameraActive || !videoRef.current || !canvasRef.current) {
       setError('Camera is not ready');
-      updateCaptureStatus({ 
-        isCapturing: false, 
-        message: 'Camera not ready for capture' 
-      });
       return null;
     }
 
@@ -240,21 +246,36 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     
     if (!ctx) {
       setError('Canvas context not available');
-      updateCaptureStatus({ 
-        isCapturing: false, 
-        message: 'Canvas context error' 
-      });
       return null;
     }
 
+    // Set canvas dimensions to match video
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+    
+    // Draw video frame to canvas
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    return canvas.toDataURL('image/jpeg', 0.8);
+    // Capture as base64
+    const imageData = canvas.toDataURL('image/jpeg', 0.9);
+    
+    // Also capture as blob
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve({
+          base64: imageData,
+          blob: blob || undefined,
+          width: canvas.width,
+          height: canvas.height,
+          format: 'image/jpeg',
+          size: blob ? blob.size : imageData.length
+        });
+      }, 'image/jpeg', 0.9);
+    });
   };
 
-  const handleCapture = () => {
+  // SINGLE handleCapture function (removed duplicate)
+  const handleCapture = async () => {
     if (!isCameraActive) {
       setError('Please start the camera first');
       updateCaptureStatus({ 
@@ -264,28 +285,41 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       return;
     }
 
+    setIsCapturing(true);
+    setError(null);
+    
     updateCaptureStatus({ 
       isCapturing: true, 
       message: 'Capturing face...' 
     });
-    
-    const image = captureImage();
-    if (!image) {
-      setError('Failed to capture image');
+
+    try {
+      const imageResult = await captureAndProcessImage();
+      
+      if (!imageResult) {
+        throw new Error('Failed to capture image');
+      }
+
+      // Access base64 property safely
+      setCapturedImage(imageResult.base64);
+      
+      // Process with the image data
+      processCapture(imageResult.base64);
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Capture failed: ${errorMessage}`);
+      setIsCapturing(false);
+      
       updateCaptureStatus({ 
         isCapturing: false, 
-        message: 'Capture failed' 
+        message: `Capture failed: ${errorMessage}` 
       });
-      return;
     }
-
-    setCapturedImage(image);
-    processCapture(image);
   };
 
   // Updated processCapture function
   const processCapture = (imageData: string) => {
-    setIsCapturing(true);
     setProgress(0);
 
     updateCaptureStatus({ 
@@ -366,7 +400,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     }, 200);
   };
 
-  // Single useSimulation function (removed duplicate)
+  // Single useSimulation function
   const useSimulation = () => {
     setIsCapturing(true);
     setProgress(0);
@@ -482,7 +516,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
             <div>URL: {debugInfo.href}</div>
             <div>Protocol: {debugInfo.protocol} ({debugInfo.isHttps ? 'HTTPS ✓' : 'Not HTTPS ✗'})</div>
             <div>Hostname: {debugInfo.hostname} ({debugInfo.isLocalhost ? 'Localhost ✓' : 'Not localhost ✗'})</div>
-            <div>MediaDevices: {debugInfo.mediaDevices ? 'Supported ✓' : 'Not supported ✗'}</div>
+            <div>MediaDevices: {debugInfo.mediaDevices ? 'Supported ✓' : 'Not supported ✗'})</div>
             <div>getUserMedia: {debugInfo.getUserMedia ? 'Available ✓' : 'Not available ✗'}</div>
             <div>Browser: {debugInfo.userAgent?.split(' ').slice(-2).join(' ')}</div>
           </div>
