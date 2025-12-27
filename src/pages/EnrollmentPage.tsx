@@ -159,13 +159,11 @@ const EnrollmentPage: React.FC = () => {
     }
   };
 
-  // In EnrollmentPage.tsx, update the handleEnrollmentComplete function:
 
+  // FIXED handleEnrollmentComplete function - programName defined in both blocks
 const handleEnrollmentComplete = async (result: any) => {
   console.log('=== ENROLLMENT COMPLETE TRIGGERED ===');
   console.log('Full result from FaceCamera:', result);
-  console.log('Current studentData state:', studentData);
-  console.log('Current matricNumber:', matricNumber);
   
   try {
     if (!result.success || !result.photoData) {
@@ -176,19 +174,12 @@ const handleEnrollmentComplete = async (result: any) => {
 
     setLoading(true);
 
-    // Use student data from result (passed from FaceCamera) OR from component state
-    const enrollmentStudent = result.studentData || result.student || studentData;
-    
-    console.log('Using enrollmentStudent:', enrollmentStudent);
-    console.log('Student from result.studentData:', result.studentData);
-    console.log('Student from result.student:', result.student);
-    
     // Extract student information with fallbacks
-    const studentId = enrollmentStudent?.matric_number || result.matricNumber || matricNumber;
-    const studentName = enrollmentStudent?.name || result.studentName || studentData.name;
-    const studentLevel = enrollmentStudent?.level || studentData.level;
-    const studentProgramId = enrollmentStudent?.program_id || studentData.program_id;
-    const studentGender = enrollmentStudent?.gender || studentData.gender || 'male';
+    const studentId = result.matricNumber || result.studentId || matricNumber;
+    const studentName = result.studentName || studentData.name || 'Unknown Student';
+    const studentLevel = result.level || studentData.level || 100;
+    const studentProgramId = result.program_id || studentData.program_id;
+    const studentGender = result.gender || studentData.gender || 'male';
     
     console.log('Extracted student info:', {
       studentId,
@@ -214,8 +205,12 @@ const handleEnrollmentComplete = async (result: any) => {
     
     console.log('Processing enrollment for:', studentName, 'with ID:', studentId);
     
+    // DECLARE programName at a higher scope so it's available in catch block
+    let programName = 'Not specified';
+    
     try {
       let photoUrl = '';
+      let photoData = compressedImage;
       
       // Try to upload to Supabase Storage
       try {
@@ -237,93 +232,136 @@ const handleEnrollmentComplete = async (result: any) => {
           console.log('✅ Photo uploaded to storage:', photoUrl);
         } else {
           console.warn('❌ Storage upload failed:', storageError);
-          console.log('Will use base64 as fallback');
         }
       } catch (storageError) {
         console.warn('❌ Storage bucket may not exist:', storageError);
       }
 
-      // If storage failed, use base64
-      if (!photoUrl) {
-        photoUrl = compressedImage;
-        console.log('Using base64 image data as photoUrl');
-      }
-      
-      // Get program name
+      // Get program name - NOW programName is accessible in catch block
       const selectedProgram = programs.find(p => p.id === studentProgramId);
-      const programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
+      programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
       
-      // Prepare complete student data
-      const completeStudentData = {
+      // Get current year for admission
+      const currentYear = new Date().getFullYear();
+      const enrollmentDate = new Date();
+      
+      // Prepare student data according to your schema
+      const studentRecord = {
         student_id: studentId,
-        name: studentName,
         matric_number: studentId,
+        name: studentName,
+        gender: studentGender,
         level: studentLevel,
         program: programName,
         program_id: studentProgramId,
-        gender: studentGender,
-        enrollment_status: 'enrolled',
-        enrollment_date: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-        photo_url: photoUrl,
-        photo_updated_at: new Date().toISOString()
+        admission_year: currentYear,
+        enrollment_status: 'enrolled' as const,
+        enrollment_date: enrollmentDate.toISOString().split('T')[0], // Date only
+        photo_url: photoUrl || null,
+        photo_data: photoData.replace(/^data:image\/\w+;base64,/, ''), // Remove data URL prefix
+        face_enrolled_at: enrollmentDate.toISOString(),
+        last_updated: enrollmentDate.toISOString(),
+        created_at: enrollmentDate.toISOString()
       };
       
-      console.log('📊 Complete student data for database:', completeStudentData);
+      console.log('📊 Student data for database:', studentRecord);
       
-      // Save to students table
-      console.log('Attempting to save to students table...');
-      const { data: dbResult, error: dbError } = await supabase
+      // Check if student already exists
+      const { data: existingStudent, error: checkError } = await supabase
         .from('students')
-        .upsert([completeStudentData], { 
-          onConflict: 'matric_number'
-        })
-        .select(); // Add .select() to see what was inserted
+        .select('matric_number, id')
+        .eq('matric_number', studentId)
+        .maybeSingle();
       
-      if (dbError) {
-        console.error('❌ Database error:', dbError);
-        // Try insert instead
-        console.log('Trying insert instead of upsert...');
-        const { data: insertResult, error: insertError } = await supabase
+      let dbResult;
+      
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error checking student existence:', checkError);
+        throw checkError;
+      }
+      
+      if (!existingStudent) {
+        // Student doesn't exist, INSERT
+        console.log('Inserting new student...');
+        const { data: insertData, error: insertError } = await supabase
           .from('students')
-          .insert([completeStudentData])
+          .insert([studentRecord])
           .select();
         
         if (insertError) {
           throw insertError;
         }
-        console.log('✅ Student inserted successfully:', insertResult);
+        dbResult = insertData;
+        console.log('✅ New student inserted:', dbResult);
       } else {
-        console.log('✅ Student upserted successfully:', dbResult);
-      }
-      
-      // Store in student_photos table
-      try {
-        console.log('Attempting to save to student_photos table...');
-        const { data: photoResult, error: photoError } = await supabase
-          .from('student_photos')
-          .insert([{
-            student_id: studentId,
-            photo_url: photoUrl,
-            photo_data: compressedImage.replace(/^data:image\/\w+;base64,/, ''),
-            is_primary: true
-          }])
+        // Student exists, UPDATE with correct fields
+        console.log('Updating existing student...');
+        const { data: updateData, error: updateError } = await supabase
+          .from('students')
+          .update({
+            photo_url: studentRecord.photo_url,
+            photo_data: studentRecord.photo_data,
+            face_enrolled_at: studentRecord.face_enrolled_at,
+            enrollment_status: 'enrolled',
+            enrollment_date: studentRecord.enrollment_date,
+            last_updated: studentRecord.last_updated,
+            level: studentRecord.level,
+            program: studentRecord.program,
+            program_id: studentRecord.program_id,
+            gender: studentRecord.gender
+          })
+          .eq('matric_number', studentId)
           .select();
         
-        if (photoError) {
-          console.error('❌ Failed to save photo metadata:', photoError);
+        if (updateError) {
+          throw updateError;
+        }
+        dbResult = updateData;
+        console.log('✅ Student updated:', dbResult);
+      }
+      
+      // Store in student_photos table if it exists
+      try {
+        console.log('Checking for student_photos table...');
+        
+        // First, check if the table exists by trying to select from it
+        const { error: tableCheckError } = await supabase
+          .from('student_photos')
+          .select('count')
+          .limit(1);
+        
+        if (!tableCheckError) {
+          // Table exists, insert photo data
+          console.log('Saving to student_photos table...');
+          const { data: photoResult, error: photoError } = await supabase
+            .from('student_photos')
+            .upsert([{
+              student_id: studentId,
+              photo_url: photoUrl,
+              photo_data: photoData.replace(/^data:image\/\w+;base64,/, ''),
+              is_primary: true
+            }], {
+              onConflict: 'student_id,is_primary'
+            })
+            .select();
+          
+          if (photoError) {
+            console.error('⚠️ Photo metadata save warning:', photoError);
+          } else {
+            console.log('✅ Photo saved to student_photos:', photoResult);
+          }
         } else {
-          console.log('✅ Photo saved to student_photos table:', photoResult);
+          console.log('⚠️ student_photos table does not exist or error:', tableCheckError);
         }
       } catch (photoError) {
-        console.warn('⚠️ Could not save to student_photos table:', photoError);
+        console.warn('⚠️ Could not save to student_photos:', photoError);
       }
 
       // Save to local storage as backup
       try {
         const key = `face_image_${studentId}`;
-        localStorage.setItem(key, compressedImage);
-        console.log('✅ Image saved to localStorage with key:', key);
+        localStorage.setItem(key, photoData);
+        console.log('✅ Image saved to localStorage:', key);
       } catch (localError) {
         console.warn('⚠️ Local storage save failed:', localError);
       }
@@ -341,7 +379,7 @@ const handleEnrollmentComplete = async (result: any) => {
         program: programName,
         faceCaptured: true,
         localStorageSaved: true,
-        photoUrl: photoUrl,
+        photoUrl: photoUrl || photoData,
         databaseSaved: true
       });
       
@@ -350,26 +388,32 @@ const handleEnrollmentComplete = async (result: any) => {
       
     } catch (uploadError: any) {
       console.error('❌ Upload/processing error:', uploadError);
-      console.error('Error stack:', uploadError.stack);
+      console.error('Error details:', {
+        message: uploadError.message,
+        code: uploadError.code,
+        details: uploadError.details
+      });
       
-      // Fallback: Save minimal data
-      console.log('Attempting fallback save (minimal data)...');
+      // Fallback: Save minimal data - programName is now accessible here
+      console.log('Attempting fallback save...');
       const fallbackData = {
         student_id: studentId,
         name: studentName,
         matric_number: studentId,
         level: studentLevel,
+        program: programName, // Now this works!
         program_id: studentProgramId,
         gender: studentGender,
-        enrollment_status: 'enrolled',
-        enrollment_date: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-        photo_url: null
+        enrollment_status: 'enrolled' as const,
+        enrollment_date: new Date().toISOString().split('T')[0],
+        last_updated: new Date().toISOString()
       };
       
       const { error: fallbackError } = await supabase
         .from('students')
-        .insert([fallbackData]);
+        .upsert([fallbackData], {
+          onConflict: 'matric_number'
+        });
       
       if (fallbackError) {
         console.error('❌ Fallback save also failed:', fallbackError);
@@ -387,6 +431,7 @@ const handleEnrollmentComplete = async (result: any) => {
           matric_number: studentId
         },
         level: studentLevel,
+        program: programName, // Now this works!
         faceCaptured: false,
         localStorageSaved: false,
         databaseSaved: true
