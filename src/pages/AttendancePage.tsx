@@ -249,44 +249,49 @@ const AttendancePage: React.FC = () => {
           />
         </div>
 
-        {/* Course Selection */}
-        {currentStep === 0 && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ marginBottom: 24 }}>
-              <Text strong style={{ display: 'block', marginBottom: 8, fontSize: '16px' }}>
-                Select Course
-              </Text>
-              <Select
-                style={{ width: '100%', maxWidth: 400 }}
-                placeholder="Choose course..."
-                value={selectedCourse}
-                onChange={setSelectedCourse}
-                loading={loading}
-                size="large"
-                showSearch
-                options={courses.map(course => ({
-                  value: course.id,
-                  label: `${course.code} - ${course.title}`,
-                }))}
-              />
-            </div>
+        // Course Selection
+{currentStep === 0 && (
+  <div style={{ textAlign: 'center' }}>
+    <div style={{ marginBottom: 24 }}>
+      <Text strong style={{ display: 'block', marginBottom: 8, fontSize: '16px' }}>
+        Select Course
+      </Text>
+      <Select
+        style={{ width: '100%', maxWidth: 400 }}
+        placeholder="Search or select course..."
+        value={selectedCourse}
+        onChange={setSelectedCourse}
+        loading={loading}
+        size="large"
+        showSearch
+        filterOption={(input, option) =>
+          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+        }
+        optionFilterProp="label"
+        options={courses.map(course => ({
+          value: course.id,
+          label: `${course.code} - ${course.title}`,
+        }))}
+      />
+    </div>
 
-            <div style={{ 
-              backgroundColor: '#f6f9ff', 
-              padding: '20px', 
-              borderRadius: 8,
-              marginTop: 24 
-            }}>
-              <User size={24} color="#1890ff" style={{ marginBottom: 12 }} />
-              <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                Ready to scan
-              </Text>
-              <Tag color="blue" icon={<Shield size={12} />}>
-                {faceModelsLoaded ? 'Face AI Ready' : 'Loading AI...'}
-              </Tag>
-            </div>
-          </div>
-        )}
+    <div style={{ 
+      backgroundColor: '#f6f9ff', 
+      padding: '20px', 
+      borderRadius: 8,
+      marginTop: 24 
+    }}>
+      <User size={24} color="#1890ff" style={{ marginBottom: 12 }} />
+      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+        Ready to scan
+      </Text>
+      <Tag color="blue" icon={<Shield size={12} />}>
+        {faceModelsLoaded ? 'Face AI Ready' : 'Loading AI...'}
+      </Tag>
+    </div>
+  </div>
+)}
+       
 
         {/* Face Camera Section */}
         {isCameraActive && currentStep >= 1 && (
