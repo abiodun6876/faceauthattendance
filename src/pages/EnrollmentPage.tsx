@@ -238,7 +238,7 @@ const EnrollmentPage: React.FC = () => {
           console.warn('❌ Storage bucket may not exist:', storageError);
         }
 
-        // Get program name - NOW programName is accessible in catch block
+        // Get program name
         const selectedProgram = programs.find(p => p.id === studentProgramId);
         programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
         
@@ -246,7 +246,45 @@ const EnrollmentPage: React.FC = () => {
         const currentYear = new Date().getFullYear();
         const enrollmentDate = new Date();
         
-        // Prepare student data according to your schema
+        // ========== STEP 1: EXTRACT FACE EMBEDDING ==========
+        console.log('=== STEP 1: Extracting face embedding ===');
+        let embeddingArray = null;
+        let embeddingError = null;
+
+        try {
+          // Test the faceRecognition module first
+          console.log('Testing faceRecognition module...');
+          console.log('Module exists?', !!faceRecognition);
+          console.log('extractFaceDescriptor exists?', !!faceRecognition.extractFaceDescriptor);
+          
+          const descriptor = await faceRecognition.extractFaceDescriptor(compressedImage);
+          
+          if (descriptor) {
+            embeddingArray = Array.from(descriptor);
+            console.log('✅ Face embedding extracted, length:', embeddingArray.length);
+            console.log('First 5 values:', embeddingArray.slice(0, 5));
+            
+            // Save to local storage
+            faceRecognition.saveEmbeddingToLocal(studentId, descriptor);
+          } else {
+            console.log('⚠️ No face detected - embedding not extracted');
+            embeddingError = new Error('No face detected in image');
+          }
+        } catch (err: any) {
+          console.error('❌ Could not extract face embedding:', err);
+          console.error('Error details:', err.message, err.stack);
+          embeddingError = err;
+        }
+
+        // If embedding failed, we can't continue with enrollment
+        if (!embeddingArray) {
+          throw new Error(`Face embedding extraction failed: ${embeddingError?.message || 'No face detected'}. Please ensure the face is clearly visible and try again.`);
+        }
+
+        // ========== STEP 2: SAVE STUDENT WITH EMBEDDING ==========
+        console.log('=== STEP 2: Saving student with embedding ===');
+
+        // Prepare student data WITH embedding
         const studentRecord = {
           student_id: studentId,
           matric_number: studentId,
@@ -260,12 +298,17 @@ const EnrollmentPage: React.FC = () => {
           enrollment_date: enrollmentDate.toISOString().split('T')[0], // Date only
           photo_url: photoUrl || null,
           photo_data: photoData.replace(/^data:image\/\w+;base64,/, ''), // Remove data URL prefix
+          face_embedding: embeddingArray, // ← CRITICAL: Embedding is included
           face_enrolled_at: enrollmentDate.toISOString(),
           last_updated: enrollmentDate.toISOString(),
           created_at: enrollmentDate.toISOString()
         };
         
-        console.log('📊 Student data for database:', studentRecord);
+        console.log('📊 Student data for database (with embedding):', {
+          ...studentRecord,
+          face_embedding_length: studentRecord.face_embedding?.length,
+          face_embedding_first_5: studentRecord.face_embedding?.slice(0, 5)
+        });
         
         // Check if student already exists
         const { data: existingStudent, error: checkError } = await supabase
@@ -282,43 +325,37 @@ const EnrollmentPage: React.FC = () => {
         }
         
         if (!existingStudent) {
-          // Student doesn't exist, INSERT
-          console.log('Inserting new student...');
+          // Student doesn't exist, INSERT with embedding
+          console.log('Inserting new student with embedding...');
           const { data: insertData, error: insertError } = await supabase
             .from('students')
             .insert([studentRecord])
             .select();
           
           if (insertError) {
+            console.error('Insert error:', insertError);
             throw insertError;
           }
           dbResult = insertData;
-          console.log('✅ New student inserted:', dbResult);
+          console.log('✅ New student inserted with embedding:', dbResult);
         } else {
-          // Student exists, UPDATE with correct fields
-          console.log('Updating existing student...');
+          // Student exists, UPDATE with all fields including embedding
+          console.log('Updating existing student with embedding...');
           const { data: updateData, error: updateError } = await supabase
             .from('students')
             .update({
-              photo_url: studentRecord.photo_url,
-              photo_data: studentRecord.photo_data,
-              face_enrolled_at: studentRecord.face_enrolled_at,
-              enrollment_status: 'enrolled',
-              enrollment_date: studentRecord.enrollment_date,
-              last_updated: studentRecord.last_updated,
-              level: studentRecord.level,
-              program: studentRecord.program,
-              program_id: studentRecord.program_id,
-              gender: studentRecord.gender
+              ...studentRecord,
+              id: existingStudent.id // Keep the existing ID
             })
             .eq('matric_number', studentId)
             .select();
           
           if (updateError) {
+            console.error('Update error:', updateError);
             throw updateError;
           }
           dbResult = updateData;
-          console.log('✅ Student updated:', dbResult);
+          console.log('✅ Student updated with embedding:', dbResult);
         }
         
         // Store in student_photos table if it exists
@@ -340,7 +377,9 @@ const EnrollmentPage: React.FC = () => {
                 student_id: studentId,
                 photo_url: photoUrl,
                 photo_data: photoData.replace(/^data:image\/\w+;base64,/, ''),
-                is_primary: true
+                is_primary: true,
+                embedding_extracted: true,
+                embedding_length: embeddingArray?.length
               }], {
                 onConflict: 'student_id,is_primary'
               })
@@ -367,40 +406,32 @@ const EnrollmentPage: React.FC = () => {
           console.warn('⚠️ Local storage save failed:', localError);
         }
         
-        // ========== EXTRACT AND SAVE FACE EMBEDDING ==========
-        // This is the part you wanted to add!
-        try {
-          console.log('Extracting face embedding for future attendance matching...');
-          const descriptor = await faceRecognition.extractFaceDescriptor(compressedImage);
-          
-          if (descriptor) {
-            const embeddingArray = Array.from(descriptor);
-            
-            // Save embedding to database
-            await supabase
-              .from('students')
-              .update({
-                face_embedding: embeddingArray,
-                last_face_update: new Date().toISOString()
-              })
-              .eq('student_id', studentId);
-            
-            console.log('✅ Face embedding extracted and saved for attendance matching');
-            
-            // Also save to local storage
-            faceRecognition.saveEmbeddingToLocal(studentId, descriptor);
-          } else {
-            console.log('⚠️ No face detected - embedding not saved');
-          }
-        } catch (embeddingError) {
-          console.warn('⚠️ Could not extract face embedding:', embeddingError);
-          // This is OK! Enrollment can continue without embedding
+        // ========== STEP 3: VERIFY ENROLLMENT ==========
+        console.log('=== STEP 3: Verifying enrollment ===');
+        
+        // Verify the embedding was actually saved
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('students')
+          .select('student_id, name, face_embedding')
+          .eq('matric_number', studentId)
+          .single();
+        
+        if (verifyError) {
+          console.error('Verification error:', verifyError);
+          throw new Error(`Enrollment verification failed: ${verifyError.message}`);
         }
+        
+        console.log('✅ Enrollment verified:', {
+          studentId: verifyData.student_id,
+          name: verifyData.name,
+          embeddingSaved: verifyData.face_embedding !== null,
+          embeddingLength: verifyData.face_embedding?.length || 0
+        });
         
         // Set enrollment result
         setEnrollmentResult({
           success: true,
-          message: 'Enrollment completed successfully!',
+          message: 'Enrollment completed successfully with face embedding!',
           student: {
             name: studentName,
             student_id: studentId,
@@ -412,11 +443,16 @@ const EnrollmentPage: React.FC = () => {
           localStorageSaved: true,
           photoUrl: photoUrl || photoData,
           databaseSaved: true,
-          faceEmbeddingSaved: true // Added this!
+          faceEmbeddingSaved: true,
+          embeddingLength: embeddingArray.length,
+          verification: {
+            embeddingPresent: verifyData.face_embedding !== null,
+            embeddingLength: verifyData.face_embedding?.length
+          }
         });
         
         setEnrollmentComplete(true);
-        message.success(`Enrollment complete for ${studentName}!`);
+        message.success(`Enrollment complete for ${studentName}! Face embedding saved.`);
         
       } catch (uploadError: any) {
         console.error('❌ Upload/processing error:', uploadError);
@@ -426,19 +462,20 @@ const EnrollmentPage: React.FC = () => {
           details: uploadError.details
         });
         
-        // Fallback: Save minimal data - programName is now accessible here
-        console.log('Attempting fallback save...');
+        // Fallback: Save as pending if embedding fails
+        console.log('Attempting fallback save as pending...');
         const fallbackData = {
           student_id: studentId,
           name: studentName,
           matric_number: studentId,
           level: studentLevel,
-          program: programName, // Now this works!
+          program: programName,
           program_id: studentProgramId,
           gender: studentGender,
-          enrollment_status: 'enrolled' as const,
+          enrollment_status: 'pending' as const, // Set as pending, not enrolled
           enrollment_date: new Date().toISOString().split('T')[0],
-          last_updated: new Date().toISOString()
+          last_updated: new Date().toISOString(),
+          face_embedding: null // Explicitly null since extraction failed
         };
         
         const { error: fallbackError } = await supabase
@@ -452,26 +489,27 @@ const EnrollmentPage: React.FC = () => {
           throw fallbackError;
         }
         
-        console.log('✅ Fallback save successful');
+        console.log('✅ Fallback save successful (status: pending)');
         
         setEnrollmentResult({
-          success: true,
-          message: 'Enrollment completed but photo save failed.',
+          success: false,
+          message: 'Enrollment failed: Could not extract face embedding. Student saved as "pending".',
           student: {
             name: studentName,
             student_id: studentId,
             matric_number: studentId
           },
           level: studentLevel,
-          program: programName, // Now this works!
-          faceCaptured: false,
+          program: programName,
+          faceCaptured: true,
           localStorageSaved: false,
           databaseSaved: true,
-          faceEmbeddingSaved: false
+          faceEmbeddingSaved: false,
+          status: 'pending'
         });
         
         setEnrollmentComplete(true);
-        message.warning(`Enrollment complete for ${studentName}, but image save failed.`);
+        message.warning(`Enrollment incomplete for ${studentName}. Face embedding extraction failed. Student saved as "pending".`);
       }
       
     } catch (error: any) {
@@ -706,7 +744,12 @@ const EnrollmentPage: React.FC = () => {
                 </p>
                 <p><strong>Face Embedding:</strong> 
                   <Tag color={enrollmentResult?.faceEmbeddingSaved ? "green" : "orange"} style={{ marginLeft: 8 }}>
-                    {enrollmentResult?.faceEmbeddingSaved ? 'Extracted ✓' : 'Not Extracted'}
+                    {enrollmentResult?.faceEmbeddingSaved ? `Extracted ✓ (${enrollmentResult?.embeddingLength} values)` : 'Not Extracted'}
+                  </Tag>
+                </p>
+                <p><strong>Verification:</strong> 
+                  <Tag color={enrollmentResult?.verification?.embeddingPresent ? "green" : "red"} style={{ marginLeft: 8 }}>
+                    {enrollmentResult?.verification?.embeddingPresent ? `Verified (${enrollmentResult?.verification?.embeddingLength} values)` : 'Not Verified'}
                   </Tag>
                 </p>
                 <p><strong>Local Storage:</strong> 
@@ -741,15 +784,24 @@ const EnrollmentPage: React.FC = () => {
                 </svg>
               </div>
               <Title level={3} style={{ marginTop: 20 }}>
-                Enrollment Failed
+                {enrollmentResult?.status === 'pending' ? 'Enrollment Incomplete' : 'Enrollment Failed'}
               </Title>
               <Alert
-                message="Error"
+                message={enrollmentResult?.status === 'pending' ? 'Partial Success' : 'Error'}
                 description={enrollmentResult?.message || 'Unknown error occurred'}
-                type="error"
+                type={enrollmentResult?.status === 'pending' ? 'warning' : 'error'}
                 showIcon
                 style={{ maxWidth: 500, margin: '20px auto' }}
               />
+              {enrollmentResult?.status === 'pending' && (
+                <Alert
+                  message="Next Steps"
+                  description="The student was saved but needs face embedding. You can retry face enrollment from the student management page."
+                  type="info"
+                  showIcon
+                  style={{ maxWidth: 500, margin: '20px auto' }}
+                />
+              )}
             </>
           )}
           
@@ -887,7 +939,7 @@ const EnrollmentPage: React.FC = () => {
                   <Alert
                     type="warning"
                     message="Important for Attendance"
-                    description="Face data is required for biometric attendance marking. Please ensure good lighting."
+                    description="Face data and embedding are required for biometric attendance marking. Please ensure good lighting and a clear face view."
                     style={{ marginBottom: 20 }}
                   />
                   
