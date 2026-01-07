@@ -1,4 +1,4 @@
-// src/components/FaceCamera.tsx - SIMPLIFIED AUTO-CAPTURE
+// src/components/FaceCamera.tsx - MOBILE-KIOSK OPTIMIZED
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Card, 
@@ -9,7 +9,7 @@ import {
   Progress, 
   Tag
 } from 'antd';
-import { Camera, CheckCircle, VideoOff } from 'lucide-react';
+import { Camera, VideoOff } from 'lucide-react';
 
 const { Text } = Typography;
 
@@ -28,7 +28,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   onEnrollmentComplete,
   onAttendanceComplete,
   autoCapture = true,
-  captureInterval = 3000 // Capture every 3 seconds
+  captureInterval = 3000
 }) => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -50,17 +50,14 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     }
     
     if (autoCaptureActive && mode === 'attendance' && isCameraActive) {
-      console.log('Starting auto-capture interval...');
-      
       autoCaptureRef.current = window.setInterval(() => {
         if (!isCapturing && isCameraActive) {
           const now = Date.now();
           if (now - lastCaptureTime > captureInterval) {
-            console.log('Auto-capture triggered');
             handleCapture();
           }
         }
-      }, 1000); // Check every second
+      }, 1000);
     }
   };
 
@@ -72,9 +69,8 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     }
   };
 
-  // Start camera
+  // Start camera - Optimized for front camera
   const startCamera = async () => {
-    console.log('Starting camera...');
     setError(null);
     
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -83,28 +79,17 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     }
 
     try {
-      // Try different constraints
-      const constraintsOptions = [
-        { video: { width: 640, height: 480 } },
-        { video: { facingMode: 'user' } },
-        { video: true }
-      ];
+      // Front camera for kiosk mode
+      const constraints = { 
+        video: { 
+          facingMode: 'user', // Always use front camera
+          width: { ideal: 1280 }, // Higher resolution for better face recognition
+          height: { ideal: 720 }
+        }, 
+        audio: false 
+      };
 
-      let stream = null;
-      
-      for (const constraints of constraintsOptions) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ ...constraints, audio: false });
-          console.log('Camera started with constraints:', constraints);
-          break;
-        } catch (err) {
-          console.log('Failed with constraints:', constraints);
-        }
-      }
-
-      if (!stream) {
-        throw new Error('Could not access camera');
-      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
       streamRef.current = stream;
       
@@ -114,7 +99,6 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         await new Promise((resolve) => {
           if (videoRef.current) {
             videoRef.current.onloadedmetadata = () => {
-              console.log('Camera video loaded');
               resolve(true);
             };
           } else {
@@ -128,16 +112,14 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         if (mode === 'attendance' && autoCaptureActive) {
           startAutoCapture();
         }
-        
-        console.log('Camera started successfully');
       }
       
     } catch (err: any) {
       console.error('Camera error:', err);
       if (err.name === 'NotAllowedError') {
-        setError('Camera access denied. Please allow camera access.');
+        setError('Camera access denied. Please check permissions.');
       } else if (err.name === 'NotFoundError') {
-        setError('No camera found.');
+        setError('Front camera not found.');
       } else {
         setError('Failed to start camera: ' + err.message);
       }
@@ -160,7 +142,6 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   // Capture image
   const captureImage = async (): Promise<string | null> => {
     if (!isCameraActive || !videoRef.current || !canvasRef.current) {
-      console.error('Camera not ready for capture');
       return null;
     }
 
@@ -168,31 +149,19 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     
-    if (!ctx) {
-      console.error('Canvas context not available');
-      return null;
-    }
+    if (!ctx) return null;
 
-    console.log('Capturing image...');
-    
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    const imageData = canvas.toDataURL('image/jpeg', 0.9);
-    console.log('Image captured successfully');
-    
-    return imageData;
+    return canvas.toDataURL('image/jpeg', 0.9);
   };
 
   // Handle capture
   const handleCapture = async () => {
-    if (!isCameraActive || isCapturing) {
-      console.log('Cannot capture: camera not active or already capturing');
-      return;
-    }
+    if (!isCameraActive || isCapturing) return;
     
-    console.log('Starting capture process...');
     setIsCapturing(true);
     setLastCaptureTime(Date.now());
     setCaptureCount(prev => prev + 1);
@@ -203,8 +172,6 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       if (!imageData) {
         throw new Error('Failed to capture image');
       }
-
-      console.log('Processing captured image...');
       
       // Process capture
       processCapture(imageData);
@@ -217,15 +184,12 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
 
   // Process capture
   const processCapture = (imageData: string) => {
-    console.log('Processing capture...');
     setProgress(0);
 
     const interval = window.setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
           window.clearInterval(interval);
-          
-          console.log('Capture processing complete');
           
           const result = {
             success: true,
@@ -250,7 +214,6 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
             setTimeout(() => {
               setIsCapturing(false);
               onAttendanceComplete?.(result);
-              console.log('Attendance capture sent to parent');
             }, 500);
           }
           
@@ -302,18 +265,32 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   }, []);
 
   return (
-    <Card style={{ margin: '0 auto' }} bodyStyle={{ padding: '16px' }}>
-      {/* Camera Feed */}
-      <div style={{ textAlign: 'center' }}>
+    <div style={{
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      padding: '16px',
+      backgroundColor: '#f0f2f5'
+    }}>
+      {/* Camera Feed - Takes 70% of screen */}
+      <div style={{
+        flex: 7,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
         <div style={{ 
           width: '100%',
-          height: 300,
+          height: '100%',
+          maxHeight: '70vh',
           backgroundColor: '#000',
-          borderRadius: 8,
+          borderRadius: 16,
           overflow: 'hidden',
-          marginBottom: 16,
-          border: isCameraActive ? '3px solid #52c41a' : '3px solid #d9d9d9',
-          position: 'relative'
+          border: isCameraActive ? '4px solid #52c41a' : '4px solid #d9d9d9',
+          position: 'relative',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
         }}>
           <video
             ref={videoRef}
@@ -324,7 +301,8 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              display: isCameraActive ? 'block' : 'none'
+              display: isCameraActive ? 'block' : 'none',
+              transform: 'scaleX(-1)' // Mirror for selfie view
             }}
           />
           {!isCameraActive && (
@@ -335,142 +313,279 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff'
+              color: '#fff',
+              backgroundColor: '#1a1a1a'
             }}>
-              <VideoOff size={48} />
+              <VideoOff size={64} />
+              <Text style={{ 
+                color: '#fff', 
+                marginTop: 16,
+                fontSize: 18,
+                fontWeight: 'bold'
+              }}>
+                Camera Loading...
+              </Text>
             </div>
           )}
           
-          {/* Auto-capture status */}
-          {isCameraActive && mode === 'attendance' && (
+          {/* Status overlay */}
+          {isCameraActive && (
             <div style={{
               position: 'absolute',
-              bottom: 10,
-              left: 10,
-              backgroundColor: autoCaptureActive ? 'rgba(82, 196, 26, 0.8)' : 'rgba(250, 173, 20, 0.8)',
-              color: 'white',
-              padding: '4px 8px',
-              borderRadius: 4,
-              fontSize: '12px',
-              fontWeight: 'bold'
+              top: 12,
+              left: 12,
+              right: 12,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
             }}>
-              {autoCaptureActive ? `AUTO-CAPTURE: ${captureCount}` : 'MANUAL MODE'}
-            </div>
-          )}
-        </div>
-
-        {/* Status */}
-        <div style={{ marginTop: 12 }}>
-          <Space>
-            <div style={{ 
-              width: 10, 
-              height: 10, 
-              borderRadius: '50%',
-              backgroundColor: isCameraActive ? '#52c41a' : '#ff4d4f'
-            }} />
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              {isCameraActive ? 'CAMERA ACTIVE' : 'CAMERA OFF'}
-            </Text>
-            
-            {isCapturing && (
-              <>
+              <div style={{
+                backgroundColor: autoCaptureActive ? 'rgba(82, 196, 26, 0.9)' : 'rgba(250, 173, 20, 0.9)',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: 20,
+                fontSize: 14,
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
                 <div style={{ 
                   width: 10, 
                   height: 10, 
                   borderRadius: '50%',
-                  backgroundColor: '#1890ff',
-                  animation: 'pulse 1s infinite'
+                  backgroundColor: isCapturing ? '#1890ff' : '#fff',
+                  animation: isCapturing ? 'pulse 1s infinite' : 'none'
                 }} />
-                <Text type="secondary" style={{ fontSize: '12px', color: '#1890ff' }}>
-                  CAPTURING...
-                </Text>
-              </>
-            )}
-          </Space>
+                {autoCaptureActive ? `AUTO-SCAN: ${captureCount}` : 'MANUAL MODE'}
+              </div>
+              
+              <div style={{
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: 20,
+                fontSize: 14,
+                fontWeight: 'bold'
+              }}>
+                {isCapturing ? 'CAPTURING...' : 'READY'}
+              </div>
+            </div>
+          )}
+
+          {/* Guide frame for face positioning */}
+          {isCameraActive && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '60%',
+              height: '70%',
+              border: '3px dashed rgba(255,255,255,0.5)',
+              borderRadius: 8,
+              pointerEvents: 'none'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 12,
+                fontWeight: 'bold',
+                textAlign: 'center'
+              }}>
+                Position Face Here
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Controls Panel - Takes 30% of screen */}
+      <div style={{
+        flex: 3,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        paddingTop: 16
+      }}>
+        {/* Status Indicators */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: 16,
+          marginBottom: 16
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 8 
+          }}>
+            <div style={{ 
+              width: 16, 
+              height: 16, 
+              borderRadius: '50%',
+              backgroundColor: isCameraActive ? '#52c41a' : '#ff4d4f'
+            }} />
+            <Text strong style={{ fontSize: 14 }}>
+              {isCameraActive ? 'CAMERA ACTIVE' : 'CAMERA OFF'}
+            </Text>
+          </div>
+          
+          {isCapturing && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 8 
+            }}>
+              <div style={{ 
+                width: 16, 
+                height: 16, 
+                borderRadius: '50%',
+                backgroundColor: '#1890ff',
+                animation: 'pulse 1s infinite'
+              }} />
+              <Text strong style={{ fontSize: 14, color: '#1890ff' }}>
+                PROCESSING...
+              </Text>
+            </div>
+          )}
         </div>
 
-        {/* Control buttons */}
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 8 }}>
+        {/* Processing Bar */}
+        {isCapturing && (
+          <div style={{ marginBottom: 16 }}>
+            <Progress 
+              percent={progress} 
+              status="active" 
+              strokeColor={{ from: '#108ee9', to: '#87d068' }}
+              strokeWidth={8}
+            />
+          </div>
+        )}
+
+        {/* Control Buttons */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: 12,
+          marginBottom: 16
+        }}>
           <Button
             type="primary"
-            icon={<Camera size={16} />}
+            icon={<Camera size={20} />}
             onClick={handleCapture}
             disabled={!isCameraActive || isCapturing}
-            size="small"
+            size="large"
+            style={{
+              height: 56,
+              fontSize: 16,
+              padding: '0 24px',
+              borderRadius: 12,
+              flex: 1,
+              maxWidth: 180
+            }}
           >
-            Capture Now
+            CAPTURE NOW
           </Button>
           
           {mode === 'attendance' && (
             <Button
               type={autoCaptureActive ? "default" : "primary"}
               onClick={toggleAutoCapture}
-              size="small"
+              size="large"
+              style={{
+                height: 56,
+                fontSize: 16,
+                padding: '0 24px',
+                borderRadius: 12,
+                flex: 1,
+                maxWidth: 180
+              }}
             >
-              {autoCaptureActive ? 'Stop Auto' : 'Start Auto'}
+              {autoCaptureActive ? 'STOP AUTO' : 'START AUTO'}
             </Button>
           )}
-          
+        </div>
+
+        {/* Camera Control */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center',
+          marginBottom: 16
+        }}>
           <Button
+            type={isCameraActive ? "default" : "primary"}
             onClick={isCameraActive ? stopCamera : startCamera}
-            size="small"
+            size="large"
+            style={{
+              height: 48,
+              fontSize: 16,
+              padding: '0 32px',
+              borderRadius: 12,
+              width: '100%',
+              maxWidth: 300
+            }}
           >
-            {isCameraActive ? 'Stop Camera' : 'Start Camera'}
+            {isCameraActive ? 'STOP CAMERA' : 'START CAMERA'}
           </Button>
         </div>
-      </div>
 
-      {/* Processing */}
-      {isCapturing && (
-        <div style={{ textAlign: 'center', marginTop: 16 }}>
-          <Progress 
-            percent={progress} 
-            status="active" 
-            strokeColor={{ from: '#108ee9', to: '#87d068' }}
-          />
-          <Text type="secondary" style={{ marginTop: 8, fontSize: '12px' }}>
-            Processing face... ({progress}%)
-          </Text>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div style={{ textAlign: 'center', marginTop: 16 }}>
-          <Alert
-            message="Camera Error"
-            description={error}
-            type="error"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-          <Button
-            type="primary"
-            onClick={startCamera}
-            size="small"
+        {/* Stats */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: 12 
+        }}>
+          <Tag 
+            color="blue"
+            style={{ 
+              fontSize: 14,
+              padding: '8px 16px',
+              borderRadius: 20
+            }}
           >
-            Retry Camera
-          </Button>
-        </div>
-      )}
-
-      {/* Status info */}
-      <div style={{ marginTop: 16, textAlign: 'center' }}>
-        <Space>
-          <Tag color={isCameraActive ? "green" : "red"}>
-            {isCameraActive ? 'Camera On' : 'Camera Off'}
-          </Tag>
-          <Tag color={autoCaptureActive ? "green" : "orange"}>
-            {autoCaptureActive ? 'Auto-Capture On' : 'Manual Mode'}
-          </Tag>
-          <Tag color="blue">
             Captures: {captureCount}
           </Tag>
-        </Space>
+          <Tag 
+            color={autoCaptureActive ? "green" : "orange"}
+            style={{ 
+              fontSize: 14,
+              padding: '8px 16px',
+              borderRadius: 20
+            }}
+          >
+            {autoCaptureActive ? 'Auto: ON' : 'Auto: OFF'}
+          </Tag>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div style={{ marginTop: 16 }}>
+            <Alert
+              message="Camera Error"
+              description={error}
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+              action={
+                <Button
+                  type="primary"
+                  onClick={startCamera}
+                  size="small"
+                >
+                  RETRY
+                </Button>
+              }
+            />
+          </div>
+        )}
       </div>
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
-    </Card>
+    </div>
   );
 };
 
