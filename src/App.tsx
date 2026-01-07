@@ -96,9 +96,7 @@ const HomeCards = () => {
 
   return (
     <div style={{ padding: isMobile ? '10px' : '20px' }}>
-      <Title level={3} style={{ marginBottom: 24, textAlign: isMobile ? 'center' : 'left' }}>
-        Welcome To ABUAD Face Attendance System
-      </Title>
+    
 
       <Row gutter={[16, 16]} justify={isMobile ? 'center' : 'start'}>
         {cards.map((card) => (
