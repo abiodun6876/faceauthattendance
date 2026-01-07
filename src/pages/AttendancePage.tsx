@@ -1,4 +1,4 @@
-// src/pages/AttendancePage.tsx - ULTRA SIMPLIFIED
+// src/pages/AttendancePage.tsx - WITH DUPLICATE PREVENTION
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Card,
@@ -10,13 +10,16 @@ import {
   Space,
   Tag,
   Statistic,
-  Badge
+  Badge,
+  Alert
 } from 'antd';
 import { 
   Camera, 
   CheckCircle, 
   XCircle,
-  Clock
+  Clock,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -39,8 +42,10 @@ const AttendancePage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [scanCount, setScanCount] = useState(0);
   const [successfulScans, setSuccessfulScans] = useState(0);
+  const [alreadyMarkedScans, setAlreadyMarkedScans] = useState(0);
   
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const markedStudentsRef = useRef<Set<string>>(new Set()); // Track marked students for this session
 
   // Fetch courses
   const fetchCourses = async () => {
@@ -57,11 +62,47 @@ const AttendancePage: React.FC = () => {
     }
   };
 
+  // Check if student already marked attendance today
+  const checkExistingAttendance = async (studentId: string): Promise<boolean> => {
+    if (!selectedCourseData) return false;
+    
+    try {
+      const attendanceDate = dayjs().format('YYYY-MM-DD');
+      
+      const { data, error } = await supabase
+        .from('student_attendance')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('course_code', selectedCourseData.code)
+        .eq('attendance_date', attendanceDate)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      return !!data; // Returns true if attendance already exists
+    } catch (error) {
+      console.error('Error checking existing attendance:', error);
+      return false;
+    }
+  };
+
   // Record Attendance
   const recordAttendance = async (studentData: any, confidence: number) => {
     try {
       const attendanceDate = dayjs().format('YYYY-MM-DD');
       
+      // Check if already marked in database
+      const alreadyMarked = await checkExistingAttendance(studentData.student_id);
+      if (alreadyMarked) {
+        return { success: false, alreadyMarked: true };
+      }
+      
+      // Check if already marked in this session
+      const studentKey = `${studentData.student_id}-${selectedCourseData.code}-${attendanceDate}`;
+      if (markedStudentsRef.current.has(studentKey)) {
+        return { success: false, alreadyMarked: true };
+      }
+
       const attendanceData = {
         student_id: studentData.student_id,
         student_name: studentData.name,
@@ -79,27 +120,16 @@ const AttendancePage: React.FC = () => {
         updated_at: new Date().toISOString()
       };
       
-      // Check existing attendance
-      const { data: existingAttendance } = await supabase
+      const { error } = await supabase
         .from('student_attendance')
-        .select('id')
-        .eq('student_id', studentData.student_id)
-        .eq('course_code', selectedCourseData.code)
-        .eq('attendance_date', attendanceDate)
-        .single();
+        .insert([attendanceData]);
       
-      if (existingAttendance) {
-        await supabase
-          .from('student_attendance')
-          .update(attendanceData)
-          .eq('id', existingAttendance.id);
-      } else {
-        await supabase
-          .from('student_attendance')
-          .insert([attendanceData]);
-      }
+      if (error) throw error;
       
-      return true;
+      // Mark as recorded in this session
+      markedStudentsRef.current.add(studentKey);
+      
+      return { success: true, alreadyMarked: false };
       
     } catch (error: any) {
       console.error('Record attendance error:', error);
@@ -109,7 +139,7 @@ const AttendancePage: React.FC = () => {
 
   // Handle face detection
   const handleFaceDetection = async (result: any) => {
-    if (!result.success || !result.photoUrl || isProcessing) return;
+    if (!result.success || !result.photoUrl || isProcessing || !selectedCourseData) return;
     
     setIsProcessing(true);
     setScanCount(prev => prev + 1);
@@ -118,7 +148,11 @@ const AttendancePage: React.FC = () => {
       const matches = await faceRecognition.matchFaceForAttendance(result.photoUrl);
       
       if (matches.length === 0 || matches[0].confidence < 0.60) {
-        setLastScanResult({ success: false });
+        setLastScanResult({ 
+          success: false,
+          type: 'no_match',
+          message: 'No matching student found'
+        });
         return;
       }
       
@@ -133,35 +167,54 @@ const AttendancePage: React.FC = () => {
         .maybeSingle();
       
       if (!studentData) {
-        setLastScanResult({ success: false });
+        setLastScanResult({ 
+          success: false,
+          type: 'not_enrolled',
+          message: 'Student not enrolled'
+        });
         return;
       }
       
       // Record attendance
-      await recordAttendance(studentData, bestMatch.confidence);
+      const attendanceResult = await recordAttendance(studentData, bestMatch.confidence);
       
-      setLastScanResult({
-        success: true,
-        student: {
-          name: studentData.name,
-          matric_number: studentData.matric_number
-        },
-        confidence: bestMatch.confidence
-      });
-      
-      setSuccessfulScans(prev => prev + 1);
-      
-      // Auto-reset after 2 seconds
-      if (scanTimeoutRef.current) {
-        clearTimeout(scanTimeoutRef.current);
+      if (attendanceResult.alreadyMarked) {
+        setLastScanResult({
+          success: false,
+          type: 'already_marked',
+          student: {
+            name: studentData.name,
+            matric_number: studentData.matric_number
+          }
+        });
+        setAlreadyMarkedScans(prev => prev + 1);
+      } else if (attendanceResult.success) {
+        setLastScanResult({
+          success: true,
+          student: {
+            name: studentData.name,
+            matric_number: studentData.matric_number
+          },
+          confidence: bestMatch.confidence
+        });
+        setSuccessfulScans(prev => prev + 1);
+        
+        // Auto-reset after 2 seconds
+        if (scanTimeoutRef.current) {
+          clearTimeout(scanTimeoutRef.current);
+        }
+        scanTimeoutRef.current = setTimeout(() => {
+          setLastScanResult(null);
+        }, 2000);
       }
-      scanTimeoutRef.current = setTimeout(() => {
-        setLastScanResult(null);
-      }, 2000);
       
     } catch (error: any) {
       console.error('Face recognition error:', error);
-      setLastScanResult({ success: false });
+      setLastScanResult({ 
+        success: false,
+        type: 'error',
+        message: 'Processing error'
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -179,6 +232,8 @@ const AttendancePage: React.FC = () => {
     }
     setIsCameraActive(true);
     setLastScanResult(null);
+    // Clear marked students for new session
+    markedStudentsRef.current.clear();
   };
 
   // Stop scanning
@@ -197,6 +252,8 @@ const AttendancePage: React.FC = () => {
     setSelectedCourseData(null);
     setScanCount(0);
     setSuccessfulScans(0);
+    setAlreadyMarkedScans(0);
+    markedStudentsRef.current.clear();
     if (scanTimeoutRef.current) {
       clearTimeout(scanTimeoutRef.current);
     }
@@ -227,6 +284,8 @@ const AttendancePage: React.FC = () => {
     if (selectedCourse) {
       const course = courses.find(c => c.id === selectedCourse);
       setSelectedCourseData(course);
+      // Clear marked students when course changes
+      markedStudentsRef.current.clear();
     }
   }, [selectedCourse]);
 
@@ -289,6 +348,9 @@ const AttendancePage: React.FC = () => {
             <Title level={4} style={{ marginBottom: 8, color: '#52c41a' }}>
               {selectedCourseData?.code}
             </Title>
+            <Text type="secondary" style={{ marginBottom: 24, display: 'block' }}>
+              {selectedCourseData?.title}
+            </Text>
             
             <Button
               type="primary"
@@ -323,7 +385,10 @@ const AttendancePage: React.FC = () => {
             }}>
               <div>
                 <Text strong style={{ fontSize: '16px', display: 'block' }}>
-                  Scanning: {selectedCourseData?.code}
+                  {selectedCourseData?.code}
+                </Text>
+                <Text type="secondary" style={{ fontSize: '14px' }}>
+                  {dayjs().format('DD MMM YYYY')}
                 </Text>
               </div>
               
@@ -352,7 +417,7 @@ const AttendancePage: React.FC = () => {
                   mode="attendance"
                   onAttendanceComplete={handleFaceDetection}
                   autoCapture={true}
-                  captureInterval={1000}
+                  captureInterval={3000}
                 />
                 <div style={{ textAlign: 'center', marginTop: 12 }}>
                   <Tag color="processing">
@@ -368,25 +433,25 @@ const AttendancePage: React.FC = () => {
                   <div style={{ 
                     padding: '20px',
                     borderRadius: 8,
-                    backgroundColor: lastScanResult.success ? '#f6ffed' : '#fff2f0',
-                    border: `1px solid ${lastScanResult.success ? '#b7eb8f' : '#ffccc7'}`,
                     marginBottom: 20
                   }}>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center',
-                      marginBottom: 16
-                    }}>
-                      {lastScanResult.success ? (
-                        <CheckCircle size={32} color="#52c41a" />
-                      ) : (
-                        <XCircle size={32} color="#ff4d4f" />
-                      )}
-                    </div>
-                    
-                    {lastScanResult.success && (
-                      <>
+                    {lastScanResult.success ? (
+                      // Success - Attendance Marked
+                      <div style={{ 
+                        backgroundColor: '#f6ffed',
+                        border: '1px solid #b7eb8f',
+                        padding: '20px',
+                        borderRadius: 8
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          marginBottom: 16
+                        }}>
+                          <CheckCircle size={32} color="#52c41a" />
+                        </div>
+                        
                         <Text strong style={{ fontSize: '18px', display: 'block', textAlign: 'center' }}>
                           {lastScanResult.student?.name}
                         </Text>
@@ -396,13 +461,75 @@ const AttendancePage: React.FC = () => {
                         <Text style={{ display: 'block', textAlign: 'center', color: '#52c41a' }}>
                           ✓ Attendance Recorded
                         </Text>
-                      </>
-                    )}
-                    
-                    {!lastScanResult.success && (
-                      <Text style={{ display: 'block', textAlign: 'center', color: '#ff4d4f' }}>
-                        Scan Failed
-                      </Text>
+                        
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'center',
+                          gap: 8,
+                          marginTop: 16
+                        }}>
+                          <Tag color="success">✓ Marked</Tag>
+                          <Tag color="blue">{dayjs().format('HH:mm')}</Tag>
+                        </div>
+                      </div>
+                    ) : lastScanResult.type === 'already_marked' ? (
+                      // Already Marked
+                      <div style={{ 
+                        backgroundColor: '#fff7e6',
+                        border: '1px solid #ffd591',
+                        padding: '20px',
+                        borderRadius: 8
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          marginBottom: 16
+                        }}>
+                          <UserCheck size={32} color="#fa8c16" />
+                        </div>
+                        
+                        <Text strong style={{ fontSize: '18px', display: 'block', textAlign: 'center' }}>
+                          {lastScanResult.student?.name}
+                        </Text>
+                        <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 8 }}>
+                          {lastScanResult.student?.matric_number}
+                        </Text>
+                        <Text style={{ display: 'block', textAlign: 'center', color: '#fa8c16' }}>
+                          Already Marked for this Class
+                        </Text>
+                        
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'center',
+                          gap: 8,
+                          marginTop: 16
+                        }}>
+                          <Tag color="orange">Already Marked</Tag>
+                          <Tag color="blue">{dayjs().format('HH:mm')}</Tag>
+                        </div>
+                      </div>
+                    ) : (
+                      // Other Errors
+                      <div style={{ 
+                        backgroundColor: '#fff2f0',
+                        border: '1px solid #ffccc7',
+                        padding: '20px',
+                        borderRadius: 8
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          marginBottom: 16
+                        }}>
+                          <XCircle size={32} color="#ff4d4f" />
+                        </div>
+                        
+                        <Text style={{ display: 'block', textAlign: 'center', color: '#ff4d4f' }}>
+                          {lastScanResult.message || 'Scan Failed'}
+                        </Text>
+                      </div>
                     )}
                   </div>
                 )}
@@ -424,6 +551,12 @@ const AttendancePage: React.FC = () => {
                     value={successfulScans}
                     valueStyle={{ color: '#52c41a' }}
                     prefix={<CheckCircle size={14} />}
+                  />
+                  <Statistic
+                    title="Duplicates"
+                    value={alreadyMarkedScans}
+                    valueStyle={{ color: '#fa8c16' }}
+                    prefix={<UserX size={14} />}
                   />
                 </div>
               </div>
