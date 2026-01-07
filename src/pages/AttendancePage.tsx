@@ -1,15 +1,12 @@
-// src/pages/AttendancePage.tsx - SIMPLIFIED MOBILE VERSION
+// src/pages/AttendancePage.tsx - FIXED MOBILE UI
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Card,
   Select,
   Button,
   Typography,
-  message,
-  Grid,
   Space,
   Tag,
-  Statistic,
   Badge
 } from 'antd';
 import { 
@@ -24,12 +21,8 @@ import faceRecognition from '../utils/faceRecognition';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
-const { useBreakpoint } = Grid;
 
 const AttendancePage: React.FC = () => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
-  
   const [courses, setCourses] = useState<any[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedCourseData, setSelectedCourseData] = useState<any>(null);
@@ -280,39 +273,26 @@ const AttendancePage: React.FC = () => {
 
   return (
     <div style={{ 
-      padding: 0,
-      margin: 0,
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       backgroundColor: '#f0f2f5'
     }}>
-      {/* Header - Fixed at top */}
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '12px 16px',
-        backgroundColor: '#fff',
-        borderBottom: '1px solid #f0f0f0',
-        flexShrink: 0
-      }}>
-        <Title level={4} style={{ margin: 0, fontWeight: 600 }}>
-          Face Attendance
-        </Title>
-      </div>
+      {/* Header - Compact */}
+      
 
-      {/* Main Content - Takes remaining space */}
+      {/* Main Content - Fills screen */}
       <div style={{ 
         flex: 1,
-        overflow: 'hidden',
         padding: '16px',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        overflow: 'hidden'
       }}>
         {/* Course Selection */}
         {!selectedCourse && (
           <div style={{ 
             textAlign: 'center', 
-            padding: '20px 0',
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
@@ -336,7 +316,7 @@ const AttendancePage: React.FC = () => {
             </Text>
             
             <Select
-              style={{ width: '100%' }}
+              style={{ width: '100%', marginBottom: 24 }}
               placeholder="Choose course..."
               value={selectedCourse}
               onChange={setSelectedCourse}
@@ -359,19 +339,17 @@ const AttendancePage: React.FC = () => {
         {selectedCourse && !isCameraActive && selectedCourseData && (
           <div style={{ 
             textAlign: 'center', 
-            padding: '20px 0',
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center'
+            justifyContent: 'center'
           }}>
             <div style={{
               width: 70,
               height: 70,
               backgroundColor: '#52c41a20',
               borderRadius: '50%',
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               marginBottom: 16
@@ -403,8 +381,7 @@ const AttendancePage: React.FC = () => {
                 height: 52,
                 fontSize: 16,
                 padding: '0 40px',
-                borderRadius: 12,
-                minWidth: 200
+                borderRadius: 12
               }}
             >
               Start Scanning
@@ -412,7 +389,7 @@ const AttendancePage: React.FC = () => {
           </div>
         )}
 
-        {/* Active Scanning - Full height layout */}
+        {/* Active Scanning - Fixed height sections */}
         {isCameraActive && selectedCourseData && (
           <div style={{ 
             flex: 1,
@@ -420,121 +397,38 @@ const AttendancePage: React.FC = () => {
             flexDirection: 'column',
             height: '100%'
           }}>
-            {/* Camera Feed - Takes 60% */}
+            {/* Camera Feed - Fixed height */}
             <div style={{ 
-              flex: 6,
-              minHeight: 0 // Important for flex children to shrink properly
-            }}>
-              <FaceCamera
-                mode="attendance"
-                onAttendanceComplete={handleFaceDetection}
-                autoCapture={true}
-                captureInterval={3000}
-              />
-            </div>
-
-            {/* Results Panel - Takes 40% */}
-            <div style={{ 
-              flex: 4,
-              paddingTop: 12,
+              flex: 1,
               minHeight: 0
             }}>
-              {/* Last Scan Result - Compact */}
-              {lastScanResult && (
-                <Card
-                  style={{
-                    marginBottom: 12,
-                    borderRadius: 12,
-                    border: 'none',
-                    backgroundColor: lastScanResult.success ? '#f6ffed' : 
-                                    lastScanResult.type === 'already_marked' ? '#fff7e6' : 
-                                    '#fff2f0'
-                  }}
-                  bodyStyle={{ 
-                    padding: '16px',
-                    textAlign: 'center'
-                  }}
-                >
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    marginBottom: 12
-                  }}>
-                    {lastScanResult.success ? (
-                      <CheckCircle size={28} color="#52c41a" />
-                    ) : lastScanResult.type === 'already_marked' ? (
-                      <XCircle size={28} color="#fa8c16" />
-                    ) : (
-                      <XCircle size={28} color="#ff4d4f" />
-                    )}
-                  </div>
-                  
-                  {lastScanResult.success && (
-                    <>
-                      <Text strong style={{ 
-                        fontSize: '16px', 
-                        display: 'block',
-                        marginBottom: 4
-                      }}>
-                        {lastScanResult.student?.name}
-                      </Text>
-                      <Text type="secondary" style={{ 
-                        display: 'block', 
-                        fontSize: '14px',
-                        marginBottom: 8
-                      }}>
-                        {lastScanResult.student?.matric_number}
-                      </Text>
-                      <Text style={{ 
-                        display: 'block', 
-                        color: '#52c41a',
-                        fontSize: '14px'
-                      }}>
-                        ✓ Marked
-                      </Text>
-                    </>
-                  )}
-                  
-                  {lastScanResult.type === 'already_marked' && (
-                    <>
-                      <Text strong style={{ 
-                        fontSize: '16px', 
-                        display: 'block',
-                        marginBottom: 4
-                      }}>
-                        {lastScanResult.student?.name}
-                      </Text>
-                      <Text style={{ 
-                        display: 'block', 
-                        color: '#fa8c16',
-                        fontSize: '14px'
-                      }}>
-                        Already Marked
-                      </Text>
-                    </>
-                  )}
-                  
-                  {!lastScanResult.success && lastScanResult.type !== 'already_marked' && (
-                    <Text style={{ 
-                      display: 'block', 
-                      color: '#ff4d4f',
-                      fontSize: '14px'
-                    }}>
-                      Scan Failed
-                    </Text>
-                  )}
-                </Card>
-              )}
+              <div style={{ 
+                height: '100%',
+                borderRadius: 12,
+                overflow: 'hidden'
+              }}>
+                <FaceCamera
+                  mode="attendance"
+                  onAttendanceComplete={handleFaceDetection}
+                  autoCapture={true}
+                  captureInterval={3000}
+                />
+              </div>
+            </div>
 
+            {/* Results Panel - Fixed height */}
+            <div style={{ 
+              flex: '0 0 auto',
+              marginTop: 12
+            }}>
               {/* Status Bar */}
               <div style={{ 
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '12px 0',
-                borderTop: '1px solid #f0f0f0',
-                borderBottom: '1px solid #f0f0f0',
+                padding: '12px 16px',
+                backgroundColor: '#f6ffed',
+                borderRadius: 8,
                 marginBottom: 12
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -553,47 +447,139 @@ const AttendancePage: React.FC = () => {
                 </Button>
               </div>
 
-              {/* Compact Stats */}
+              {/* Last Scan Result - Compact */}
+              {lastScanResult && (
+                <Card
+                  style={{
+                    marginBottom: 12,
+                    borderRadius: 12,
+                    border: 'none',
+                    backgroundColor: lastScanResult.success ? '#f6ffed' : 
+                                    lastScanResult.type === 'already_marked' ? '#fff7e6' : 
+                                    '#fff2f0'
+                  }}
+                  bodyStyle={{ 
+                    padding: '12px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    marginBottom: 8
+                  }}>
+                    {lastScanResult.success ? (
+                      <CheckCircle size={24} color="#52c41a" />
+                    ) : lastScanResult.type === 'already_marked' ? (
+                      <XCircle size={24} color="#fa8c16" />
+                    ) : (
+                      <XCircle size={24} color="#ff4d4f" />
+                    )}
+                  </div>
+                  
+                  {lastScanResult.success && (
+                    <>
+                      <Text strong style={{ 
+                        fontSize: '15px', 
+                        display: 'block',
+                        marginBottom: 4
+                      }}>
+                        {lastScanResult.student?.name}
+                      </Text>
+                      <Text type="secondary" style={{ 
+                        display: 'block', 
+                        fontSize: '13px',
+                        marginBottom: 4
+                      }}>
+                        {lastScanResult.student?.matric_number}
+                      </Text>
+                      <Text style={{ 
+                        display: 'block', 
+                        color: '#52c41a',
+                        fontSize: '13px'
+                      }}>
+                        ✓ Attendance Recorded
+                      </Text>
+                    </>
+                  )}
+                  
+                  {lastScanResult.type === 'already_marked' && (
+                    <>
+                      <Text strong style={{ 
+                        fontSize: '15px', 
+                        display: 'block',
+                        marginBottom: 4
+                      }}>
+                        {lastScanResult.student?.name}
+                      </Text>
+                      <Text style={{ 
+                        display: 'block', 
+                        color: '#fa8c16',
+                        fontSize: '13px'
+                      }}>
+                        Already Marked
+                      </Text>
+                    </>
+                  )}
+                  
+                  {!lastScanResult.success && lastScanResult.type !== 'already_marked' && (
+                    <Text style={{ 
+                      display: 'block', 
+                      color: '#ff4d4f',
+                      fontSize: '13px'
+                    }}>
+                      Scan Failed
+                    </Text>
+                  )}
+                </Card>
+              )}
+
+              {/* Stats Bar - Fixed at bottom */}
               <div style={{ 
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 8
+                gap: 8,
+                backgroundColor: '#fff',
+                padding: '12px',
+                borderRadius: 8,
+                border: '1px solid #f0f0f0'
               }}>
                 <div style={{ textAlign: 'center' }}>
                   <Text style={{ 
-                    fontSize: 20, 
+                    fontSize: 18, 
                     fontWeight: 'bold',
                     display: 'block'
                   }}>
                     {scanCount}
                   </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
                     Total
                   </Text>
                 </div>
                 <div style={{ textAlign: 'center' }}>
                   <Text style={{ 
-                    fontSize: 20, 
+                    fontSize: 18, 
                     fontWeight: 'bold',
                     color: '#52c41a',
                     display: 'block'
                   }}>
                     {successfulScans}
                   </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
                     Success
                   </Text>
                 </div>
                 <div style={{ textAlign: 'center' }}>
                   <Text style={{ 
-                    fontSize: 20, 
+                    fontSize: 18, 
                     fontWeight: 'bold',
                     color: '#fa8c16',
                     display: 'block'
                   }}>
                     {alreadyMarkedScans}
                   </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
                     Duplicates
                   </Text>
                 </div>
@@ -603,23 +589,30 @@ const AttendancePage: React.FC = () => {
         )}
       </div>
 
-      {/* Footer - Fixed at bottom */}
+      {/* Footer - Always visible */}
       <div style={{ 
-        textAlign: 'center', 
-        padding: '12px 16px',
+        padding: '8px 16px',
         backgroundColor: '#fff',
-        borderTop: '1px solid #f0f0f0',
-        flexShrink: 0
+        borderTop: '1px solid #f0f0f0'
       }}>
-        <Space>
-          <Tag color={faceModelsLoaded ? "green" : "orange"} style={{ fontSize: 12 }}>
-            {faceModelsLoaded ? 'Ready' : 'Loading...'}
-          </Tag>
-          <Text type="secondary" style={{ fontSize: 12 }}>
+        <div style={{ 
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <Space>
+            <Tag color={faceModelsLoaded ? "green" : "orange"} style={{ fontSize: 11 }}>
+              {faceModelsLoaded ? 'Ready' : 'Loading...'}
+            </Tag>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {selectedCourseData?.code || 'No course'}
+            </Text>
+          </Space>
+          <Text type="secondary" style={{ fontSize: 11 }}>
             <Clock size={10} style={{ marginRight: 4 }} />
             {dayjs().format('HH:mm')}
           </Text>
-        </Space>
+        </div>
       </div>
     </div>
   );

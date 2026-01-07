@@ -1,11 +1,13 @@
-// src/App.tsx - SIMPLIFIED VERSION
+// src/App.tsx - WITH BACK BUTTONS
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Spin, Alert, Typography, Space, ConfigProvider, theme, Card, Row, Col } from 'antd';
+import { Spin, Alert, Typography, Space, ConfigProvider, theme, Card, Row, Col, Button } from 'antd';
 import { 
   UserPlus,
   Camera,
-  Book
+  Book,
+  Home,
+  ArrowLeft
 } from 'lucide-react';
 import EnrollmentPage from './pages/EnrollmentPage';
 import AttendancePage from './pages/AttendancePage';
@@ -20,6 +22,49 @@ interface ConnectionStatus {
   message: string;
   details?: any;
 }
+
+// Wrapper component to add back button to pages
+const PageWrapper = ({ children, showBackButton = true }: { children: React.ReactNode, showBackButton?: boolean }) => {
+  return (
+    <div style={{ 
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: '#f0f2f5'
+    }}>
+      {/* Header with back button */}
+      {showBackButton && (
+        <div style={{ 
+          padding: '12px 16px',
+          backgroundColor: '#fff',
+          borderBottom: '1px solid #f0f0f0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12
+        }}>
+          <Button
+            type="text"
+            icon={<ArrowLeft size={18} />}
+            onClick={() => window.location.href = '/'}
+            style={{ 
+              padding: '4px 8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            <Text style={{ fontSize: 14 }}>Back</Text>
+          </Button>
+        </div>
+      )}
+      
+      {/* Page content */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {children}
+      </div>
+    </div>
+  );
+};
 
 const HomeCards = () => {
   const cards = [
@@ -251,9 +296,21 @@ function App() {
         <div style={{ minHeight: '100vh' }}>
           <Routes>
             <Route path="/" element={<HomeCards />} />
-            <Route path="/enroll" element={<EnrollmentPage />} />
-            <Route path="/attendance" element={<AttendancePage />} />
-            <Route path="/attendance-management" element={<AttendanceManagementPage />} />
+            <Route path="/enroll" element={
+              <PageWrapper>
+                <EnrollmentPage />
+              </PageWrapper>
+            } />
+            <Route path="/attendance" element={
+              <PageWrapper>
+                <AttendancePage />
+              </PageWrapper>
+            } />
+            <Route path="/attendance-management" element={
+              <PageWrapper>
+                <AttendanceManagementPage />
+              </PageWrapper>
+            } />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
