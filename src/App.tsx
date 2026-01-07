@@ -1,11 +1,10 @@
-// src/App.tsx - CLEANED VERSION
+// src/App.tsx - MODIFIED VERSION (No Login Required)
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Layout, Menu, Button, Spin, Alert, Typography, Space, ConfigProvider, theme, Card, Row, Col, Grid } from 'antd';
 import { 
   User, 
   Camera, 
-  LogIn, 
   LogOut,
   Home,
   Database,
@@ -187,7 +186,11 @@ const BackButton = () => {
 
 function App() {
   const [collapsed, setCollapsed] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>({ 
+    name: 'Lecturer', 
+    email: 'lecturer@abuad.edu.ng',
+    role: 'lecturer' 
+  }); // Set default user
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     status: 'testing',
@@ -260,21 +263,37 @@ function App() {
   const checkUser = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
+      // Always set a user (for demo/offline use)
+      setUser(session?.user || { 
+        name: 'Lecturer', 
+        email: 'lecturer@abuad.edu.ng',
+        role: 'lecturer' 
+      });
     } catch (error) {
       console.error('Error checking user:', error);
+      // Set default user on error
+      setUser({ 
+        name: 'Lecturer', 
+        email: 'lecturer@abuad.edu.ng',
+        role: 'lecturer' 
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogin = async () => {
-    setUser({ email: 'lecturer@abuad.edu.ng', name: 'Demo Lecturer' });
-  };
-
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    // Set to default user instead of null
+    setUser({ 
+      name: 'Lecturer', 
+      email: 'lecturer@abuad.edu.ng',
+      role: 'lecturer' 
+    });
   };
 
   if (connectionStatus.status === 'error') {
@@ -438,32 +457,19 @@ function App() {
               </Space>
               
               <Space>
-                {user ? (
-                  <>
-                    {!isMobile && (
-                      <Text type="secondary" style={{ marginRight: 8, fontSize: '14px' }}>
-                        Welcome, {user.name || user.email}
-                      </Text>
-                    )}
-                    <Button 
-                      type="text" 
-                      icon={<LogOut size={isMobile ? 14 : 16} />}
-                      onClick={handleLogout}
-                      style={{ padding: isMobile ? '4px 8px' : '8px 16px' }}
-                    >
-                      {!collapsed && !isMobile && 'Logout'}
-                    </Button>
-                  </>
-                ) : (
-                  <Button 
-                    type="primary" 
-                    icon={<LogIn size={isMobile ? 14 : 16} />}
-                    onClick={handleLogin}
-                    style={{ padding: isMobile ? '4px 8px' : '8px 16px' }}
-                  >
-                    {!collapsed && !isMobile && 'Login'}
-                  </Button>
+                {!isMobile && (
+                  <Text type="secondary" style={{ marginRight: 8, fontSize: '14px' }}>
+                    Welcome, {user.name || 'Lecturer'}
+                  </Text>
                 )}
+                <Button 
+                  type="text" 
+                  icon={<LogOut size={isMobile ? 14 : 16} />}
+                  onClick={handleLogout}
+                  style={{ padding: isMobile ? '4px 8px' : '8px 16px' }}
+                >
+                  {!collapsed && !isMobile && 'Logout'}
+                </Button>
               </Space>
             </Header>
             
@@ -475,138 +481,19 @@ function App() {
                 borderRadius: 8,
                 boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
               }}>
-                {!user ? (
-                 <div style={{ textAlign: 'center', padding: isMobile ? '20px' : '50px' }}>
-  <Card
-    style={{
-      maxWidth: isMobile ? '100%' : 500,
-      margin: '0 auto',
-      borderRadius: 12,
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-      border: '1px solid #f0f0f0',
-    }}
-    bodyStyle={{
-      padding: isMobile ? '24px' : '40px',
-    }}
-  >
-    <div style={{ marginBottom: 24 }}>
-      <Title level={isMobile ? 4 : 3} style={{ marginBottom: 8 }}>
-        Welcome to ABUAD Face Authentication System
-      </Title>
-      <Text type="secondary" style={{ fontSize: isMobile ? '14px' : '16px' }}>
-        Secure biometric attendance system for students and lecturers
-      </Text>
-    </div>
-
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 16 
-    }}>
-      <div style={{ 
-        backgroundColor: '#1890ff15',
-        borderRadius: '50%',
-        padding: isMobile ? 20 : 24,
-        marginBottom: 8,
-      }}>
-        <LogIn size={isMobile ? 48 : 64} color="#1890ff" />
-      </div>
-
-      <Title level={isMobile ? 5 : 4} style={{ marginBottom: 8 }}>
-        Get Started
-      </Title>
-      <Text type="secondary" style={{ 
-        marginBottom: 24,
-        fontSize: isMobile ? '14px' : '16px',
-        maxWidth: 400 
-      }}>
-        Login to access the face recognition attendance system, 
-        enroll students, and manage attendance records
-      </Text>
-
-      <Button 
-        type="primary" 
-        size={isMobile ? 'large' : 'large'}
-        onClick={handleLogin} 
-        icon={<LogIn style={{ marginRight: 8 }} />}
-        style={{
-          height: isMobile ? 48 : 56,
-          fontSize: isMobile ? '16px' : '18px',
-          padding: isMobile ? '0 32px' : '0 40px',
-          borderRadius: 8,
-          fontWeight: 600,
-        }}
-        block={isMobile}
-      >
-        Login to Continue
-      </Button>
-
-      <div style={{ 
-        width: '100%', 
-        marginTop: 32,
-        paddingTop: 24,
-        borderTop: '1px solid #f0f0f0'
-      }}>
-        <Text type="secondary" style={{ 
-          display: 'block',
-          marginBottom: 16,
-          fontSize: isMobile ? '12px' : '14px'
-        }}>
-          For the best experience:
-        </Text>
-        <div style={{ marginTop: 16 }}>
-          <PWAInstallPrompt />
-        </div>
-      </div>
-    </div>
-  </Card>
-</div>
-                ) : (
-                  <>
-                    <BackButton />
-                    <Routes>
-                      <Route path="/" element={<HomeCards />} />
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/images" element={<ImageManagementPage />} />
-                      <Route path="/enroll" element={<EnrollmentPage />} />
-                      <Route path="/attendance" element={<AttendancePage />} />
-                      <Route path="/attendance-management" element={<AttendanceManagementPage />} />
-                      <Route path="*" element={<Navigate to="/" />} />
-                    </Routes>
-                    <PWAInstallPrompt />
-                  </>
-                )}
+                <BackButton />
+                <Routes>
+                  <Route path="/" element={<HomeCards />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/images" element={<ImageManagementPage />} />
+                  <Route path="/enroll" element={<EnrollmentPage />} />
+                  <Route path="/attendance" element={<AttendancePage />} />
+                  <Route path="/attendance-management" element={<AttendanceManagementPage />} />
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+                <PWAInstallPrompt />
               </div>
             </Content>
-            
-            <Footer style={{ 
-              textAlign: 'center',
-              padding: isMobile ? '12px 20px' : '16px 50px',
-              backgroundColor: '#fafafa',
-              fontSize: isMobile ? '12px' : '14px'
-            }}>
-              <Text style={{ fontSize: 'inherit' }}>
-                AFE Babalola University Face Authentication System © {new Date().getFullYear()}
-              </Text>
-              <div style={{ fontSize: isMobile ? '10px' : '12px', color: '#999', marginTop: 4 }}>
-                Developed for Daily Student Attendance with Offline Support
-              </div>
-              {connectionStatus.status === 'connected' && (
-                <div style={{ 
-                  fontSize: isMobile ? '8px' : '10px', 
-                  color: '#52c41a',
-                  marginTop: 4,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 4
-                }}>
-                  <CheckCircle size={isMobile ? 8 : 10} />
-                  <span>Database Connected</span>
-                </div>
-              )}
-            </Footer>
           </Layout>
         </Layout>
       </Router>

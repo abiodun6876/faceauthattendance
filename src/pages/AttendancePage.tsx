@@ -1,5 +1,5 @@
-// src/pages/AttendancePage.tsx - ULTRA SIMPLIFIED VERSION
-import React, { useState, useEffect } from 'react';
+// src/pages/AttendancePage.tsx - AUTO-SCAN VERSION
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Card,
   Select,
@@ -8,20 +8,22 @@ import {
   Alert,
   message,
   Grid,
-  DatePicker,
-  Steps,
-  Tag,
   Space,
-  Modal,
-  Progress
+  Tag,
+  Divider,
+  Statistic,
+  Progress,
+  Badge
 } from 'antd';
 import { 
   Camera, 
-  Calendar, 
   CheckCircle, 
-  Filter,
-  Shield,
-  User
+  XCircle,
+  User,
+  Clock,
+  Hash,
+  AlertCircle,
+  RotateCcw
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -38,18 +40,15 @@ const AttendancePage: React.FC = () => {
   const [courses, setCourses] = useState<any[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedCourseData, setSelectedCourseData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [faceResult, setFaceResult] = useState<any>(null);
   const [faceModelsLoaded, setFaceModelsLoaded] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
-
-  // Progress steps
-  const steps = [
-    { title: 'Select Course', icon: <Filter size={16} /> },
-    { title: 'Face Scan', icon: <Camera size={16} /> },
-    { title: 'Complete', icon: <CheckCircle size={16} /> },
-  ];
+  const [lastScanResult, setLastScanResult] = useState<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [scanCount, setScanCount] = useState(0);
+  const [successfulScans, setSuccessfulScans] = useState(0);
+  const [failedScans, setFailedScans] = useState(0);
+  
+  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch courses
   const fetchCourses = async () => {
@@ -68,23 +67,21 @@ const AttendancePage: React.FC = () => {
   };
 
   // Record Attendance
-  const recordAttendance = async (studentData: any, result: any) => {
+  const recordAttendance = async (studentData: any, confidence: number) => {
     try {
       const attendanceDate = dayjs().format('YYYY-MM-DD');
-      const studentId = studentData.student_id;
-      const studentName = studentData.name;
       
       // Check existing attendance
       const { data: existingAttendance } = await supabase
         .from('student_attendance')
         .select('id, score')
-        .eq('student_id', studentId)
+        .eq('student_id', studentData.student_id)
         .eq('course_code', selectedCourseData.code)
         .eq('attendance_date', attendanceDate)
         .single();
       
       const attendanceData = {
-        student_id: studentId,
+        student_id: studentData.student_id,
         student_name: studentData.name,
         matric_number: studentData.matric_number,
         course_code: selectedCourseData.code,
@@ -94,7 +91,7 @@ const AttendancePage: React.FC = () => {
         check_in_time: new Date().toISOString(),
         status: 'present',
         verification_method: 'face_recognition',
-        confidence_score: result.confidence || 0.95,
+        confidence_score: confidence,
         score: 2.00,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -111,7 +108,7 @@ const AttendancePage: React.FC = () => {
           .insert([attendanceData]);
       }
       
-      return { success: true, studentName };
+      return true;
       
     } catch (error: any) {
       console.error('Record attendance error:', error);
@@ -119,88 +116,131 @@ const AttendancePage: React.FC = () => {
     }
   };
 
-  // Face attendance handler
-  const handleAttendanceComplete = async (result: any) => {
-    setFaceResult(result);
+  // Handle face detection and auto-scan
+  const handleFaceDetection = async (result: any) => {
+    if (!result.success || !result.photoUrl || isProcessing) return;
     
-    if (result.success && result.photoUrl) {
-      setCurrentStep(1);
+    setIsProcessing(true);
+    setScanCount(prev => prev + 1);
+    
+    try {
+      const matches = await faceRecognition.matchFaceForAttendance(result.photoUrl);
       
-      try {
-        const matches = await faceRecognition.matchFaceForAttendance(result.photoUrl);
-        
-        if (matches.length === 0) {
-          message.error('No matching student found');
-          return;
-        }
-        
-        const bestMatch = matches[0];
-        if (bestMatch.confidence < 0.65) {
-          message.warning('Low confidence match. Please try again.');
-          return;
-        }
-        
-        const { data: studentData } = await supabase
-          .from('students')
-          .select('*')
-          .eq('student_id', bestMatch.studentId)
-          .eq('enrollment_status', 'enrolled')
-          .maybeSingle();
-        
-        if (!studentData) {
-          message.error('Student not enrolled');
-          return;
-        }
-        
-        setCurrentStep(2);
-        
-        // Record attendance
-        const attendanceResult = await recordAttendance(studentData, {
-          confidence: bestMatch.confidence,
-          photoUrl: result.photoUrl
+      if (matches.length === 0) {
+        setLastScanResult({
+          success: false,
+          message: 'No face match found',
+          error: true
         });
-        
-        setFaceResult({
-          ...result,
-          student: {
-            name: studentData.name,
-            matric_number: studentData.matric_number,
-            student_id: studentData.student_id
-          },
-          confidence: bestMatch.confidence,
-          success: true,
-          attendanceResult
-        });
-        
-        message.success(`Attendance recorded for ${studentData.name}`);
-        
-      } catch (error: any) {
-        console.error('Face recognition error:', error);
-        message.error('Face recognition failed');
-        setCurrentStep(0);
+        setFailedScans(prev => prev + 1);
+        return;
       }
+      
+      const bestMatch = matches[0];
+      if (bestMatch.confidence < 0.60) {
+        setLastScanResult({
+          success: false,
+          message: `Low confidence match (${(bestMatch.confidence * 100).toFixed(1)}%)`,
+          error: true,
+          confidence: bestMatch.confidence
+        });
+        setFailedScans(prev => prev + 1);
+        return;
+      }
+      
+      // Get student data
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('*')
+        .eq('student_id', bestMatch.studentId)
+        .eq('enrollment_status', 'enrolled')
+        .maybeSingle();
+      
+      if (!studentData) {
+        setLastScanResult({
+          success: false,
+          message: 'Student not enrolled',
+          error: true
+        });
+        setFailedScans(prev => prev + 1);
+        return;
+      }
+      
+      // Record attendance
+      await recordAttendance(studentData, bestMatch.confidence);
+      
+      setLastScanResult({
+        success: true,
+        student: {
+          name: studentData.name,
+          matric_number: studentData.matric_number,
+          student_id: studentData.student_id
+        },
+        confidence: bestMatch.confidence,
+        photoUrl: result.photoUrl,
+        timestamp: new Date().toISOString()
+      });
+      
+      setSuccessfulScans(prev => prev + 1);
+      
+      // Auto-reset after 3 seconds for next scan
+      clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = setTimeout(() => {
+        setLastScanResult(null);
+      }, 3000);
+      
+    } catch (error: any) {
+      console.error('Face recognition error:', error);
+      setLastScanResult({
+        success: false,
+        message: 'Processing error',
+        error: true
+      });
+      setFailedScans(prev => prev + 1);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  // Start face attendance
-  const startFaceAttendance = async () => {
+  // Start scanning
+  const startScanning = async () => {
     if (!faceModelsLoaded) {
       try {
-        message.info('Loading face recognition models...');
         await faceRecognition.loadModels();
         setFaceModelsLoaded(true);
-        message.success('Face recognition ready!');
       } catch (error) {
-        message.warning('Face recognition loading...');
+        message.warning('Face models loading in background');
       }
     }
     setIsCameraActive(true);
-    setCurrentStep(1);
-    setFaceResult(null);
+    setLastScanResult(null);
+    setScanCount(0);
+    setSuccessfulScans(0);
+    setFailedScans(0);
+  };
+
+  // Stop scanning
+  const stopScanning = () => {
+    setIsCameraActive(false);
+    clearTimeout(scanTimeoutRef.current);
+  };
+
+  // Reset scanner
+  const resetScanner = () => {
+    setIsCameraActive(false);
+    setLastScanResult(null);
+    setSelectedCourse('');
+    setSelectedCourseData(null);
+    setScanCount(0);
+    setSuccessfulScans(0);
+    setFailedScans(0);
+    clearTimeout(scanTimeoutRef.current);
   };
 
   useEffect(() => {
     fetchCourses();
+    
+    // Load face models in background
     const loadModels = async () => {
       try {
         await faceRecognition.loadModels();
@@ -210,25 +250,29 @@ const AttendancePage: React.FC = () => {
       }
     };
     loadModels();
+
+    // Cleanup
+    return () => {
+      clearTimeout(scanTimeoutRef.current);
+    };
   }, []);
 
   useEffect(() => {
     if (selectedCourse) {
       const course = courses.find(c => c.id === selectedCourse);
       setSelectedCourseData(course);
-      setCurrentStep(0);
     }
   }, [selectedCourse]);
 
   return (
-    <div style={{ padding: isMobile ? '16px' : '24px', maxWidth: 800, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px' : '24px', maxWidth: 1000, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <Title level={3} style={{ marginBottom: 8, fontWeight: 600 }}>
-          Face Attendance
+          Continuous Face Scanner
         </Title>
-        <Text type="secondary" style={{ fontSize: '16px' }}>
-          Scan student faces to mark attendance
+        <Text type="secondary" style={{ fontSize: '14px' }}>
+          Students can scan one after another - No buttons needed
         </Text>
       </div>
 
@@ -237,120 +281,67 @@ const AttendancePage: React.FC = () => {
         style={{
           borderRadius: 12,
           boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+          marginBottom: 24
         }}
-        bodyStyle={{ padding: isMobile ? '20px' : '32px' }}
+        bodyStyle={{ padding: isMobile ? '16px' : '24px' }}
       >
-        {/* Progress Steps */}
-        <div style={{ marginBottom: 32 }}>
-          <Steps
-            current={currentStep}
-            size="small"
-            items={steps}
-          />
-        </div>
-
-       
-{currentStep === 0 && (
-  <div style={{ textAlign: 'center' }}>
-    <div style={{ marginBottom: 24 }}>
-      <Text strong style={{ display: 'block', marginBottom: 8, fontSize: '16px' }}>
-        Select Course
-      </Text>
-      <Select
-        style={{ width: '100%', maxWidth: 400 }}
-        placeholder="Search or select course..."
-        value={selectedCourse}
-        onChange={setSelectedCourse}
-        loading={loading}
-        size="large"
-        showSearch
-        filterOption={(input, option) =>
-          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-        }
-        optionFilterProp="label"
-        options={courses.map(course => ({
-          value: course.id,
-          label: `${course.code} - ${course.title}`,
-        }))}
-      />
-    </div>
-
-    <div style={{ 
-      backgroundColor: '#f6f9ff', 
-      padding: '20px', 
-      borderRadius: 8,
-      marginTop: 24 
-    }}>
-      <User size={24} color="#1890ff" style={{ marginBottom: 12 }} />
-      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-        Ready to scan
-      </Text>
-      <Tag color="blue" icon={<Shield size={12} />}>
-        {faceModelsLoaded ? 'Face AI Ready' : 'Loading AI...'}
-      </Tag>
-    </div>
-  </div>
-)}
-       
-
-        {/* Face Camera Section */}
-        {isCameraActive && currentStep >= 1 && (
-          <div style={{ textAlign: 'center' }}>
-            <FaceCamera
-              mode="attendance"
-              onAttendanceComplete={handleAttendanceComplete}
+        {/* Course Selection */}
+        {!selectedCourse && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{
+              width: 64,
+              height: 64,
+              backgroundColor: '#f0f9ff',
+              borderRadius: '50%',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16
+            }}>
+              <Hash size={28} color="#1890ff" />
+            </div>
+            <Title level={4} style={{ marginBottom: 16, fontWeight: 500 }}>
+              Select Course
+            </Title>
+            
+            <Select
+              style={{ width: '100%', maxWidth: 500, marginBottom: 24 }}
+              placeholder="Choose course to scan..."
+              value={selectedCourse}
+              onChange={setSelectedCourse}
+              size="large"
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              optionFilterProp="label"
+              options={courses.map(course => ({
+                value: course.id,
+                label: `${course.code} - ${course.title}`,
+              }))}
             />
             
-            <div style={{ marginTop: 24 }}>
-              <Button
-                type="default"
-                onClick={() => {
-                  setIsCameraActive(false);
-                  setCurrentStep(0);
-                }}
-              >
-                Cancel Scan
-              </Button>
+            <div style={{ 
+              backgroundColor: '#f6f9ff', 
+              padding: '16px', 
+              borderRadius: 8,
+              maxWidth: 500,
+              margin: '0 auto'
+            }}>
+              <Text type="secondary">
+                <AlertCircle size={16} style={{ marginRight: 8 }} />
+                Once a course is selected, camera will activate automatically
+              </Text>
             </div>
           </div>
         )}
 
-        {/* Start Scan Button */}
-        {selectedCourse && currentStep === 0 && !isCameraActive && (
-          <div style={{ textAlign: 'center', marginTop: 32 }}>
-            <Button
-              type="primary"
-              icon={<Camera size={20} />}
-              onClick={startFaceAttendance}
-              loading={loading}
-              size="large"
-              style={{
-                height: 56,
-                fontSize: '18px',
-                padding: '0 40px',
-                borderRadius: 12,
-                background: 'linear-gradient(135deg, #1890ff, #52c41a)',
-                border: 'none'
-              }}
-            >
-              Start Face Scan
-            </Button>
-            <Text type="secondary" style={{ display: 'block', marginTop: 16, fontSize: '14px' }}>
-              Position student in front of the camera
-            </Text>
-          </div>
-        )}
-
-        {/* Result Display */}
-        {faceResult?.success && (
-          <div style={{ 
-            marginTop: 32,
-            textAlign: 'center',
-            animation: 'fadeIn 0.5s ease-in'
-          }}>
+        {/* Course Selected - Ready to Scan */}
+        {selectedCourse && !isCameraActive && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <div style={{
-              width: 64,
-              height: 64,
+              width: 80,
+              height: 80,
               backgroundColor: '#52c41a20',
               borderRadius: '50%',
               display: 'inline-flex',
@@ -358,126 +349,310 @@ const AttendancePage: React.FC = () => {
               justifyContent: 'center',
               marginBottom: 16
             }}>
-              <CheckCircle size={32} color="#52c41a" />
+              <Camera size={36} color="#52c41a" />
             </div>
             
             <Title level={4} style={{ marginBottom: 8, color: '#52c41a' }}>
-              Attendance Recorded!
+              Ready to Scan: {selectedCourseData?.code}
             </Title>
+            <Text type="secondary" style={{ marginBottom: 24, display: 'block' }}>
+              {selectedCourseData?.title}
+            </Text>
             
-            <div style={{ 
-              backgroundColor: '#f6ffed',
-              padding: '20px',
-              borderRadius: 8,
-              marginBottom: 16,
-              border: '1px solid #b7eb8f'
-            }}>
-              <Text strong style={{ fontSize: '18px', display: 'block', marginBottom: 8 }}>
-                {faceResult.student?.name}
-              </Text>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                {faceResult.student?.matric_number}
-              </Text>
-              
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                gap: 16,
-                marginTop: 16
-              }}>
-                <Tag color="success" style={{ fontSize: '14px', padding: '4px 12px' }}>
-                  {(faceResult.confidence * 100).toFixed(1)}% match
-                </Tag>
-                <Tag color="blue" style={{ fontSize: '14px', padding: '4px 12px' }}>
-                  {selectedCourseData?.code}
-                </Tag>
-                <Tag color="purple" style={{ fontSize: '14px', padding: '4px 12px' }}>
-                  {dayjs().format('HH:mm')}
-                </Tag>
-              </div>
-            </div>
-
-            {/* Confidence Progress Bar */}
-            <div style={{ maxWidth: 300, margin: '20px auto' }}>
-              <Text strong style={{ display: 'block', marginBottom: 8 }}>
-                Match Confidence
-              </Text>
-              <Progress 
-                percent={Number((faceResult.confidence * 100).toFixed(1))} 
-                strokeColor={
-                  faceResult.confidence > 0.8 ? '#52c41a' : 
-                  faceResult.confidence > 0.6 ? '#faad14' : '#f5222d'
-                }
-                format={() => `${(faceResult.confidence * 100).toFixed(1)}%`}
-              />
-              <Text type="secondary" style={{ fontSize: '12px', marginTop: 8 }}>
-                {faceResult.confidence > 0.8 ? 'High Confidence' : 
-                 faceResult.confidence > 0.6 ? 'Medium Confidence' : 'Low Confidence'}
-              </Text>
-            </div>
-
-            {/* Next Student Button */}
-            <div style={{ marginTop: 32 }}>
-              <Button
-                type="primary"
-                icon={<Camera size={16} />}
-                onClick={startFaceAttendance}
-                style={{ marginRight: 12 }}
-              >
-                Scan Next Student
-              </Button>
-              <Button
-                type="default"
-                onClick={() => {
-                  setFaceResult(null);
-                  setCurrentStep(0);
-                }}
-              >
-                Select Another Course
-              </Button>
+            <Button
+              type="primary"
+              icon={<Camera size={18} />}
+              onClick={startScanning}
+              size="large"
+              style={{
+                height: 48,
+                fontSize: '16px',
+                padding: '0 32px',
+                borderRadius: 8
+              }}
+            >
+              Start Auto-Scanning
+            </Button>
+            
+            <div style={{ marginTop: 16 }}>
+              <Tag color="blue" icon={<User size={12} />}>
+                {faceModelsLoaded ? 'Face AI Ready' : 'Loading AI...'}
+              </Tag>
             </div>
           </div>
         )}
 
-        {/* No Course Selected */}
-        {!selectedCourse && (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div style={{
-              width: 80,
-              height: 80,
-              backgroundColor: '#f0f9ff',
-              borderRadius: '50%',
-              display: 'inline-flex',
+        {/* Active Scanning */}
+        {isCameraActive && (
+          <div>
+            {/* Scanner Header */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between',
               alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 20
+              marginBottom: 24,
+              padding: '12px 16px',
+              backgroundColor: '#f6ffed',
+              borderRadius: 8,
+              border: '1px solid #b7eb8f'
             }}>
-              <Camera size={36} color="#1890ff" />
+              <div>
+                <Text strong style={{ fontSize: '16px', display: 'block' }}>
+                  Scanning: {selectedCourseData?.code}
+                </Text>
+                <Text type="secondary" style={{ fontSize: '14px' }}>
+                  Position face in camera view
+                </Text>
+              </div>
+              
+              <Space>
+                <Badge 
+                  status="processing" 
+                  text="Active" 
+                  color="green"
+                />
+                <Button
+                  type="default"
+                  icon={<RotateCcw size={14} />}
+                  onClick={stopScanning}
+                  size="small"
+                >
+                  Stop
+                </Button>
+              </Space>
             </div>
-            <Title level={4} style={{ marginBottom: 12, fontWeight: 500 }}>
-              Select a Course to Begin
-            </Title>
-            <Text type="secondary" style={{ maxWidth: 400, margin: '0 auto', display: 'block' }}>
-              Choose a course to start recording attendance with face recognition.
-            </Text>
+
+            {/* Camera and Results Side by Side */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+              gap: 24,
+              marginBottom: 24
+            }}>
+              {/* Camera Feed */}
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                  <Text strong>Live Camera</Text>
+                </div>
+                <FaceCamera
+                  mode="attendance"
+                  onAttendanceComplete={handleFaceDetection}
+                  autoCapture={true}
+                  captureInterval={1000}
+                />
+                <div style={{ textAlign: 'center', marginTop: 12 }}>
+                  <Tag color="processing">
+                    {isProcessing ? 'Processing...' : 'Ready for next scan'}
+                  </Tag>
+                </div>
+              </div>
+
+              {/* Results Panel */}
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                  <Text strong>Scan Results</Text>
+                </div>
+                
+                {/* Last Scan Result */}
+                {lastScanResult && (
+                  <div style={{ 
+                    padding: '20px',
+                    borderRadius: 8,
+                    backgroundColor: lastScanResult.success ? '#f6ffed' : '#fff2f0',
+                    border: `1px solid ${lastScanResult.success ? '#b7eb8f' : '#ffccc7'}`,
+                    marginBottom: 20
+                  }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      marginBottom: 16
+                    }}>
+                      {lastScanResult.success ? (
+                        <CheckCircle size={32} color="#52c41a" />
+                      ) : (
+                        <XCircle size={32} color="#ff4d4f" />
+                      )}
+                    </div>
+                    
+                    <Title 
+                      level={5} 
+                      style={{ 
+                        textAlign: 'center',
+                        color: lastScanResult.success ? '#52c41a' : '#ff4d4f',
+                        marginBottom: 8
+                      }}
+                    >
+                      {lastScanResult.success ? 'ATTENDANCE RECORDED' : 'SCAN FAILED'}
+                    </Title>
+                    
+                    {lastScanResult.success && (
+                      <>
+                        <Text strong style={{ fontSize: '18px', display: 'block', textAlign: 'center' }}>
+                          {lastScanResult.student?.name}
+                        </Text>
+                        <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 16 }}>
+                          {lastScanResult.student?.matric_number}
+                        </Text>
+                        
+                        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                          <Progress 
+                            type="circle" 
+                            percent={Number((lastScanResult.confidence * 100).toFixed(1))} 
+                            size={80}
+                            strokeColor={lastScanResult.confidence > 0.8 ? '#52c41a' : '#faad14'}
+                            format={() => `${(lastScanResult.confidence * 100).toFixed(1)}%`}
+                          />
+                        </div>
+                        
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'center',
+                          gap: 8,
+                          marginTop: 16
+                        }}>
+                          <Tag color="success">✓ Recorded</Tag>
+                          <Tag color="blue">{dayjs(lastScanResult.timestamp).format('HH:mm:ss')}</Tag>
+                        </div>
+                      </>
+                    )}
+                    
+                    {!lastScanResult.success && (
+                      <div style={{ textAlign: 'center' }}>
+                        <Text style={{ display: 'block', marginBottom: 16 }}>
+                          {lastScanResult.message}
+                        </Text>
+                        {lastScanResult.confidence && (
+                          <Text type="secondary">
+                            Confidence: {(lastScanResult.confidence * 100).toFixed(1)}%
+                          </Text>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Scanning Instructions */}
+                {!lastScanResult && (
+                  <div style={{ 
+                    padding: '20px',
+                    borderRadius: 8,
+                    backgroundColor: '#f0f9ff',
+                    border: '1px solid #91d5ff',
+                    textAlign: 'center'
+                  }}>
+                    <User size={48} color="#1890ff" style={{ marginBottom: 16 }} />
+                    <Title level={5} style={{ marginBottom: 8 }}>
+                      Waiting for Student
+                    </Title>
+                    <Text type="secondary" style={{ display: 'block' }}>
+                      Student should look directly at camera
+                    </Text>
+                    <div style={{ marginTop: 16 }}>
+                      <Tag color="blue">Auto-scan active</Tag>
+                    </div>
+                  </div>
+                )}
+
+                {/* Stats */}
+                <div style={{ 
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 8,
+                  marginTop: 20
+                }}>
+                  <Statistic
+                    title="Total Scans"
+                    value={scanCount}
+                    prefix={<Camera size={14} />}
+                  />
+                  <Statistic
+                    title="Success"
+                    value={successfulScans}
+                    valueStyle={{ color: '#52c41a' }}
+                    prefix={<CheckCircle size={14} />}
+                  />
+                  <Statistic
+                    title="Failed"
+                    value={failedScans}
+                    valueStyle={{ color: '#ff4d4f' }}
+                    prefix={<XCircle size={14} />}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ textAlign: 'center', marginTop: 24 }}>
+              <Space>
+                <Button
+                  type="primary"
+                  onClick={startScanning}
+                  disabled={isProcessing}
+                >
+                  Continue Scanning
+                </Button>
+                <Button
+                  onClick={stopScanning}
+                >
+                  Stop Scanning
+                </Button>
+                <Button
+                  type="default"
+                  icon={<RotateCcw size={14} />}
+                  onClick={resetScanner}
+                >
+                  New Course
+                </Button>
+              </Space>
+            </div>
           </div>
         )}
       </Card>
 
-      {/* Status Footer */}
+      {/* Instructions Card */}
+      <Card
+        style={{
+          borderRadius: 12,
+          backgroundColor: '#fafafa'
+        }}
+        bodyStyle={{ padding: isMobile ? '16px' : '20px' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <AlertCircle color="#faad14" />
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+              How It Works
+            </Text>
+            <ol style={{ margin: 0, paddingLeft: 20 }}>
+              <li><Text>Select a course to begin</Text></li>
+              <li><Text>Camera activates automatically</Text></li>
+              <li><Text>Students scan faces one after another</Text></li>
+              <li><Text>System auto-detects and records attendance</Text></li>
+              <li><Text>Results show immediately</Text></li>
+              <li><Text>Camera stays active for continuous scanning</Text></li>
+            </ol>
+          </div>
+        </div>
+      </Card>
+
+      {/* Footer */}
       <div style={{ 
         textAlign: 'center', 
-        marginTop: 32,
+        marginTop: 24,
         padding: '16px',
         borderTop: '1px solid #f0f0f0'
       }}>
         <Space>
           <Tag color={faceModelsLoaded ? "green" : "orange"}>
-            {faceModelsLoaded ? 'Face AI Active ✓' : 'AI Loading...'}
+            {faceModelsLoaded ? 'Face AI Ready' : 'AI Loading...'}
+          </Tag>
+          <Tag color="blue">
+            <Clock size={12} style={{ marginRight: 4 }} />
+            {dayjs().format('HH:mm')}
           </Tag>
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            AFE Babalola University • {dayjs().format('DD MMM YYYY')}
+            AFE Babalola University • Auto-Scan Mode
           </Text>
         </Space>
       </div>

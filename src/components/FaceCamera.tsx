@@ -1,7 +1,19 @@
-// src/components/FaceCamera.tsx - FIXED VERSION
+// src/components/FaceCamera.tsx - UPDATED WITH AUTO-CAPTURE
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, Button, Alert, Typography, Space, Progress, Row, Col } from 'antd';
-import { Camera, RefreshCw, CheckCircle, User, Video, VideoOff } from 'lucide-react';
+// Add Tag to the import statement at the top of FaceCamera.tsx
+import { 
+  Card, 
+  Button, 
+  Alert, 
+  Typography, 
+  Space, 
+  Progress, 
+  Row, 
+  Col, 
+  Switch,
+  Tag  // Add this
+} from 'antd';
+import { Camera, RefreshCw, CheckCircle, User, Video, VideoOff, Zap } from 'lucide-react';
 
 const { Title, Text } = Typography;
 
@@ -11,6 +23,8 @@ interface FaceCameraProps {
   onEnrollmentComplete?: (result: any) => void;
   onAttendanceComplete?: (result: any) => void;
   onCaptureStatus?: (status: any) => void;
+  autoCapture?: boolean;
+  captureInterval?: number;
 }
 
 const FaceCamera: React.FC<FaceCameraProps> = ({
@@ -18,7 +32,9 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   student,
   onEnrollmentComplete,
   onAttendanceComplete,
-  onCaptureStatus
+  onCaptureStatus,
+  autoCapture = false,
+  captureInterval = 2000 // 2 seconds default
 }) => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -26,10 +42,16 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>({});
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [isAutoCaptureEnabled, setIsAutoCaptureEnabled] = useState(autoCapture);
+  const [lastCaptureTime, setLastCaptureTime] = useState<number>(0);
   
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+const canvasRef = useRef<HTMLCanvasElement>(null);
+const streamRef = useRef<MediaStream | null>(null);
+const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
 
   // Send status updates to parent
   const updateCaptureStatus = (statusUpdate: any) => {
@@ -53,6 +75,35 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     setDebugInfo(info);
     console.log('Debug Info:', info);
   }, []);
+
+  // Simple face detection (placeholder - you can integrate real face detection here)
+  const checkForFace = () => {
+    if (!videoRef.current || !isCameraActive || isCapturing) return false;
+    
+
+    
+    const video = videoRef.current;
+    const now = Date.now();
+    
+    // Simple check: if video is playing and has dimensions
+    if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+      setFaceDetected(true);
+      
+      // Auto-capture logic for attendance mode
+      if (isAutoCaptureEnabled && mode === 'attendance' && !isCapturing) {
+        const timeSinceLastCapture = now - lastCaptureTime;
+        if (timeSinceLastCapture > captureInterval) {
+          console.log('Auto-capture triggered');
+          handleCapture();
+          return true;
+        }
+      }
+      return true;
+    }
+    
+    setFaceDetected(false);
+    return false;
+  };
 
   // Test camera function
   const testCamera = async () => {
@@ -87,6 +138,28 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       return null;
     }
   };
+
+
+// Start face detection interval
+const startFaceDetection = () => {
+  if (detectionIntervalRef.current !== null) {
+    clearInterval(detectionIntervalRef.current);
+    detectionIntervalRef.current = null;
+  }
+  
+  detectionIntervalRef.current = setInterval(() => {
+    checkForFace();
+  }, 500) as NodeJS.Timeout; // Check every 500ms
+};
+
+// Stop face detection
+const stopFaceDetection = () => {
+  if (detectionIntervalRef.current !== null) {
+    clearInterval(detectionIntervalRef.current);
+    detectionIntervalRef.current = null;
+  }
+  setFaceDetected(false);
+};
 
   const startCamera = async () => {
     console.log('Starting camera...');
@@ -170,10 +243,15 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         setIsCameraActive(true);
         console.log('Camera is now active');
         
+        // Start face detection
+        startFaceDetection();
+        startAutoCaptureInterval();
+        
         updateCaptureStatus({ 
           isCapturing: false, 
-          message: 'Camera is active. Make sure face is clearly visible.',
-          cameraActive: true
+          message: isAutoCaptureEnabled ? 'Auto-scan active - Face detection running' : 'Camera is active',
+          cameraActive: true,
+          autoCapture: isAutoCaptureEnabled
         });
       }
       
@@ -215,6 +293,11 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     }
     setIsCameraActive(false);
     setCapturedImage(null);
+    stopFaceDetection();
+    
+    if (captureIntervalRef.current) {
+      clearInterval(captureIntervalRef.current);
+    }
     
     updateCaptureStatus({ 
       isCapturing: false, 
@@ -222,9 +305,6 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       cameraActive: false
     });
   };
-
-  // Simple capture function (removed old one - we'll use the typed version below)
-  // const captureImage = () => { ... } // REMOVED
 
   // Typed capture function
   const captureAndProcessImage = async (): Promise<{
@@ -274,7 +354,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     });
   };
 
-  // SINGLE handleCapture function (removed duplicate)
+  // SINGLE handleCapture function
   const handleCapture = async () => {
     if (!isCameraActive) {
       setError('Please start the camera first');
@@ -287,6 +367,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
 
     setIsCapturing(true);
     setError(null);
+    setLastCaptureTime(Date.now());
     
     updateCaptureStatus({ 
       isCapturing: true, 
@@ -327,7 +408,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       message: 'Processing face capture...' 
     });
 
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
@@ -410,7 +491,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       message: 'Starting simulation...' 
     });
 
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
@@ -481,17 +562,78 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     }, 250);
   };
 
-  // Auto-start camera on mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      startCamera();
-    }, 1000);
+ // ... other code
 
-    return () => {
-      clearTimeout(timer);
-      stopCamera();
-    };
-  }, []);
+const startAutoCaptureInterval = () => {
+  if (captureIntervalRef.current !== null) {
+    clearInterval(captureIntervalRef.current);
+    captureIntervalRef.current = null;
+  }
+  
+  if (isAutoCaptureEnabled && mode === 'attendance') {
+    captureIntervalRef.current = setInterval(() => {
+      if (faceDetected && !isCapturing) {
+        const now = Date.now();
+        if (now - lastCaptureTime > captureInterval) {
+          console.log('Auto-capture interval triggered');
+          handleCapture();
+        }
+      }
+    }, 1000) as NodeJS.Timeout; // Check every second
+  }
+};
+
+// Toggle auto-capture
+const toggleAutoCapture = (checked: boolean) => {
+  setIsAutoCaptureEnabled(checked);
+  
+  if (checked) {
+    startAutoCaptureInterval();
+    updateCaptureStatus({ 
+      isCapturing: false, 
+      message: 'Auto-scan enabled',
+      autoCapture: true
+    });
+  } else {
+    if (captureIntervalRef.current !== null) {
+      window.clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
+    }
+    updateCaptureStatus({ 
+      isCapturing: false, 
+      message: 'Auto-scan disabled',
+      autoCapture: false
+    });
+  }
+};
+
+// Auto-start camera on mount
+useEffect(() => {
+  const timer = setTimeout(() => {
+    startCamera();
+  }, 1000);
+
+  return () => {
+    clearTimeout(timer);
+    stopCamera();
+    if (detectionIntervalRef.current !== null) {
+      window.clearInterval(detectionIntervalRef.current);
+      detectionIntervalRef.current = null;
+    }
+    if (captureIntervalRef.current !== null) {
+      window.clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
+    }
+  };
+}, []);
+
+// Update auto-capture when prop changes
+useEffect(() => {
+  setIsAutoCaptureEnabled(autoCapture);
+  if (isCameraActive) {
+    startAutoCaptureInterval();
+  }
+}, [autoCapture, captureInterval]);
 
   return (
     <Card style={{ maxWidth: 800, margin: '0 auto' }}>
@@ -509,7 +651,33 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         />
       )}
 
-      
+      {/* Auto-capture control (only for attendance mode) */}
+      {mode === 'attendance' && (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: 16,
+          padding: '12px 16px',
+          backgroundColor: isAutoCaptureEnabled ? '#f6ffed' : '#fafafa',
+          borderRadius: 8,
+          border: `1px solid ${isAutoCaptureEnabled ? '#b7eb8f' : '#d9d9d9'}`
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Zap size={16} color={isAutoCaptureEnabled ? '#52c41a' : '#bfbfbf'} />
+            <Text strong>Auto-scan Mode</Text>
+            {isAutoCaptureEnabled && (
+              <Tag color="green" style={{ marginLeft: 8 }}>ACTIVE</Tag>
+            )}
+          </div>
+          <Switch
+            checked={isAutoCaptureEnabled}
+            onChange={toggleAutoCapture}
+            checkedChildren="ON"
+            unCheckedChildren="OFF"
+          />
+        </div>
+      )}
 
       {error && (
         <Alert
@@ -547,7 +715,8 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               borderRadius: 8,
               overflow: 'hidden',
               marginBottom: 16,
-              border: isCameraActive ? '3px solid #52c41a' : '3px solid #d9d9d9'
+              border: isCameraActive ? '3px solid #52c41a' : '3px solid #d9d9d9',
+              position: 'relative'
             }}>
               <video
                 ref={videoRef}
@@ -578,6 +747,43 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                   <Text type="secondary" style={{ color: '#aaa', fontSize: 12 }}>
                     {isCapturing ? 'Processing...' : 'Start camera to see preview'}
                   </Text>
+                </div>
+              )}
+              
+              {/* Face detection indicator */}
+              {isCameraActive && (
+                <div style={{
+                  position: 'absolute',
+                  top: 10,
+                  left: 10,
+                  backgroundColor: faceDetected ? 'rgba(82, 196, 26, 0.8)' : 'rgba(250, 173, 20, 0.8)',
+                  color: 'white',
+                  padding: '4px 8px',
+                  borderRadius: 4,
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}>
+                  {faceDetected ? '✓ FACE DETECTED' : 'SEARCHING FOR FACE'}
+                </div>
+              )}
+              
+              {/* Auto-capture indicator */}
+              {isAutoCaptureEnabled && mode === 'attendance' && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: 10,
+                  right: 10,
+                  backgroundColor: 'rgba(24, 144, 255, 0.8)',
+                  color: 'white',
+                  padding: '4px 8px',
+                  borderRadius: 4,
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}>
+                  <Zap size={12} />
+                  AUTO-SCAN
                 </div>
               )}
             </div>
@@ -621,6 +827,36 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                 Refresh
               </Button>
             </Space>
+            
+            {/* Status info */}
+            <div style={{ marginTop: 12 }}>
+              <Space>
+                <div style={{ 
+                  width: 10, 
+                  height: 10, 
+                  borderRadius: '50%',
+                  backgroundColor: isCameraActive ? '#52c41a' : '#ff4d4f'
+                }} />
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  {isCameraActive ? 'Camera Active' : 'Camera Off'}
+                </Text>
+                
+                {isAutoCaptureEnabled && mode === 'attendance' && (
+                  <>
+                    <div style={{ 
+                      width: 10, 
+                      height: 10, 
+                      borderRadius: '50%',
+                      backgroundColor: faceDetected ? '#52c41a' : '#faad14',
+                      animation: faceDetected ? 'pulse 1s infinite' : 'none'
+                    }} />
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      {faceDetected ? 'Ready to scan' : 'Scanning for faces...'}
+                    </Text>
+                  </>
+                )}
+              </Space>
+            </div>
           </div>
         </Col>
 
@@ -688,7 +924,9 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                 <Camera size={48} color="#bfbfbf" />
                 <Text type="secondary" style={{ marginTop: 16 }}>
                   {isCameraActive 
-                    ? 'Click "Capture Face" to take photo' 
+                    ? isAutoCaptureEnabled && mode === 'attendance'
+                      ? 'Position face in camera for auto-scan'
+                      : 'Click "Capture Face" to take photo'
                     : 'Start camera to begin'}
                 </Text>
               </div>
@@ -701,7 +939,9 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         <Text type="secondary">
           <small>
             {isCameraActive 
-              ? 'Camera is active. Make sure face is clearly visible.' 
+              ? isAutoCaptureEnabled && mode === 'attendance'
+                ? 'Auto-scan active. Camera will automatically capture when face is detected.'
+                : 'Camera is active. Make sure face is clearly visible.'
               : 'Camera access required for face capture.'}
           </small>
         </Text>
