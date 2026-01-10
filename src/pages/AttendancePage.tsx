@@ -1,19 +1,18 @@
 // src/pages/AttendancePage.tsx - FUTURISTIC BLUE DESIGN
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Card,
   Select,
   Button,
   Typography,
   Space,
-  Tag,
   Badge
 } from 'antd';
 import { 
   Camera, 
   CheckCircle, 
   XCircle,
-  Clock
+  Clock,
+  ArrowLeft
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -243,6 +242,13 @@ const AttendancePage: React.FC = () => {
     }
   };
 
+  // Back to course selection
+  const handleBack = () => {
+    setIsCameraActive(false);
+    setSelectedCourse('');
+    setSelectedCourseData(null);
+  };
+
   useEffect(() => {
     fetchCourses();
     
@@ -410,6 +416,53 @@ const AttendancePage: React.FC = () => {
             flexDirection: 'column',
             height: '100%'
           }}>
+            {/* Course Code and Back Button - Top Left */}
+            <div style={{
+              position: 'absolute',
+              top: 20,
+              left: 20,
+              zIndex: 100,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12
+            }}>
+              {/* Back Button */}
+              <Button
+                icon={<ArrowLeft size={20} />}
+                onClick={handleBack}
+                style={{
+                  backgroundColor: 'rgba(0, 150, 255, 0.2)',
+                  border: '1px solid rgba(0, 150, 255, 0.5)',
+                  color: '#00aaff',
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backdropFilter: 'blur(10px)'
+                }}
+              />
+              
+              {/* Course Code Badge */}
+              <div style={{
+                backgroundColor: 'rgba(0, 150, 255, 0.2)',
+                color: '#00aaff',
+                padding: '8px 16px',
+                borderRadius: 20,
+                border: '1px solid rgba(0, 150, 255, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                backdropFilter: 'blur(10px)'
+              }}>
+                <Badge status="processing" color="#00ffaa" />
+                <Text style={{ fontSize: 14, fontWeight: 600 }}>
+                  {selectedCourseData.code}
+                </Text>
+              </div>
+            </div>
+
             {/* Success Count Badge - Top Right */}
             <div style={{
               position: 'absolute',
@@ -426,7 +479,8 @@ const AttendancePage: React.FC = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 border: '2px solid #00ffaa',
-                boxShadow: '0 0 15px rgba(0, 255, 150, 0.3)'
+                boxShadow: '0 0 15px rgba(0, 255, 150, 0.3)',
+                backdropFilter: 'blur(10px)'
               }}>
                 <Text style={{ 
                   fontSize: 18, 
@@ -438,35 +492,12 @@ const AttendancePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Course Code Badge - Top Left */}
-            <div style={{
-              position: 'absolute',
-              top: 20,
-              left: 20,
-              zIndex: 100
-            }}>
-              <div style={{
-                backgroundColor: 'rgba(0, 150, 255, 0.2)',
-                color: '#00aaff',
-                padding: '8px 16px',
-                borderRadius: 20,
-                border: '1px solid rgba(0, 150, 255, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8
-              }}>
-                <Badge status="processing" color="#00ffaa" />
-                <Text style={{ fontSize: 14, fontWeight: 600 }}>
-                  {selectedCourseData.code}
-                </Text>
-              </div>
-            </div>
-
             {/* Camera Feed - Full screen */}
             <div style={{ 
               flex: 1,
               minHeight: 0,
-              position: 'relative'
+              position: 'relative',
+              marginTop: 0
             }}>
               <div style={{ 
                 height: '100%',
@@ -561,33 +592,6 @@ const AttendancePage: React.FC = () => {
                 </div>
               </div>
             )}
-
-            {/* Control Buttons - Bottom */}
-            <div style={{
-              position: 'absolute',
-              bottom: 20,
-              left: 0,
-              right: 0,
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 16,
-              zIndex: 100
-            }}>
-              <Button
-                type="primary"
-                onClick={resetScanner}
-                style={{
-                  backgroundColor: 'rgba(0, 150, 255, 0.3)',
-                  border: '1px solid rgba(0, 150, 255, 0.5)',
-                  color: '#00aaff',
-                  padding: '8px 20px',
-                  borderRadius: 20,
-                  backdropFilter: 'blur(10px)'
-                }}
-              >
-                CHANGE COURSE
-              </Button>
-            </div>
           </div>
         )}
       </div>
