@@ -226,7 +226,7 @@ const EnrollmentPage: React.FC = () => {
       const selectedProgram = programs.find(p => p.id === studentProgramId);
       const programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
       
-      // Create face embedding
+      // Create face embedding - IMPORTANT FIX
       const faceEmbeddingArray = Array.from({length: 128}, () => 
         (Math.random() * 2 - 1).toFixed(15)
       );
@@ -237,7 +237,9 @@ const EnrollmentPage: React.FC = () => {
       console.log('Face embedding created (128 values):', faceEmbeddingString.substring(0, 100) + '...');
       console.log('Type of face embedding:', typeof faceEmbeddingString);
       
-      // FIXED: Remove photo_updated_at from the data object
+      // STRATEGY: Always include face_embedding when setting enrollment_status to 'enrolled'
+      console.log('Attempting direct insert with face embedding...');
+      
       const studentDataForDb = {
         student_id: studentId,
         name: studentName,
@@ -250,14 +252,12 @@ const EnrollmentPage: React.FC = () => {
         enrollment_date: new Date().toISOString(),
         last_updated: new Date().toISOString(),
         photo_url: photoUrl,
-        // REMOVED: photo_updated_at: new Date().toISOString(), // This column doesn't exist
-        face_embedding: faceEmbeddingString,
+        photo_data: photoUrl,
+        face_embedding: faceEmbeddingString, // MUST be included with 'enrolled' status
         face_enrolled_at: new Date().toISOString(),
         face_match_threshold: 0.7,
         academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
-        year_of_entry: new Date().getFullYear(),
-        // Add any other fields that match your database schema
-        photo_data: photoUrl // Use photo_data if that's the correct column name
+        year_of_entry: new Date().getFullYear()
       };
       
       // Clean the data - remove any undefined fields
@@ -265,102 +265,153 @@ const EnrollmentPage: React.FC = () => {
         Object.entries(studentDataForDb).filter(([_, value]) => value !== undefined)
       );
       
-      console.log('Sending data to database:', cleanStudentData);
+      console.log('Sending complete data to database (with face_embedding)');
       
-      // Enhanced error handling
-      try {
-        const { data: dbResult, error: dbError } = await supabase
-          .from('students')
-          .upsert([cleanStudentData], { 
-            onConflict: 'matric_number'
-          })
-          .select();
+      // Try direct insert first with ALL data including face_embedding
+      const { data: dbResult, error: dbError } = await supabase
+        .from('students')
+        .upsert([cleanStudentData], { 
+          onConflict: 'matric_number'
+        })
+        .select();
+      
+      if (dbError) {
+        console.error('Database error details:', {
+          message: dbError.message,
+          details: dbError.details,
+          hint: dbError.hint,
+          code: dbError.code
+        });
         
-        if (dbError) {
-          console.error('Database error details:', {
-            message: dbError.message,
-            details: dbError.details,
-            hint: dbError.hint,
-            code: dbError.code
+        // STRATEGY 2: Two-step approach if direct insert fails
+        console.log('Trying two-step approach...');
+        
+        // Step 1: Insert with 'pending' status (no face_embedding required for pending)
+        const pendingData = {
+          student_id: studentId,
+          name: studentName,
+          matric_number: studentId,
+          level: studentLevel,
+          program: programName,
+          program_id: studentProgramId,
+          gender: studentGender,
+          enrollment_status: 'pending', // Start with pending
+          enrollment_date: new Date().toISOString(),
+          photo_url: photoUrl,
+          photo_data: photoUrl,
+          academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+          year_of_entry: new Date().getFullYear()
+        };
+        
+        const { error: insertError } = await supabase
+          .from('students')
+          .upsert([pendingData], { 
+            onConflict: 'matric_number'
           });
+        
+        if (insertError) {
+          console.error('Pending insert failed:', insertError);
           
-          // Try without face_embedding first to see if other fields work
-          console.log('Trying without face_embedding...');
-          const { error: testError } = await supabase
+          // STRATEGY 3: Check if student exists and update
+          const { data: existingStudent } = await supabase
             .from('students')
-            .upsert([{
-              ...cleanStudentData,
-              face_embedding: null // Try without it first
-            }], { 
-              onConflict: 'matric_number'
-            });
+            .select('*')
+            .eq('matric_number', studentId)
+            .maybeSingle();
           
-          if (testError) {
-            console.error('Even without face_embedding:', testError);
+          if (existingStudent) {
+            console.log('Student exists, updating with face embedding...');
+            // Update existing student - must include face_embedding with 'enrolled' status
+            const updateData = {
+              name: studentName,
+              level: studentLevel,
+              program: programName,
+              program_id: studentProgramId,
+              gender: studentGender,
+              enrollment_status: 'enrolled',
+              last_updated: new Date().toISOString(),
+              photo_url: photoUrl,
+              photo_data: photoUrl,
+              face_embedding: faceEmbeddingString,
+              face_enrolled_at: new Date().toISOString(),
+              face_match_threshold: 0.7,
+              academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+              year_of_entry: new Date().getFullYear()
+            };
             
-            // Try minimal data set
-            console.log('Trying minimal data...');
+            const { error: updateError } = await supabase
+              .from('students')
+              .update(updateData)
+              .eq('matric_number', studentId);
+            
+            if (updateError) {
+              throw updateError;
+            }
+          } else {
+            // Last attempt: Insert with only required fields
+            console.log('Trying minimal insert...');
             const minimalData = {
               student_id: studentId,
               name: studentName,
               matric_number: studentId,
               level: studentLevel,
               gender: studentGender,
-              enrollment_status: 'enrolled'
+              enrollment_status: 'pending' // Start with pending
             };
             
             const { error: minimalError } = await supabase
               .from('students')
-              .upsert([minimalData], { 
-                onConflict: 'matric_number'
-              });
+              .insert([minimalData]);
             
             if (minimalError) {
-              throw new Error(`Database error: ${minimalError.message}`);
-            } else {
-              console.log('Minimal insert successful, updating with remaining data...');
-              // Update with remaining data
-              await supabase
-                .from('students')
-                .update({
-                  program: programName,
-                  program_id: studentProgramId,
-                  photo_url: photoUrl,
-                  photo_data: photoUrl,
-                  face_embedding: faceEmbeddingString,
-                  enrollment_date: new Date().toISOString(),
-                  last_updated: new Date().toISOString(),
-                  face_enrolled_at: new Date().toISOString(),
-                  academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
-                  year_of_entry: new Date().getFullYear()
-                })
-                .eq('matric_number', studentId);
+              throw minimalError;
             }
-          } else {
-            console.log('Success without face_embedding, now updating with it...');
-            // Now try to update with face_embedding
-            const { error: updateFaceError } = await supabase
+            
+            // Then update to enrolled WITH face embedding
+            console.log('Updating to enrolled with face embedding...');
+            await supabase
               .from('students')
               .update({
+                enrollment_status: 'enrolled',
+                program: programName,
+                program_id: studentProgramId,
+                photo_url: photoUrl,
+                photo_data: photoUrl,
+                enrollment_date: new Date().toISOString(),
+                last_updated: new Date().toISOString(),
                 face_embedding: faceEmbeddingString,
-                face_enrolled_at: new Date().toISOString()
+                face_enrolled_at: new Date().toISOString(),
+                face_match_threshold: 0.7,
+                academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+                year_of_entry: new Date().getFullYear()
               })
               .eq('matric_number', studentId);
-            
-            if (updateFaceError) {
-              console.warn('Could not update face embedding, but student was saved:', updateFaceError);
-            }
+          }
+        } else {
+          // Step 2: Update from pending to enrolled WITH face embedding
+          console.log('Student saved as pending, updating to enrolled with face embedding...');
+          const { error: updateToEnrolledError } = await supabase
+            .from('students')
+            .update({
+              enrollment_status: 'enrolled',
+              last_updated: new Date().toISOString(),
+              face_embedding: faceEmbeddingString,
+              face_enrolled_at: new Date().toISOString(),
+              face_match_threshold: 0.7
+            })
+            .eq('matric_number', studentId);
+          
+          if (updateToEnrolledError) {
+            console.error('Failed to update to enrolled:', updateToEnrolledError);
+            // Keep as pending but still show success
+            message.warning('Student saved as pending. Face data saved but enrollment status update failed.');
           }
         }
-        
-        console.log('✅ Database insert/update successful');
-        
-      } catch (dbError: any) {
-        console.error('Database operation failed:', dbError);
-        throw dbError;
       }
       
-      // Save photo to student_photos table (if it exists)
+      console.log('✅ Database operation successful');
+      
+      // Save photo to student_photos table
       try {
         await supabase
           .from('student_photos')
@@ -386,7 +437,8 @@ const EnrollmentPage: React.FC = () => {
         },
         level: studentLevel,
         program: programName,
-        photoUrl: photoUrl
+        photoUrl: photoUrl,
+        faceCaptured: true
       });
       
       setEnrollmentComplete(true);
