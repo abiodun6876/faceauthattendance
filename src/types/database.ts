@@ -16,6 +16,7 @@ export interface Enrollment {
 }
 
 
+
 export interface FaceEnrollment {
   id: string;
   student_id: string;
