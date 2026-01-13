@@ -62,9 +62,10 @@ export interface Student {
   semester_number?: number;
   session_year?: string;
   course_codes?: string[];
-  face_embedding?: number[];
   photo_url?: string;
   face_enrolled_at?: string;
+  face_embedding?: number[]; // Keep for backward compatibility
+  face_embedding_vector?: number[]; // Add this for vector type
   face_match_threshold?: number;
   enrollment_status: 'pending' | 'enrolled' | 'verified';
   last_face_scan?: string;
