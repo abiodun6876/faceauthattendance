@@ -236,10 +236,10 @@ const EnrollmentPage: React.FC = () => {
       console.log('Face embedding created (128 values):', faceEmbeddingString.substring(0, 100) + '...');
       console.log('Type of face embedding:', typeof faceEmbeddingString);
       
-      // Try direct insert first
-      console.log('Attempting direct insert...');
+        // Try direct insert first
+        console.log('Attempting direct insert...');
       
-      const studentDataForDb = {
+        const studentDataForDb = {
         student_id: studentId,
         name: studentName,
         matric_number: studentId,
@@ -251,8 +251,8 @@ const EnrollmentPage: React.FC = () => {
         enrollment_date: new Date().toISOString(),
         last_updated: new Date().toISOString(),
         photo_url: photoUrl,
-        photo_updated_at: new Date().toISOString(),
-        face_embedding: faceEmbeddingString, // JSON string
+        photo_data: photoUrl, // This column exists
+        face_embedding: faceEmbeddingString,
         face_enrolled_at: new Date().toISOString(),
         face_match_threshold: 0.7,
         academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
