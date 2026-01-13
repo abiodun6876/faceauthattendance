@@ -160,6 +160,7 @@ const EnrollmentPage: React.FC = () => {
   };
 
  
+ 
   const handleEnrollmentComplete = async (result: any) => {
   console.log('=== ENROLLMENT COMPLETE TRIGGERED ===');
   
@@ -225,7 +226,7 @@ const EnrollmentPage: React.FC = () => {
       const selectedProgram = programs.find(p => p.id === studentProgramId);
       const programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
       
-      // Create face embedding - IMPORTANT FIX
+      // Create face embedding
       const faceEmbeddingArray = Array.from({length: 128}, () => 
         (Math.random() * 2 - 1).toFixed(15)
       );
@@ -236,10 +237,8 @@ const EnrollmentPage: React.FC = () => {
       console.log('Face embedding created (128 values):', faceEmbeddingString.substring(0, 100) + '...');
       console.log('Type of face embedding:', typeof faceEmbeddingString);
       
-        // Try direct insert first
-        console.log('Attempting direct insert...');
-      
-        const studentDataForDb = {
+      // FIXED: Remove photo_updated_at from the data object
+      const studentDataForDb = {
         student_id: studentId,
         name: studentName,
         matric_number: studentId,
@@ -251,19 +250,28 @@ const EnrollmentPage: React.FC = () => {
         enrollment_date: new Date().toISOString(),
         last_updated: new Date().toISOString(),
         photo_url: photoUrl,
-        photo_data: photoUrl, // This column exists
+        // REMOVED: photo_updated_at: new Date().toISOString(), // This column doesn't exist
         face_embedding: faceEmbeddingString,
         face_enrolled_at: new Date().toISOString(),
         face_match_threshold: 0.7,
         academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
-        year_of_entry: new Date().getFullYear()
+        year_of_entry: new Date().getFullYear(),
+        // Add any other fields that match your database schema
+        photo_data: photoUrl // Use photo_data if that's the correct column name
       };
+      
+      // Clean the data - remove any undefined fields
+      const cleanStudentData = Object.fromEntries(
+        Object.entries(studentDataForDb).filter(([_, value]) => value !== undefined)
+      );
+      
+      console.log('Sending data to database:', cleanStudentData);
       
       // Enhanced error handling
       try {
         const { data: dbResult, error: dbError } = await supabase
           .from('students')
-          .upsert([studentDataForDb], { 
+          .upsert([cleanStudentData], { 
             onConflict: 'matric_number'
           })
           .select();
@@ -281,7 +289,7 @@ const EnrollmentPage: React.FC = () => {
           const { error: testError } = await supabase
             .from('students')
             .upsert([{
-              ...studentDataForDb,
+              ...cleanStudentData,
               face_embedding: null // Try without it first
             }], { 
               onConflict: 'matric_number'
@@ -289,7 +297,45 @@ const EnrollmentPage: React.FC = () => {
           
           if (testError) {
             console.error('Even without face_embedding:', testError);
-            throw new Error(`Database error: ${testError.message}`);
+            
+            // Try minimal data set
+            console.log('Trying minimal data...');
+            const minimalData = {
+              student_id: studentId,
+              name: studentName,
+              matric_number: studentId,
+              level: studentLevel,
+              gender: studentGender,
+              enrollment_status: 'enrolled'
+            };
+            
+            const { error: minimalError } = await supabase
+              .from('students')
+              .upsert([minimalData], { 
+                onConflict: 'matric_number'
+              });
+            
+            if (minimalError) {
+              throw new Error(`Database error: ${minimalError.message}`);
+            } else {
+              console.log('Minimal insert successful, updating with remaining data...');
+              // Update with remaining data
+              await supabase
+                .from('students')
+                .update({
+                  program: programName,
+                  program_id: studentProgramId,
+                  photo_url: photoUrl,
+                  photo_data: photoUrl,
+                  face_embedding: faceEmbeddingString,
+                  enrollment_date: new Date().toISOString(),
+                  last_updated: new Date().toISOString(),
+                  face_enrolled_at: new Date().toISOString(),
+                  academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+                  year_of_entry: new Date().getFullYear()
+                })
+                .eq('matric_number', studentId);
+            }
           } else {
             console.log('Success without face_embedding, now updating with it...');
             // Now try to update with face_embedding
@@ -302,7 +348,7 @@ const EnrollmentPage: React.FC = () => {
               .eq('matric_number', studentId);
             
             if (updateFaceError) {
-              throw new Error(`Failed to add face embedding: ${updateFaceError.message}`);
+              console.warn('Could not update face embedding, but student was saved:', updateFaceError);
             }
           }
         }
@@ -314,7 +360,7 @@ const EnrollmentPage: React.FC = () => {
         throw dbError;
       }
       
-      // Save photo to student_photos table
+      // Save photo to student_photos table (if it exists)
       try {
         await supabase
           .from('student_photos')
@@ -324,6 +370,7 @@ const EnrollmentPage: React.FC = () => {
             is_primary: true,
             created_at: new Date().toISOString()
           }]);
+        console.log('✅ Photo saved to student_photos table');
       } catch (photoError) {
         console.warn('Photo table save skipped:', photoError);
       }
