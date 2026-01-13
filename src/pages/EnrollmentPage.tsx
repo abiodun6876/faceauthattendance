@@ -1,4 +1,4 @@
-// src/pages/EnrollmentPage.tsx - DATABASE COMPATIBLE VERSION
+// src/pages/EnrollmentPage.tsx - UPDATED COMPLETE VERSION
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -14,9 +14,10 @@ import {
   Col,
   Steps,
   Tag,
-  Spin
+  Spin,
+  Modal
 } from 'antd';
-import { Camera, User, BookOpen, CheckCircle, GraduationCap } from 'lucide-react';
+import { Camera, User, BookOpen, CheckCircle, GraduationCap, Upload } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
 import { compressImage } from '../utils/imageUtils';
@@ -62,6 +63,67 @@ const formatForPostgresVector = (embedding: number[]): number[] => {
   });
 };
 
+// Helper function to convert data URL to blob
+const dataURLtoBlob = (dataURL: string): Blob => {
+  try {
+    const arr = dataURL.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    const bstr = atob(arr[1]);
+    const u8arr = new Uint8Array(bstr.length);
+    
+    for (let i = 0; i < bstr.length; i++) {
+      u8arr[i] = bstr.charCodeAt(i);
+    }
+    
+    return new Blob([u8arr], { type: mime });
+  } catch (error) {
+    console.error('Error converting dataURL to blob:', error);
+    throw error;
+  }
+};
+
+// Save image to localStorage with proper error handling
+const saveImageToLocalStorage = (studentId: string, imageData: string): string => {
+  try {
+    // Trim the data URL if it's too long
+    let trimmedData = imageData;
+    if (imageData.length > 500000) { // ~500KB limit for localStorage
+      console.warn('Image data is large, truncating...');
+      trimmedData = imageData.substring(0, 500000);
+    }
+    
+    // Create a unique key
+    const key = `enrollment_photo_${studentId}_${Date.now()}`;
+    
+    // Save to localStorage
+    localStorage.setItem(key, trimmedData);
+    
+    // Also save reference to the key
+    const photoReferences = JSON.parse(localStorage.getItem('enrollment_photos') || '[]');
+    photoReferences.push({ 
+      key, 
+      studentId, 
+      timestamp: Date.now(),
+      size: trimmedData.length 
+    });
+    
+    // Keep only last 50 photos
+    if (photoReferences.length > 50) {
+      const oldPhoto = photoReferences.shift();
+      localStorage.removeItem(oldPhoto.key);
+    }
+    
+    localStorage.setItem('enrollment_photos', JSON.stringify(photoReferences));
+    
+    console.log(`✅ Photo saved to localStorage with key: ${key} (${trimmedData.length} bytes)`);
+    return key;
+  } catch (error) {
+    console.error('Failed to save to localStorage:', error);
+    // Return a fallback key
+    return `enrollment_photo_${studentId}_${Date.now()}_failed`;
+  }
+};
+
 const EnrollmentPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [studentData, setStudentData] = useState<any>({});
@@ -73,6 +135,8 @@ const EnrollmentPage: React.FC = () => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [matricNumber, setMatricNumber] = useState<string>('');
   const [faceModelsLoaded, setFaceModelsLoaded] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   
   // State for fetched data
   const [programs, setPrograms] = useState<any[]>([]);
@@ -203,43 +267,26 @@ const EnrollmentPage: React.FC = () => {
     message.success('New matric number generated');
   };
 
-  // Helper function to convert data URL to blob
-  const dataURLtoBlob = (dataURL: string): Blob => {
-    try {
-      const arr = dataURL.split(',');
-      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-      const bstr = atob(arr[1]);
-      const u8arr = new Uint8Array(bstr.length);
-      
-      for (let i = 0; i < bstr.length; i++) {
-        u8arr[i] = bstr.charCodeAt(i);
-      }
-      
-      return new Blob([u8arr], { type: mime });
-    } catch (error) {
-      console.error('Error converting dataURL to blob:', error);
-      throw error;
-    }
+  // Function to handle face capture from FaceCamera
+  const handleFaceCapture = async (photoData: string) => {
+    console.log('Face captured, data length:', photoData.length);
+    setCapturedPhoto(photoData);
+    setShowPhotoPreview(true);
+    return photoData;
   };
 
-  const handleEnrollmentComplete = async (result: any) => {
-    console.log('=== ENROLLMENT COMPLETE TRIGGERED ===');
+  // Function to process the enrollment with captured photo
+  const processEnrollmentWithPhoto = async (photoData: string) => {
+    console.log('=== PROCESSING ENROLLMENT WITH PHOTO ===');
     
     try {
-      if (!result.success || !result.photoData) {
-        console.error('Result missing success or photoData:', result);
-        message.error('Failed to capture image');
-        return;
-      }
-
       setLoading(true);
-
-      const enrollmentStudent = result.studentData || result.student || studentData;
-      const studentId = enrollmentStudent?.matric_number || result.matricNumber || matricNumber;
-      const studentName = enrollmentStudent?.name || result.studentName || studentData.name;
-      const studentLevel = enrollmentStudent?.level || studentData.level;
-      const studentProgramId = enrollmentStudent?.program_id || studentData.program_id;
-      const studentGender = enrollmentStudent?.gender || studentData.gender || 'male';
+      
+      const studentId = studentData.matric_number || matricNumber;
+      const studentName = studentData.name;
+      const studentLevel = studentData.level;
+      const studentProgramId = studentData.program_id;
+      const studentGender = studentData.gender || 'male';
       
       if (!studentId || !studentName) {
         message.error('Missing student information. Please complete all form steps.');
@@ -247,285 +294,260 @@ const EnrollmentPage: React.FC = () => {
         return;
       }
 
-      // Compress the image
-      const compressedImage = await compressImage(result.photoData.base64, 640, 0.8);
+      console.log('Processing enrollment for:', { studentId, studentName });
+
+      // STEP 1: Save the raw photo to localStorage FIRST
+      const localStorageKey = saveImageToLocalStorage(studentId, photoData);
+      
+      // STEP 2: Compress the image for database storage
+      const compressedImage = await compressImage(photoData, 640, 0.8);
       const fileName = `enrollment_${Date.now()}_${studentName.replace(/\s+/g, '_')}.jpg`;
       
+      let photoUrl = '';
+      let uploadSuccess = false;
+      
+      // STEP 3: Upload to Supabase Storage (if available)
       try {
-        let photoUrl = '';
+        const blob = dataURLtoBlob(compressedImage);
+        const { error: storageError } = await supabase.storage
+          .from('student-photos')
+          .upload(fileName, blob, {
+            contentType: 'image/jpeg',
+            upsert: true
+          });
         
-        // Upload to Supabase Storage
-        try {
-          const { error: storageError } = await supabase.storage
+        if (!storageError) {
+          const { data: publicUrlData } = supabase.storage
             .from('student-photos')
-            .upload(fileName, dataURLtoBlob(compressedImage), {
-              contentType: 'image/jpeg',
-              upsert: true
-            });
-          
-          if (!storageError) {
-            const { data: publicUrlData } = supabase.storage
-              .from('student-photos')
-              .getPublicUrl(fileName);
-            photoUrl = publicUrlData.publicUrl;
-          }
-        } catch (storageError) {
-          console.warn('Storage upload failed:', storageError);
+            .getPublicUrl(fileName);
+          photoUrl = publicUrlData.publicUrl;
+          uploadSuccess = true;
+          console.log('✅ Photo uploaded to Supabase:', photoUrl);
+        } else {
+          console.warn('Supabase storage upload failed:', storageError);
         }
+      } catch (storageError) {
+        console.warn('Storage upload failed, using data URL:', storageError);
+      }
 
-        if (!photoUrl) {
-          photoUrl = compressedImage;
+      // If no Supabase URL, use the compressed data URL
+      if (!photoUrl) {
+        photoUrl = compressedImage;
+      }
+
+      // Get program name
+      const selectedProgram = programs.find(p => p.id === studentProgramId);
+      const programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
+      
+      // ========== EXTRACT FACE EMBEDDINGS ==========
+      console.log('Extracting face features from captured photo...');
+      
+      let faceEmbedding: number[] = [];
+      let shortEmbedding: number[] = [];
+      let extractionMethod = 'fallback';
+      let faceDetected = false;
+      
+      try {
+        // Ensure models are loaded
+        if (!faceModelsLoaded) {
+          await loadFaceModels();
         }
         
-        // Get program name
-        const selectedProgram = programs.find(p => p.id === studentProgramId);
-        const programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
+        // Extract face descriptor from the RAW photo
+        console.log('Attempting face extraction...');
+        const descriptor = await faceRecognition.extractFaceDescriptor(photoData);
         
-        // ========== EXTRACT REAL FACE EMBEDDINGS ==========
-        console.log('Extracting face features from captured photo...');
-        
-        let faceEmbedding: number[] | null = null;
-        let shortEmbedding: number[] | null = null;
-        let extractionMethod = 'fallback';
-        let faceDetected = false;
-        
-        try {
-          // Ensure models are loaded
-          if (!faceModelsLoaded) {
-            await loadFaceModels();
-          }
+        if (descriptor) {
+          faceDetected = true;
+          extractionMethod = 'face-api.js';
           
-          // Extract REAL face descriptor from the captured photo
-          const descriptor = await faceRecognition.extractFaceDescriptor(compressedImage);
+          // Convert Float32Array to number[] (512 dimensions)
+          faceEmbedding = Array.from(descriptor);
           
-          if (descriptor) {
-            faceDetected = true;
-            extractionMethod = 'face-api.js';
-            
-            // Convert Float32Array to number[] (512 dimensions)
-            faceEmbedding = Array.from(descriptor);
-            
-            console.log('✅ REAL face embedding extracted:', {
-              dimensions: faceEmbedding.length,
-              sample: faceEmbedding.slice(0, 5)
-            });
-            
-            // Generate shorter embedding (128 dimensions) for face_embedding field
-            shortEmbedding = generateShortEmbedding(faceEmbedding, 128);
-            
-            console.log('✅ Short embedding created:', {
-              dimensions: shortEmbedding.length,
-              sample: shortEmbedding.slice(0, 5)
-            });
-            
-            // Save the embedding to localStorage as backup
-            await faceRecognition.updateFaceEmbedding(studentId, descriptor);
-            
-            message.success('Face features extracted successfully!');
-            
-          } else {
-            console.warn('No face detected in enrollment photo');
-            message.warning('No face detected. Using backup embedding system.');
-            throw new Error('No face detected');
-          }
-          
-        } catch (faceError: any) {
-          console.error('Face extraction failed:', faceError.message);
-          
-          // Use fallback embeddings if face extraction fails
-          extractionMethod = 'fallback';
-          faceEmbedding = generateFallbackEmbedding(512);
-          shortEmbedding = generateFallbackEmbedding(128);
-          
-          console.log('⚠️ Using fallback embeddings:', {
-            method: extractionMethod,
-            faceEmbeddingLength: faceEmbedding?.length,
-            shortEmbeddingLength: shortEmbedding?.length
+          console.log('✅ REAL face embedding extracted:', {
+            dimensions: faceEmbedding.length,
+            sample: faceEmbedding.slice(0, 5)
           });
           
-          message.warning('Face extraction failed. Using backup embedding system.');
-        }
-        // ========== END FACE EXTRACTION ==========
-        
-        // Format embeddings for PostgreSQL
-        const formattedFaceEmbedding = formatForPostgresVector(
-          faceEmbedding || generateFallbackEmbedding(512)
-        );
-        const formattedShortEmbedding = formatForPostgresVector(
-          shortEmbedding || generateFallbackEmbedding(128)
-        );
-        
-        console.log('Formatted embeddings:', {
-          face: formattedFaceEmbedding.length,
-          short: formattedShortEmbedding.length
-        });
-        
-        // Prepare data for database - MATCHING YOUR SCHEMA
-        const studentDataForDb = {
-          student_id: studentId,
-          name: studentName,
-          matric_number: studentId,
-          level: studentLevel,
-          program: programName,
-          program_id: studentProgramId,
-          gender: studentGender,
-          enrollment_status: 'enrolled',
-          enrollment_date: new Date().toISOString().split('T')[0], // Date only
-          last_updated: new Date().toISOString(),
-          photo_url: photoUrl,
-          photo_data: photoUrl,
-          face_embedding: formattedShortEmbedding,  // 128 dimensions for double precision[]
-          face_embedding_vector: formattedFaceEmbedding,  // 512 dimensions for vector type
-          face_enrolled_at: new Date().toISOString(),
-          face_match_threshold: 0.7,
-          academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
-          year_of_entry: new Date().getFullYear().toString(),
-          face_extraction_method: extractionMethod,
-          face_detected: faceDetected,
-          // Add other required fields with defaults
-          email: null,
-          phone: null,
-          faculty_id: null,
-          faculty_code: null,
-          department_id: null,
-          department_code: null,
-          admission_year: new Date().getFullYear(),
-          semester: 1,
-          session: 'regular',
-          course_codes: [],
-          last_face_scan: null,
-          current_level_id: null,
-          current_semester_id: null,
-          academic_session_id: null,
-          faculty_name: null,
-          department_name: null,
-          department: null
-        };
-        
-        console.log('Data being sent to database:', {
-          studentName,
-          studentId,
-          embeddingMethod: extractionMethod,
-          faceDetected,
-          faceEmbeddingLength: studentDataForDb.face_embedding_vector?.length,
-          shortEmbeddingLength: studentDataForDb.face_embedding?.length
-        });
-        
-        // Insert into database with error handling
-        try {
-          console.log('Attempting to insert student data...');
+          // Generate shorter embedding (128 dimensions) for face_embedding field
+          shortEmbedding = generateShortEmbedding(faceEmbedding, 128);
           
-          // First, check if student already exists
-          const { data: existingStudent } = await supabase
-            .from('students')
-            .select('id')
-            .eq('matric_number', studentId)
-            .maybeSingle();
+          console.log('✅ Short embedding created:', {
+            dimensions: shortEmbedding.length,
+            sample: shortEmbedding.slice(0, 5)
+          });
           
-          if (existingStudent) {
-            // Update existing student
-            const { error: updateError } = await supabase
-              .from('students')
-              .update(studentDataForDb)
-              .eq('matric_number', studentId);
-            
-            if (updateError) {
-              console.error('Update error:', updateError);
-              
-              // Try a simpler update without problematic fields
-              const simplifiedUpdate = {
-                name: studentName,
-                level: studentLevel,
-                program: programName,
-                program_id: studentProgramId,
-                gender: studentGender,
-                enrollment_status: 'enrolled',
-                photo_url: photoUrl,
-                face_embedding: formattedShortEmbedding,
-                face_enrolled_at: new Date().toISOString(),
-                last_updated: new Date().toISOString()
-              };
-              
-              const { error: simpleUpdateError } = await supabase
-                .from('students')
-                .update(simplifiedUpdate)
-                .eq('matric_number', studentId);
-                
-              if (simpleUpdateError) throw simpleUpdateError;
-            }
-          } else {
-            // Insert new student
-            const { data: dbResult, error: dbError } = await supabase
-              .from('students')
-              .insert([studentDataForDb])
-              .select();
-            
-            if (dbError) {
-              console.error('Insert error:', dbError);
-              
-              // Try without vector column if it fails
-              if (dbError.message.includes('vector') || dbError.message.includes('dimension')) {
-                console.log('Trying insert without vector column...');
-                
-                const { face_embedding_vector, ...dataWithoutVector } = studentDataForDb;
-                const { error: insertError } = await supabase
-                  .from('students')
-                  .insert([dataWithoutVector]);
-                
-                if (insertError) {
-                  console.error('Insert without vector also failed:', insertError);
-                  throw insertError;
-                }
-                
-                // Try to update vector column separately
-                try {
-                  const { error: vectorError } = await supabase
-                    .from('students')
-                    .update({ 
-                      face_embedding_vector: formattedFaceEmbedding,
-                      face_extraction_method: extractionMethod,
-                      face_detected: faceDetected
-                    })
-                    .eq('matric_number', studentId);
-                  
-                  if (vectorError) {
-                    console.warn('Could not update vector column:', vectorError);
-                  }
-                } catch (vectorUpdateError) {
-                  console.warn('Vector column update skipped');
-                }
-              } else {
-                throw dbError;
-              }
-            } else {
-              console.log('✅ Direct insert successful');
-            }
+          // Save the embedding to localStorage for backup
+          try {
+            await faceRecognition.updateFaceEmbedding(studentId, descriptor);
+            console.log('✅ Face embedding saved to localStorage');
+          } catch (storageError) {
+            console.warn('Failed to save embedding to localStorage:', storageError);
           }
-        } catch (dbError: any) {
-          console.error('Database operation failed:', dbError);
           
-          // Last resort: minimal insert
-          const minimalData = {
+          message.success('Face features extracted successfully!');
+          
+        } else {
+          console.warn('No face detected in enrollment photo');
+          throw new Error('No face detected');
+        }
+        
+      } catch (faceError: any) {
+        console.error('Face extraction failed:', faceError.message);
+        
+        // Use fallback embeddings if face extraction fails
+        extractionMethod = 'fallback';
+        faceEmbedding = generateFallbackEmbedding(512);
+        shortEmbedding = generateFallbackEmbedding(128);
+        
+        console.log('⚠️ Using fallback embeddings:', {
+          method: extractionMethod,
+          faceEmbeddingLength: faceEmbedding?.length,
+          shortEmbeddingLength: shortEmbedding?.length
+        });
+        
+        message.warning('Face extraction failed. Using backup embedding system.');
+      }
+      
+      // ========== ENSURE WE HAVE EMBEDDINGS ==========
+      // CRITICAL: Always ensure we have embeddings
+      if (faceEmbedding.length === 0) {
+        faceEmbedding = generateFallbackEmbedding(512);
+      }
+      
+      if (shortEmbedding.length === 0) {
+        shortEmbedding = generateFallbackEmbedding(128);
+      }
+      
+      // Format embeddings for PostgreSQL
+      const formattedFaceEmbedding = formatForPostgresVector(faceEmbedding);
+      const formattedShortEmbedding = formatForPostgresVector(shortEmbedding);
+      
+      console.log('Final embeddings ready:', {
+        face: formattedFaceEmbedding.length,
+        short: formattedShortEmbedding.length,
+        method: extractionMethod,
+        detected: faceDetected
+      });
+      
+      // ========== SAVE TO DATABASE ==========
+      console.log('Preparing database data...');
+      
+      // Prepare data for database
+      const studentDataForDb: any = {
+        student_id: studentId,
+        name: studentName,
+        matric_number: studentId,
+        level: studentLevel,
+        program: programName,
+        program_id: studentProgramId,
+        gender: studentGender,
+        enrollment_status: 'pending', // Start with pending
+        enrollment_date: new Date().toISOString().split('T')[0],
+        last_updated: new Date().toISOString(),
+        photo_url: photoUrl,
+        photo_data: photoUrl,
+        face_embedding: formattedShortEmbedding,
+        face_enrolled_at: new Date().toISOString(),
+        face_match_threshold: 0.7,
+        academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
+        year_of_entry: new Date().getFullYear().toString(),
+        face_extraction_method: extractionMethod,
+        face_detected: faceDetected,
+        upload_success: uploadSuccess,
+        local_storage_key: localStorageKey
+      };
+      
+      // Try to include vector column if it exists
+      try {
+        studentDataForDb.face_embedding_vector = formattedFaceEmbedding;
+      } catch (e) {
+        console.log('Vector column not included');
+      }
+      
+      console.log('Attempting database save...');
+      
+      // Save to database
+      let dbSuccess = false;
+      let finalStatus = 'pending';
+      
+      try {
+        const { data: dbResult, error: dbError } = await supabase
+          .from('students')
+          .insert([studentDataForDb])
+          .select();
+        
+        if (dbError) {
+          console.error('Insert failed:', dbError);
+          
+          // Try simplified version
+          const simplifiedData = {
             student_id: studentId,
             name: studentName,
             matric_number: studentId,
-            enrollment_status: 'enrolled',
+            enrollment_status: 'pending',
             photo_url: photoUrl,
-            enrollment_date: new Date().toISOString().split('T')[0]
+            enrollment_date: new Date().toISOString().split('T')[0],
+            face_embedding: formattedShortEmbedding,
+            level: studentLevel,
+            program: programName
           };
           
-          const { error: minimalError } = await supabase
+          const { error: simpleError } = await supabase
             .from('students')
-            .upsert([minimalData], { onConflict: 'matric_number' });
-            
-          if (minimalError) {
-            throw new Error(`Failed to save student: ${minimalError.message}`);
-          } else {
-            console.log('✅ Minimal student data saved');
+            .insert([simplifiedData]);
+          
+          if (simpleError) {
+            throw simpleError;
           }
         }
         
-        // Save photo to student_photos table
+        dbSuccess = true;
+        console.log('✅ Student data saved to database');
+        
+        // Update status to enrolled
+        try {
+          await supabase
+            .from('students')
+            .update({ 
+              enrollment_status: 'enrolled',
+              last_updated: new Date().toISOString()
+            })
+            .eq('matric_number', studentId);
+          finalStatus = 'enrolled';
+          console.log('✅ Enrollment status updated to "enrolled"');
+        } catch (statusError) {
+          console.warn('Could not update enrollment status:', statusError);
+        }
+        
+      } catch (dbError: any) {
+        console.error('Database save failed:', dbError);
+        
+        // Last attempt with upsert
+        const minimalData = {
+          student_id: studentId,
+          name: studentName,
+          matric_number: studentId,
+          enrollment_status: 'pending',
+          photo_url: photoUrl,
+          enrollment_date: new Date().toISOString().split('T')[0],
+          face_embedding: formattedShortEmbedding
+        };
+        
+        const { error: upsertError } = await supabase
+          .from('students')
+          .upsert([minimalData], { onConflict: 'matric_number' });
+          
+        if (upsertError) {
+          throw new Error(`Failed to save student: ${upsertError.message}`);
+        }
+        
+        dbSuccess = true;
+        console.log('✅ Minimal student data saved');
+      }
+      
+      // Save photo to student_photos table
+      if (dbSuccess) {
         try {
           await supabase
             .from('student_photos')
@@ -540,124 +562,111 @@ const EnrollmentPage: React.FC = () => {
         } catch (photoError) {
           console.warn('Photo table save skipped:', photoError);
         }
-        
-        // Verify the data was saved
-        console.log('Verifying saved data...');
-        const { data: verifyData, error: verifyError } = await supabase
-          .from('students')
-          .select('id, matric_number, face_embedding, face_embedding_vector, enrollment_status, face_extraction_method, face_detected')
-          .eq('matric_number', studentId)
-          .single();
-        
-        if (!verifyError && verifyData) {
-          console.log('Verified student data:', {
-            id: verifyData.id,
-            face_embedding: verifyData.face_embedding ? `${verifyData.face_embedding.length} dimensions` : 'NO',
-            face_embedding_vector: verifyData.face_embedding_vector ? 'YES' : 'NO',
-            extractionMethod: verifyData.face_extraction_method,
-            faceDetected: verifyData.face_detected
-          });
-          
-          // Test vector similarity function if vector was saved
-          if (verifyData.face_embedding_vector) {
-            console.log('Testing vector similarity function...');
-            try {
-              const { data: similarityTest, error: testError } = await supabase.rpc('match_faces', {
-                query_embedding: formattedFaceEmbedding,
-                match_threshold: 0.9,
-                match_count: 1
-              });
-              
-              if (!testError && similarityTest && similarityTest.length > 0) {
-                console.log('✅ Vector similarity test passed!');
-              }
-            } catch (testError) {
-              console.warn('Vector test failed:', testError);
-            }
-          }
-        } else {
-          console.warn('Could not verify student data:', verifyError);
-        }
-        
-        // Set success result
-        setEnrollmentResult({
-          success: true,
-          message: 'Enrollment completed successfully!',
-          student: {
-            name: studentName,
-            student_id: studentId,
-            matric_number: studentId
-          },
-          level: studentLevel,
-          program: programName,
-          photoUrl: photoUrl,
-          faceCaptured: true,
-          faceDetected: faceDetected,
-          extractionMethod: extractionMethod,
-          vectorSaved: verifyData?.face_embedding_vector ? true : false,
-          embeddingDimensions: verifyData?.face_embedding ? verifyData.face_embedding.length : 0
-        });
-        
-        setEnrollmentComplete(true);
-        message.success(`✅ ${studentName} enrolled successfully!`);
-        
-      } catch (error: any) {
-        console.error('❌ Enrollment failed:', error);
-        setEnrollmentResult({
-          success: false,
-          message: `Failed to complete enrollment: ${error.message}`,
-          error: error.message
-        });
-        setEnrollmentComplete(true);
-        message.error(`Enrollment failed: ${error.message}`);
       }
       
+      // Set success result
+      setEnrollmentResult({
+        success: true,
+        message: 'Enrollment completed successfully!',
+        student: {
+          name: studentName,
+          student_id: studentId,
+          matric_number: studentId
+        },
+        level: studentLevel,
+        program: programName,
+        photoUrl: photoUrl,
+        faceCaptured: true,
+        faceDetected: faceDetected,
+        extractionMethod: extractionMethod,
+        enrollmentStatus: finalStatus,
+        embeddingDimensions: shortEmbedding.length,
+        uploadSuccess: uploadSuccess,
+        localStorageKey: localStorageKey,
+        dbSuccess: dbSuccess
+      });
+      
+      setEnrollmentComplete(true);
+      setShowPhotoPreview(false);
+      message.success(`✅ ${studentName} enrolled successfully!`);
+      
     } catch (error: any) {
-      console.error('❌ Critical error:', error);
+      console.error('❌ Enrollment failed:', error);
+      
+      const errorMessage = error.message || 'Unknown error occurred';
+      const userMessage = `Failed to complete enrollment: ${errorMessage}`;
+      
       setEnrollmentResult({
         success: false,
-        message: `Failed to complete enrollment: ${error.message}`
+        message: userMessage,
+        error: error.message,
+        details: error.toString()
       });
+      
       setEnrollmentComplete(true);
-      message.error(`Failed to complete enrollment: ${error.message}`);
+      setShowPhotoPreview(false);
+      message.error(userMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // ... [Rest of the component remains the same, just use the updated handleEnrollmentComplete]
-  // Note: The rest of the JSX code from your previous version stays exactly the same
-  // Only the handleEnrollmentComplete function has been updated above
+  // Handle enrollment completion from FaceCamera
+  const handleEnrollmentComplete = async (result: any) => {
+    console.log('FaceCamera enrollment complete:', result);
+    
+    if (result && result.photoData && result.photoData.base64) {
+      await processEnrollmentWithPhoto(result.photoData.base64);
+    } else if (result && result.imageData) {
+      await processEnrollmentWithPhoto(result.imageData);
+    } else {
+      message.error('No photo data received from camera');
+      setLoading(false);
+    }
+  };
+
+  // Manual photo upload handler
+  const handleManualPhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const photoData = e.target?.result as string;
+      if (photoData) {
+        setCapturedPhoto(photoData);
+        setShowPhotoPreview(true);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
-    // ... [Your existing JSX code remains unchanged]
-    // Just make sure to use the updated handleEnrollmentComplete function
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '20px', maxWidth: 1200, margin: '0 auto' }}>
       <Title level={2}>Student Face Enrollment</Title>
       <Text type="secondary">
         AFE Babalola University - Biometric Face Enrollment System
       </Text>
 
       <Card style={{ marginTop: 20 }}>
-       // In the return statement, replace the Steps component with this:
-<Steps 
-  current={currentStep} 
-  style={{ marginBottom: 40 }}
-  items={[
-    {
-      title: window.innerWidth < 768 ? '' : 'Basic Information',
-      icon: <User />,
-    },
-    {
-      title: window.innerWidth < 768 ? '' : 'Academic Details',
-      icon: <BookOpen />,
-    },
-    {
-      title: window.innerWidth < 768 ? '' : 'FaceEnrollment',
-      icon: <Camera />,
-    },
-  ]}
-/>
+        <Steps 
+          current={currentStep} 
+          style={{ marginBottom: 40 }}
+          items={[
+            {
+              title: window.innerWidth < 768 ? '' : 'Basic Information',
+              icon: <User />,
+            },
+            {
+              title: window.innerWidth < 768 ? '' : 'Academic Details',
+              icon: <BookOpen />,
+            },
+            {
+              title: window.innerWidth < 768 ? '' : 'Face Enrollment',
+              icon: <Camera />,
+            },
+          ]}
+        />
 
         <div style={{ minHeight: 400 }}>
           {/* Step 1: Basic Information */}
@@ -858,47 +867,62 @@ const EnrollmentPage: React.FC = () => {
                       Enrollment Complete!
                     </Title>
                     
-                    <Card style={{ maxWidth: 500, margin: '20px auto', textAlign: 'left' }}>
+                    <Card style={{ maxWidth: 600, margin: '20px auto', textAlign: 'left' }}>
                       <Title level={4}>Student Summary</Title>
-                      <p><strong>Name:</strong> {enrollmentResult.student?.name}</p>
-                      <p><strong>Student ID:</strong> 
-                        <Tag color="blue" style={{ marginLeft: 8 }}>
-                          {enrollmentResult.student?.student_id}
-                        </Tag>
-                      </p>
-                      <p><strong>Matric Number:</strong> 
-                        <Tag color="green" style={{ marginLeft: 8 }}>
-                          {enrollmentResult.student?.matric_number}
-                        </Tag>
-                      </p>
-                      <p><strong>Level:</strong> 
-                        <Tag color="purple" style={{ marginLeft: 8 }}>
-                          Level {enrollmentResult.level}
-                        </Tag>
-                      </p>
-                      <p><strong>Program:</strong> {enrollmentResult.program}</p>
-                      <p><strong>Status:</strong> <Tag color="success">Enrolled</Tag></p>
-                      <p><strong>Face Detection:</strong> 
-                        <Tag color={enrollmentResult?.faceDetected ? "green" : "orange"} style={{ marginLeft: 8 }}>
-                          {enrollmentResult?.faceDetected ? 'Face Detected' : 'No Face'}
-                        </Tag>
-                      </p>
-                      <p><strong>Extraction Method:</strong> 
-                        <Tag color={enrollmentResult?.extractionMethod === 'face-api.js' ? "blue" : "orange"} style={{ marginLeft: 8 }}>
-                          {enrollmentResult?.extractionMethod === 'face-api.js' ? 'Real Face Features' : 'Backup System'}
-                        </Tag>
-                      </p>
-                      <p><strong>Embedding Dimensions:</strong> 
-                        <Tag style={{ marginLeft: 8 }}>
-                          {enrollmentResult?.embeddingDimensions || 0}D
-                        </Tag>
-                      </p>
-                      <p><strong>Vector Saved:</strong> 
-                        <Tag color={enrollmentResult?.vectorSaved ? "green" : "orange"} style={{ marginLeft: 8 }}>
-                          {enrollmentResult?.vectorSaved ? 'Vector Saved' : 'Vector Not Saved'}
-                        </Tag>
-                      </p>
-                      <p><strong>Enrollment Date:</strong> {new Date().toLocaleDateString()}</p>
+                      <Row gutter={[16, 16]}>
+                        <Col span={12}>
+                          <p><strong>Name:</strong></p>
+                          <p>{enrollmentResult.student?.name}</p>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Student ID:</strong></p>
+                          <Tag color="blue">{enrollmentResult.student?.student_id}</Tag>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Matric Number:</strong></p>
+                          <Tag color="green">{enrollmentResult.student?.matric_number}</Tag>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Level:</strong></p>
+                          <Tag color="purple">Level {enrollmentResult.level}</Tag>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Program:</strong></p>
+                          <p>{enrollmentResult.program}</p>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Status:</strong></p>
+                          <Tag color={enrollmentResult.enrollmentStatus === 'enrolled' ? "success" : "warning"}>
+                            {enrollmentResult.enrollmentStatus === 'enrolled' ? 'Enrolled' : 'Pending'}
+                          </Tag>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Face Detection:</strong></p>
+                          <Tag color={enrollmentResult.faceDetected ? "green" : "orange"}>
+                            {enrollmentResult.faceDetected ? 'Detected' : 'Not Detected'}
+                          </Tag>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Extraction Method:</strong></p>
+                          <Tag color={enrollmentResult.extractionMethod === 'face-api.js' ? "blue" : "orange"}>
+                            {enrollmentResult.extractionMethod === 'face-api.js' ? 'Real Features' : 'Backup System'}
+                          </Tag>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Embedding:</strong></p>
+                          <Tag>{enrollmentResult.embeddingDimensions}D</Tag>
+                        </Col>
+                        <Col span={12}>
+                          <p><strong>Upload:</strong></p>
+                          <Tag color={enrollmentResult.uploadSuccess ? "green" : "orange"}>
+                            {enrollmentResult.uploadSuccess ? 'Success' : 'Local Only'}
+                          </Tag>
+                        </Col>
+                        <Col span={24}>
+                          <p><strong>Enrollment Date:</strong></p>
+                          <p>{new Date().toLocaleDateString()}</p>
+                        </Col>
+                      </Row>
                       
                       {enrollmentResult.photoUrl && (
                         <div style={{ marginTop: 20, textAlign: 'center' }}>
@@ -907,24 +931,28 @@ const EnrollmentPage: React.FC = () => {
                             src={enrollmentResult.photoUrl} 
                             alt="Student" 
                             style={{ 
-                              maxWidth: '150px', 
+                              maxWidth: '200px', 
+                              maxHeight: '200px',
                               borderRadius: '8px',
-                              border: '2px solid #52c41a'
+                              border: '2px solid #52c41a',
+                              objectFit: 'cover'
                             }} 
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).parentElement!.innerHTML = 
+                                '<p style="color: #ff4d4f">Photo not available</p>';
                             }}
                           />
                         </div>
                       )}
                     </Card>
                     
-                    <div style={{ marginTop: 20, maxWidth: 500, margin: '0 auto' }}>
+                    <div style={{ marginTop: 20, maxWidth: 600, margin: '0 auto' }}>
                       <Alert
-                        type={enrollmentResult?.faceDetected ? "success" : "warning"}
-                        message={enrollmentResult?.faceDetected ? "Ready for Attendance" : "Limited Functionality"}
+                        type={enrollmentResult.faceDetected ? "success" : "warning"}
+                        message={enrollmentResult.faceDetected ? "Ready for Attendance" : "Limited Functionality"}
                         description={
-                          enrollmentResult?.faceDetected 
+                          enrollmentResult.faceDetected 
                             ? "This student can now be recognized by the face attendance system."
                             : "Face was not detected during enrollment. Attendance may require manual verification."
                         }
@@ -945,10 +973,19 @@ const EnrollmentPage: React.FC = () => {
                     </Title>
                     <Alert
                       message="Error"
-                      description={enrollmentResult?.message || 'Unknown error occurred'}
+                      description={
+                        <div>
+                          <p>{enrollmentResult?.message || 'Unknown error occurred'}</p>
+                          {enrollmentResult?.details && (
+                            <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: '12px' }}>
+                              Details: {enrollmentResult.details}
+                            </Text>
+                          )}
+                        </div>
+                      }
                       type="error"
                       showIcon
-                      style={{ maxWidth: 500, margin: '20px auto' }}
+                      style={{ maxWidth: 600, margin: '20px auto' }}
                     />
                   </>
                 )}
@@ -965,6 +1002,7 @@ const EnrollmentPage: React.FC = () => {
                       setCurrentStep(0);
                       setEnrollmentComplete(false);
                       setEnrollmentResult(null);
+                      setCapturedPhoto(null);
                       form.resetFields();
                       academicForm.resetFields();
                       setStudentData({});
@@ -983,15 +1021,13 @@ const EnrollmentPage: React.FC = () => {
                     {enrollmentResult?.success ? 'Enroll Another Student' : 'Try Again'}
                   </Button>
                   {enrollmentResult?.success && (
-                    <>
-                      <Button 
-                        size="large"
-                        type="primary"
-                        onClick={() => window.location.href = '/attendance'}
-                      >
-                        Take Attendance
-                      </Button>
-                    </>
+                    <Button 
+                      size="large"
+                      type="primary"
+                      onClick={() => window.location.href = '/attendance'}
+                    >
+                      Take Attendance
+                    </Button>
                   )}
                 </Space>
               </div>
@@ -1002,7 +1038,7 @@ const EnrollmentPage: React.FC = () => {
                   description={
                     <div>
                       <p>Capture facial data for biometric authentication.</p>
-                      <p><strong>Important:</strong> Ensure good lighting, remove glasses if possible, and face the camera directly.</p>
+                      <p><strong>Important:</strong> Ensure good lighting, face the camera directly, and maintain a neutral expression.</p>
                       <p>Face models status: 
                         <Tag color={faceModelsLoaded ? "green" : "orange"} style={{ marginLeft: 8 }}>
                           {faceModelsLoaded ? 'Ready' : 'Loading...'}
@@ -1016,44 +1052,41 @@ const EnrollmentPage: React.FC = () => {
                 />
                 
                 {studentData.name && (
-                  <Card style={{ marginBottom: 20, maxWidth: 600, margin: '0 auto 20px' }}>
+                  <Card style={{ marginBottom: 20, maxWidth: 800, margin: '0 auto 20px' }}>
                     <Row gutter={[16, 16]}>
-                      <Col span={8}>
-                        <Text strong>Student: </Text>
+                      <Col xs={24} sm={12} md={8}>
+                        <Text strong>Student:</Text>
                         <br />
                         <Text>{studentData.name}</Text>
                       </Col>
-                      <Col span={8}>
-                        <Text strong>Student ID: </Text>
+                      <Col xs={24} sm={12} md={8}>
+                        <Text strong>Student ID:</Text>
                         <br />
                         <Tag color="blue">{matricNumber}</Tag>
                       </Col>
-                      <Col span={8}>
-                        <Text strong>Status: </Text>
+                      <Col xs={24} sm={12} md={8}>
+                        <Text strong>Status:</Text>
                         <br />
                         <Tag color="orange">Pending Face Enrollment</Tag>
                       </Col>
-                    </Row>
-                    {studentData.level && (
-                      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-                        <Col span={12}>
-                          <Text strong>Level: </Text>
-                          <br />
-                          <Tag color="purple">Level {studentData.level}</Tag>
-                        </Col>
-                        <Col span={12}>
-                          <Text strong>Program: </Text>
-                          <br />
-                          <Text>
-                            {programs.find(p => p.id === studentData.program_id)?.name || 'Not selected'}
-                          </Text>
-                        </Col>
-                      </Row>
-                    )}
-                    
-                    <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                      {studentData.level && (
+                        <>
+                          <Col xs={24} sm={12} md={8}>
+                            <Text strong>Level:</Text>
+                            <br />
+                            <Tag color="purple">Level {studentData.level}</Tag>
+                          </Col>
+                          <Col xs={24} sm={12} md={8}>
+                            <Text strong>Program:</Text>
+                            <br />
+                            <Text>
+                              {programs.find(p => p.id === studentData.program_id)?.name || 'Not selected'}
+                            </Text>
+                          </Col>
+                        </>
+                      )}
                       <Col span={24}>
-                        <Text strong>Face Recognition: </Text>
+                        <Text strong>Face Recognition:</Text>
                         <br />
                         <Space>
                           <Tag color={faceModelsLoaded ? "green" : "orange"}>
@@ -1074,9 +1107,9 @@ const EnrollmentPage: React.FC = () => {
                   </Card>
                 )}
                 
-                <div style={{ maxWidth: 640, margin: '0 auto' }}>
+                <div style={{ maxWidth: 800, margin: '0 auto' }}>
                   {isCameraActive ? (
-                    <div style={{ maxWidth: 800, margin: '0 auto', height: '600px' }}>
+                    <div style={{ margin: '0 auto', height: '500px' }}>
                       <FaceCamera
                         mode="enrollment"
                         student={{
@@ -1088,15 +1121,21 @@ const EnrollmentPage: React.FC = () => {
                           gender: studentData.gender || 'male'
                         }}
                         onEnrollmentComplete={handleEnrollmentComplete}
+                        onFaceCapture={handleFaceCapture}
                         autoCapture={false}
                       />
+                      <div style={{ marginTop: 20 }}>
+                        <Button onClick={() => setIsCameraActive(false)}>
+                          Cancel Camera
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <Card>
                       <Camera size={48} style={{ marginBottom: 20, color: '#1890ff' }} />
                       <Title level={4}>Ready for Face Capture</Title>
                       <Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
-                        Ensure good lighting and face the camera directly. Click below to start.
+                        Choose how you want to capture the student's face
                       </Text>
                       
                       <div style={{ marginBottom: 20 }}>
@@ -1112,34 +1151,67 @@ const EnrollmentPage: React.FC = () => {
                         />
                       </div>
                       
-                      <Button
-                        type="primary"
-                        size="large"
-                        icon={<Camera size={20} />}
-                        onClick={() => setIsCameraActive(true)}
-                        loading={loading || !faceModelsLoaded}
-                        disabled={!faceModelsLoaded && loading}
-                        style={{ marginBottom: 10 }}
-                      >
-                        {faceModelsLoaded ? 'Start Face Enrollment' : 'Loading Face Models...'}
-                      </Button>
-                      
-                      {!faceModelsLoaded && (
-                        <div style={{ marginTop: 10 }}>
-                          <Button 
-                            onClick={loadFaceModels}
-                            loading={!faceModelsLoaded}
+                      <Row gutter={[20, 20]} style={{ marginTop: 30 }}>
+                        <Col span={24} md={12}>
+                          <Card 
+                            hoverable 
+                            style={{ height: '100%', textAlign: 'center' }}
+                            onClick={() => setIsCameraActive(true)}
                           >
-                            Force Load Models
-                          </Button>
-                        </div>
-                      )}
+                            <Camera size={48} style={{ marginBottom: 16, color: '#1890ff' }} />
+                            <Title level={5}>Use Web Camera</Title>
+                            <Text type="secondary">
+                              Capture live from your webcam. Best for real-time enrollment.
+                            </Text>
+                            <div style={{ marginTop: 20 }}>
+                              <Button
+                                type="primary"
+                                icon={<Camera size={16} />}
+                                onClick={() => setIsCameraActive(true)}
+                                loading={!faceModelsLoaded}
+                                disabled={!faceModelsLoaded}
+                              >
+                                {faceModelsLoaded ? 'Start Camera' : 'Loading Models...'}
+                              </Button>
+                            </div>
+                          </Card>
+                        </Col>
+                        
+                        <Col span={24} md={12}>
+                          <Card 
+                            hoverable 
+                            style={{ height: '100%', textAlign: 'center' }}
+                          >
+                            <Upload size={48} style={{ marginBottom: 16, color: '#52c41a' }} />
+                            <Title level={5}>Upload Photo</Title>
+                            <Text type="secondary">
+                              Upload an existing photo of the student.
+                            </Text>
+                            <div style={{ marginTop: 20 }}>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                id="photo-upload"
+                                style={{ display: 'none' }}
+                                onChange={handleManualPhotoUpload}
+                              />
+                              <Button
+                                type="default"
+                                icon={<Upload size={16} />}
+                                onClick={() => document.getElementById('photo-upload')?.click()}
+                              >
+                                Choose Photo
+                              </Button>
+                            </div>
+                          </Card>
+                        </Col>
+                      </Row>
                       
-                      <div style={{ marginTop: 20 }}>
+                      <div style={{ marginTop: 30 }}>
                         <Alert
                           type="warning"
-                          message="Important for Attendance"
-                          description="Face data is required for biometric attendance marking. For best results: good lighting, face camera directly, neutral expression."
+                          message="Important Instructions"
+                          description="For best face recognition results: Good lighting, face camera directly, neutral expression, no glasses/sunglasses, clear face visibility."
                           style={{ marginBottom: 20 }}
                         />
                         
@@ -1194,6 +1266,52 @@ const EnrollmentPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Photo Preview Modal */}
+      <Modal
+        title="Photo Preview"
+        open={showPhotoPreview && !enrollmentComplete}
+        onCancel={() => setShowPhotoPreview(false)}
+        footer={[
+          <Button key="retake" onClick={() => setShowPhotoPreview(false)}>
+            Retake Photo
+          </Button>,
+          <Button 
+            key="enroll" 
+            type="primary" 
+            loading={loading}
+            onClick={() => capturedPhoto && processEnrollmentWithPhoto(capturedPhoto)}
+          >
+            Use This Photo for Enrollment
+          </Button>
+        ]}
+        width={600}
+      >
+        <div style={{ textAlign: 'center' }}>
+          {capturedPhoto && (
+            <>
+              <img 
+                src={capturedPhoto} 
+                alt="Captured" 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '400px',
+                  borderRadius: '8px',
+                  border: '1px solid #d9d9d9'
+                }} 
+              />
+              <div style={{ marginTop: 20 }}>
+                <Alert
+                  type="info"
+                  message="Photo Ready"
+                  description="Review the photo above. If it looks good, click 'Use This Photo for Enrollment' to proceed."
+                  showIcon
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };

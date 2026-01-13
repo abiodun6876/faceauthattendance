@@ -14,6 +14,7 @@ interface FaceCameraProps {
   student?: any;
   onEnrollmentComplete?: (result: any) => void;
   onAttendanceComplete?: (result: any) => void;
+  onFaceCapture?: (photoData: string) => void; // ADD THIS LINE
   autoCapture?: boolean;
   captureInterval?: number;
 }
@@ -23,6 +24,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   student,
   onEnrollmentComplete,
   onAttendanceComplete,
+  onFaceCapture, // ADD THIS LINE
   autoCapture = true,
   captureInterval = 3000
 }) => {
@@ -166,6 +168,11 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       
       if (!imageData) {
         throw new Error('Failed to capture image');
+      }
+      
+      // Call onFaceCapture callback if provided
+      if (onFaceCapture) {
+        onFaceCapture(imageData);
       }
       
       // Process capture
