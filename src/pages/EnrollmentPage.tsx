@@ -1,4 +1,4 @@
-// src/pages/EnrollmentPage.tsx - CORRECTED VERSION
+// src/pages/EnrollmentPage.tsx - UPDATED WITH REAL FACE EMBEDDINGS
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -20,8 +20,38 @@ import { Camera, User, BookOpen, CheckCircle, GraduationCap } from 'lucide-react
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
 import { compressImage } from '../utils/imageUtils';
+import faceRecognition from '../utils/faceRecognition'; // IMPORT FACE RECOGNITION
 
 const { Title, Text } = Typography;
+
+// Helper function to generate short embedding from full embedding
+const generateShortEmbedding = (fullEmbedding: number[], targetDimensions: number): number[] => {
+  if (!fullEmbedding || fullEmbedding.length <= targetDimensions) {
+    return fullEmbedding || [];
+  }
+  
+  const result: number[] = [];
+  const segmentSize = fullEmbedding.length / targetDimensions;
+  
+  for (let i = 0; i < targetDimensions; i++) {
+    const start = Math.floor(i * segmentSize);
+    const end = Math.floor((i + 1) * segmentSize);
+    const segment = fullEmbedding.slice(start, end);
+    const average = segment.reduce((sum, val) => sum + val, 0) / segment.length;
+    result.push(parseFloat(average.toFixed(6)));
+  }
+  
+  return result;
+};
+
+// Fallback function for when face extraction fails
+const generateFallbackEmbedding = (dimensions = 512): number[] => {
+  const embedding = [];
+  for (let i = 0; i < dimensions; i++) {
+    embedding.push(parseFloat((Math.random() * 2 - 1).toFixed(6)));
+  }
+  return embedding;
+};
 
 const EnrollmentPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -33,6 +63,7 @@ const EnrollmentPage: React.FC = () => {
   const [enrollmentResult, setEnrollmentResult] = useState<any>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [matricNumber, setMatricNumber] = useState<string>('');
+  const [faceModelsLoaded, setFaceModelsLoaded] = useState(false);
   
   // State for fetched data
   const [programs, setPrograms] = useState<any[]>([]);
@@ -48,6 +79,25 @@ const EnrollmentPage: React.FC = () => {
     const currentYear = new Date().getFullYear();
     const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     return `ABU/${currentYear}/${randomNum}`;
+  };
+
+  // Load face recognition models
+  const loadFaceModels = async () => {
+    if (faceModelsLoaded) return;
+    
+    try {
+      message.loading({ content: 'Loading face recognition models...', key: 'loading-models', duration: 0 });
+      await faceRecognition.loadModels();
+      setFaceModelsLoaded(true);
+      message.success({ content: 'Face models loaded successfully', key: 'loading-models' });
+    } catch (error: any) {
+      console.error('Failed to load face models:', error);
+      message.error({ 
+        content: `Face models failed to load. Enrollment will use backup system: ${error.message}`,
+        key: 'loading-models',
+        duration: 5
+      });
+    }
   };
 
   // Fetch programs
@@ -90,7 +140,12 @@ const EnrollmentPage: React.FC = () => {
     setMatricNumber(newMatric);
     form.setFieldValue('matric_number', newMatric);
     fetchPrograms();
-  }, [form]);
+    
+    // Preload face models when user reaches step 2
+    if (currentStep >= 1) {
+      loadFaceModels();
+    }
+  }, [form, currentStep]);
 
   const handleNext = async () => {
     try {
@@ -108,11 +163,18 @@ const EnrollmentPage: React.FC = () => {
         console.log('Proceeding with values:', values);
         setStudentData(values);
         setCurrentStep(1);
+        
+        // Preload face models when moving to step 1
+        loadFaceModels();
+        
       } else if (currentStep === 1) {
         await academicForm.validateFields();
         const academicValues = await academicForm.getFieldsValue();
         setStudentData((prev: any) => ({ ...prev, ...academicValues }));
         setCurrentStep(2);
+        
+        // Ensure face models are loaded
+        loadFaceModels();
       }
     } catch (error: any) {
       console.error('Error in handleNext:', error);
@@ -148,23 +210,6 @@ const EnrollmentPage: React.FC = () => {
     } catch (error) {
       console.error('Error converting dataURL to blob:', error);
       throw error;
-    }
-  };
-
-  // Face similarity function (for reference, not used in enrollment)
-  const findSimilarFaces = async (queryEmbedding: number[]) => {
-    try {
-      const { data, error } = await supabase.rpc('match_faces', {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.8,
-        match_count: 5
-      });
-      
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error finding similar faces:', error);
-      return null;
     }
   };
 
@@ -227,19 +272,71 @@ const EnrollmentPage: React.FC = () => {
         const selectedProgram = programs.find(p => p.id === studentProgramId);
         const programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
         
-        // Generate embeddings
-        const generateVectorEmbedding = (dimensions = 512) => {
-          const embedding = [];
-          for (let i = 0; i < dimensions; i++) {
-            embedding.push(parseFloat((Math.random() * 2 - 1).toFixed(6)));
+        // ========== EXTRACT REAL FACE EMBEDDINGS ==========
+        console.log('Extracting face features from captured photo...');
+        
+        let faceEmbedding: number[] | null = null;
+        let shortEmbedding: number[] | null = null;
+        let extractionMethod = 'fallback';
+        let faceDetected = false;
+        
+        try {
+          // Ensure models are loaded
+          if (!faceModelsLoaded) {
+            await loadFaceModels();
           }
-          return embedding;
-        };
-        
-        const faceEmbedding = generateVectorEmbedding(512);
-        const shortEmbedding = generateVectorEmbedding(128);
-        
-        console.log('Vector embedding length:', faceEmbedding.length);
+          
+          // Extract REAL face descriptor from the captured photo
+          const descriptor = await faceRecognition.extractFaceDescriptor(compressedImage);
+          
+          if (descriptor) {
+            faceDetected = true;
+            extractionMethod = 'face-api.js';
+            
+            // Convert Float32Array to number[] (512 dimensions)
+            faceEmbedding = Array.from(descriptor);
+            
+            console.log('✅ REAL face embedding extracted:', {
+              dimensions: faceEmbedding.length,
+              sample: faceEmbedding.slice(0, 5)
+            });
+            
+            // Generate shorter embedding (128 dimensions) for face_embedding field
+            shortEmbedding = generateShortEmbedding(faceEmbedding, 128);
+            
+            console.log('✅ Short embedding created:', {
+              dimensions: shortEmbedding.length,
+              sample: shortEmbedding.slice(0, 5)
+            });
+            
+            // Save the embedding to localStorage as backup
+            await faceRecognition.updateFaceEmbedding(studentId, descriptor);
+            
+            message.success('Face features extracted successfully!');
+            
+          } else {
+            console.warn('No face detected in enrollment photo');
+            message.warning('No face detected. Using backup embedding system.');
+            throw new Error('No face detected');
+          }
+          
+        } catch (faceError: any) {
+          console.error('Face extraction failed:', faceError.message);
+          
+          // Use fallback embeddings if face extraction fails
+          extractionMethod = 'fallback';
+          faceEmbedding = generateFallbackEmbedding(512);
+          shortEmbedding = generateFallbackEmbedding(128);
+          
+          console.log('⚠️ Using fallback embeddings:', {
+            method: extractionMethod,
+            faceEmbeddingLength: faceEmbedding?.length,
+            shortEmbeddingLength: shortEmbedding?.length
+          });
+          
+          message.warning('Face extraction failed. Using backup embedding system.');
+        }
+        // ========== END FACE EXTRACTION ==========
         
         // Prepare data for database
         const studentDataForDb = {
@@ -255,16 +352,24 @@ const EnrollmentPage: React.FC = () => {
           last_updated: new Date().toISOString(),
           photo_url: photoUrl,
           photo_data: photoUrl,
-          face_embedding: shortEmbedding,
-          face_embedding_vector: faceEmbedding,
+          face_embedding: shortEmbedding || generateFallbackEmbedding(128),
+          face_embedding_vector: faceEmbedding || generateFallbackEmbedding(512),
           face_enrolled_at: new Date().toISOString(),
           face_match_threshold: 0.7,
           academic_session: `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`,
-          year_of_entry: new Date().getFullYear()
+          year_of_entry: new Date().getFullYear(),
+          face_extraction_method: extractionMethod,
+          face_detected: faceDetected
         };
         
-        console.log('Data being sent to database:');
-        console.log('face_embedding_vector length:', studentDataForDb.face_embedding_vector?.length);
+        console.log('Data being sent to database:', {
+          studentName,
+          studentId,
+          embeddingMethod: extractionMethod,
+          faceDetected,
+          faceEmbeddingLength: studentDataForDb.face_embedding_vector?.length,
+          shortEmbeddingLength: studentDataForDb.face_embedding?.length
+        });
         
         // Insert into database
         try {
@@ -294,7 +399,11 @@ const EnrollmentPage: React.FC = () => {
               // Update vector column separately
               const { error: vectorError } = await supabase
                 .from('students')
-                .update({ face_embedding_vector: faceEmbedding })
+                .update({ 
+                  face_embedding_vector: faceEmbedding || generateFallbackEmbedding(512),
+                  face_extraction_method: extractionMethod,
+                  face_detected: faceDetected
+                })
                 .eq('matric_number', studentId);
               
               if (vectorError) {
@@ -330,21 +439,24 @@ const EnrollmentPage: React.FC = () => {
         console.log('Verifying saved data...');
         const { data: verifyData, error: verifyError } = await supabase
           .from('students')
-          .select('matric_number, face_embedding, face_embedding_vector, enrollment_status')
+          .select('matric_number, face_embedding, face_embedding_vector, enrollment_status, face_extraction_method, face_detected')
           .eq('matric_number', studentId)
           .single();
         
         if (!verifyError && verifyData) {
-          console.log('Verified student data:');
-          console.log('face_embedding saved:', verifyData.face_embedding ? 'YES' : 'NO');
-          console.log('face_embedding_vector saved:', verifyData.face_embedding_vector ? 'YES' : 'NO');
+          console.log('Verified student data:', {
+            face_embedding: verifyData.face_embedding ? `${verifyData.face_embedding.length} dimensions` : 'NO',
+            face_embedding_vector: verifyData.face_embedding_vector ? `${verifyData.face_embedding_vector.length} dimensions` : 'NO',
+            extractionMethod: verifyData.face_extraction_method,
+            faceDetected: verifyData.face_detected
+          });
           
-          // Test vector similarity function
+          // Test vector similarity function if vector was saved
           if (verifyData.face_embedding_vector) {
             console.log('Testing vector similarity function...');
             try {
               const { data: similarityTest, error: testError } = await supabase.rpc('match_faces', {
-                query_embedding: faceEmbedding,
+                query_embedding: verifyData.face_embedding_vector,
                 match_threshold: 0.9,
                 match_count: 1
               });
@@ -371,7 +483,10 @@ const EnrollmentPage: React.FC = () => {
           program: programName,
           photoUrl: photoUrl,
           faceCaptured: true,
-          vectorSaved: verifyData?.face_embedding_vector ? true : false
+          faceDetected: faceDetected,
+          extractionMethod: extractionMethod,
+          vectorSaved: verifyData?.face_embedding_vector ? true : false,
+          embeddingDimensions: verifyData?.face_embedding_vector?.length || 0
         });
         
         setEnrollmentComplete(true);
@@ -576,6 +691,20 @@ const EnrollmentPage: React.FC = () => {
               </div>
             </Form>
           )}
+          
+          {/* Face model loading status */}
+          <div style={{ marginTop: 20 }}>
+            <Alert
+              type={faceModelsLoaded ? "success" : "info"}
+              message="Face Recognition Status"
+              description={
+                faceModelsLoaded 
+                  ? "✅ Face recognition models are loaded and ready for enrollment"
+                  : "Loading face recognition models... (Required for face enrollment)"
+              }
+              showIcon
+            />
+          </div>
         </div>
       ),
     },
@@ -611,9 +740,19 @@ const EnrollmentPage: React.FC = () => {
                 </p>
                 <p><strong>Program:</strong> {enrollmentResult.program}</p>
                 <p><strong>Status:</strong> <Tag color="success">Enrolled</Tag></p>
-                <p><strong>Face Data:</strong> 
-                  <Tag color={enrollmentResult?.faceCaptured ? "green" : "orange"} style={{ marginLeft: 8 }}>
-                    {enrollmentResult?.faceCaptured ? 'Photo Captured' : 'No Photo'}
+                <p><strong>Face Detection:</strong> 
+                  <Tag color={enrollmentResult?.faceDetected ? "green" : "orange"} style={{ marginLeft: 8 }}>
+                    {enrollmentResult?.faceDetected ? 'Face Detected' : 'No Face'}
+                  </Tag>
+                </p>
+                <p><strong>Extraction Method:</strong> 
+                  <Tag color={enrollmentResult?.extractionMethod === 'face-api.js' ? "blue" : "orange"} style={{ marginLeft: 8 }}>
+                    {enrollmentResult?.extractionMethod === 'face-api.js' ? 'Real Face Features' : 'Backup System'}
+                  </Tag>
+                </p>
+                <p><strong>Embedding Dimensions:</strong> 
+                  <Tag style={{ marginLeft: 8 }}>
+                    {enrollmentResult?.embeddingDimensions || 0}D
                   </Tag>
                 </p>
                 <p><strong>Vector Saved:</strong> 
@@ -634,10 +773,26 @@ const EnrollmentPage: React.FC = () => {
                         borderRadius: '8px',
                         border: '2px solid #52c41a'
                       }} 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
                     />
                   </div>
                 )}
               </Card>
+              
+              <div style={{ marginTop: 20, maxWidth: 500, margin: '0 auto' }}>
+                <Alert
+                  type={enrollmentResult?.faceDetected ? "success" : "warning"}
+                  message={enrollmentResult?.faceDetected ? "Ready for Attendance" : "Limited Functionality"}
+                  description={
+                    enrollmentResult?.faceDetected 
+                      ? "This student can now be recognized by the face attendance system."
+                      : "Face was not detected during enrollment. Attendance may require manual verification."
+                  }
+                  showIcon
+                />
+              </div>
             </>
           ) : (
             <>
@@ -707,7 +862,17 @@ const EnrollmentPage: React.FC = () => {
         <div style={{ textAlign: 'center' }}>
           <Alert
             message="Face Enrollment"
-            description="Capture facial data for biometric authentication. Ensure good lighting and face the camera directly."
+            description={
+              <div>
+                <p>Capture facial data for biometric authentication.</p>
+                <p><strong>Important:</strong> Ensure good lighting, remove glasses if possible, and face the camera directly.</p>
+                <p>Face models status: 
+                  <Tag color={faceModelsLoaded ? "green" : "orange"} style={{ marginLeft: 8 }}>
+                    {faceModelsLoaded ? 'Ready' : 'Loading...'}
+                  </Tag>
+                </p>
+              </div>
+            }
             type="info"
             showIcon
             style={{ marginBottom: 20 }}
@@ -748,6 +913,27 @@ const EnrollmentPage: React.FC = () => {
                   </Col>
                 </Row>
               )}
+              
+              <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                <Col span={24}>
+                  <Text strong>Face Recognition: </Text>
+                  <br />
+                  <Space>
+                    <Tag color={faceModelsLoaded ? "green" : "orange"}>
+                      {faceModelsLoaded ? 'Models Loaded' : 'Loading Models...'}
+                    </Tag>
+                    {!faceModelsLoaded && (
+                      <Button 
+                        size="small" 
+                        onClick={loadFaceModels}
+                        loading={!faceModelsLoaded}
+                      >
+                        Reload Models
+                      </Button>
+                    )}
+                  </Space>
+                </Col>
+              </Row>
             </Card>
           )}
           
@@ -775,22 +961,48 @@ const EnrollmentPage: React.FC = () => {
                 <Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
                   Ensure good lighting and face the camera directly. Click below to start.
                 </Text>
+                
+                <div style={{ marginBottom: 20 }}>
+                  <Alert
+                    type={faceModelsLoaded ? "success" : "warning"}
+                    message={faceModelsLoaded ? "Face Recognition Ready" : "Face Recognition Loading"}
+                    description={
+                      faceModelsLoaded 
+                        ? "Face recognition models are loaded. Real facial features will be extracted."
+                        : "Models are still loading. Please wait or proceed with backup system."
+                    }
+                    showIcon
+                  />
+                </div>
+                
                 <Button
                   type="primary"
                   size="large"
                   icon={<Camera size={20} />}
                   onClick={() => setIsCameraActive(true)}
-                  loading={loading}
+                  loading={loading || !faceModelsLoaded}
+                  disabled={!faceModelsLoaded && loading}
                   style={{ marginBottom: 10 }}
                 >
-                  Start Face Enrollment
+                  {faceModelsLoaded ? 'Start Face Enrollment' : 'Loading Face Models...'}
                 </Button>
+                
+                {!faceModelsLoaded && (
+                  <div style={{ marginTop: 10 }}>
+                    <Button 
+                      onClick={loadFaceModels}
+                      loading={!faceModelsLoaded}
+                    >
+                      Force Load Models
+                    </Button>
+                  </div>
+                )}
                 
                 <div style={{ marginTop: 20 }}>
                   <Alert
                     type="warning"
                     message="Important for Attendance"
-                    description="Face data is required for biometric attendance marking. Please ensure good lighting."
+                    description="Face data is required for biometric attendance marking. For best results: good lighting, face camera directly, neutral expression."
                     style={{ marginBottom: 20 }}
                   />
                   
@@ -843,10 +1055,27 @@ const EnrollmentPage: React.FC = () => {
                 onClick={handleNext} 
                 size="large"
                 loading={loading}
+                disabled={currentStep === 1 && !faceModelsLoaded}
               >
                 {currentStep === 1 ? 'Proceed to Face Enrollment' : 'Next'}
               </Button>
             </Space>
+            
+            {currentStep === 1 && !faceModelsLoaded && (
+              <div style={{ marginTop: 10 }}>
+                <Text type="warning">
+                  Face models are loading. Please wait or reload models.
+                </Text>
+                <br />
+                <Button 
+                  size="small" 
+                  onClick={loadFaceModels}
+                  style={{ marginTop: 5 }}
+                >
+                  Reload Face Models
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </Card>

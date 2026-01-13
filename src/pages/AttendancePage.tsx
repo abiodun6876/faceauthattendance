@@ -1,22 +1,18 @@
-// src/pages/AttendancePage.tsx - HYBRID SOLUTION
+// src/pages/AttendancePage.tsx - FUTURISTIC BLUE DESIGN
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Select,
   Button,
   Typography,
   Space,
-  Badge,
-  Alert,
-  message
+  Badge
 } from 'antd';
 import { 
   Camera, 
   CheckCircle, 
   XCircle,
   Clock,
-  ArrowLeft,
-  Database,
-  Cpu
+  ArrowLeft
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -30,131 +26,28 @@ const AttendancePage: React.FC = () => {
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedCourseData, setSelectedCourseData] = useState<any>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [faceModelsLoaded, setFaceModelsLoaded] = useState(false);
   const [lastScanResult, setLastScanResult] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [scanCount, setScanCount] = useState(0);
   const [successfulScans, setSuccessfulScans] = useState(0);
   const [alreadyMarkedScans, setAlreadyMarkedScans] = useState(0);
-  const [faceModelsLoaded, setFaceModelsLoaded] = useState(false);
-  const [vectorFunctionAvailable, setVectorFunctionAvailable] = useState(false);
-  const [useVectorMatching, setUseVectorMatching] = useState(false);
   
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const markedStudentsRef = useRef<Set<string>>(new Set());
 
-  // Test if vector function exists
-  const testVectorFunction = async () => {
+  // Fetch courses
+  const fetchCourses = async () => {
     try {
-      // Create a test embedding
-      const testEmbedding = Array.from({length: 512}, () => 
-        parseFloat((Math.random() * 2 - 1).toFixed(6))
-      );
-      
-      const { data, error } = await supabase.rpc('match_faces', {
-        query_embedding: testEmbedding,
-        match_threshold: 0.7,
-        match_count: 1
-      });
-      
-      if (error) {
-        console.log('Vector function not available:', error.message);
-        setVectorFunctionAvailable(false);
-        setUseVectorMatching(false);
-      } else {
-        console.log('✅ Vector function is available');
-        setVectorFunctionAvailable(true);
-        
-        // Auto-enable vector matching if available
-        const { data: vectorCount } = await supabase
-          .from('students')
-          .select('count')
-          .not('face_embedding_vector', 'is', null)
-          .single();
-          
-        if (vectorCount?.count > 0) {
-          setUseVectorMatching(true);
-          message.info('Using PostgreSQL vector matching');
-        }
-      }
-    } catch (error) {
-      console.warn('Error testing vector function:', error);
-      setVectorFunctionAvailable(false);
-      setUseVectorMatching(false);
-    }
-  };
-
-  // Generate face embedding using face-api.js
-  const generateFaceEmbedding = async (photoBase64: string): Promise<number[] | null> => {
-    try {
-      if (!faceModelsLoaded) {
-        message.loading({ content: 'Loading face models...', key: 'models' });
-        await faceRecognition.loadModels();
-        setFaceModelsLoaded(true);
-        message.success({ content: 'Face models loaded', key: 'models' });
-      }
-
-      const descriptor = await faceRecognition.extractFaceDescriptor(photoBase64);
-      
-      if (!descriptor) {
-        console.log('No face detected in image');
-        return null;
-      }
-
-      // Convert Float32Array to number[] (512-dimension vector)
-      const embedding = Array.from(descriptor);
-      
-      if (embedding.length !== 512) {
-        console.warn(`Expected 512 dimensions, got ${embedding.length}. Padding/truncating...`);
-        // Ensure we have exactly 512 dimensions for PostgreSQL vector
-        if (embedding.length > 512) {
-          return embedding.slice(0, 512);
-        } else {
-          return [...embedding, ...Array(512 - embedding.length).fill(0)];
-        }
-      }
-      
-      console.log('Generated embedding length:', embedding.length);
-      return embedding;
-      
-    } catch (error) {
-      console.error('Error generating embedding:', error);
-      return null;
-    }
-  };
-
-  // Find similar faces using vector matching
-  const findSimilarFacesVector = async (embedding: number[]) => {
-    try {
-      const { data, error } = await supabase.rpc('match_faces', {
-        query_embedding: embedding,
-        match_threshold: 0.65, // Lower threshold for vector matching
-        match_count: 5
-      });
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .order('code');
       
       if (error) throw error;
-      return data || [];
+      setCourses(data || []);
     } catch (error: any) {
-      console.error('Error in vector matching:', error);
-      return [];
-    }
-  };
-
-  // Find similar faces using face-api.js matching
-  const findSimilarFacesTraditional = async (photoBase64: string) => {
-    try {
-      const matches = await faceRecognition.matchFaceForAttendance(photoBase64);
-      
-      // Convert to same format as vector matching
-      return matches.map(match => ({
-        id: match.studentId,
-        student_id: match.studentId,
-        name: match.name,
-        matric_number: match.matric_number,
-        similarity: match.confidence
-      }));
-    } catch (error) {
-      console.error('Error in traditional matching:', error);
-      return [];
+      console.error('Error fetching courses:', error);
     }
   };
 
@@ -183,16 +76,17 @@ const AttendancePage: React.FC = () => {
   };
 
   // Record Attendance
-  const recordAttendance = async (studentData: any, similarity: number, method: string) => {
+  const recordAttendance = async (studentData: any, confidence: number) => {
     try {
       const attendanceDate = dayjs().format('YYYY-MM-DD');
       
-      // Check if already marked
+      // Check if already marked in database
       const alreadyMarked = await checkExistingAttendance(studentData.student_id);
       if (alreadyMarked) {
         return { success: false, alreadyMarked: true };
       }
       
+      // Check if already marked in this session
       const studentKey = `${studentData.student_id}-${selectedCourseData.code}-${attendanceDate}`;
       if (markedStudentsRef.current.has(studentKey)) {
         return { success: false, alreadyMarked: true };
@@ -208,9 +102,8 @@ const AttendancePage: React.FC = () => {
         attendance_date: attendanceDate,
         check_in_time: new Date().toISOString(),
         status: 'present',
-        verification_method: method,
-        confidence_score: similarity,
-        similarity_score: similarity,
+        verification_method: 'face_recognition',
+        confidence_score: confidence,
         score: 2.00,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -234,78 +127,42 @@ const AttendancePage: React.FC = () => {
 
   // Handle face detection
   const handleFaceDetection = async (result: any) => {
-    if (!result.success || !result.photoData || isProcessing || !selectedCourseData) return;
+    if (!result.success || !result.photoUrl || isProcessing || !selectedCourseData) return;
     
     setIsProcessing(true);
     setScanCount(prev => prev + 1);
     
     try {
-      console.log('Processing face detection... Method:', useVectorMatching ? 'Vector' : 'Traditional');
+      const matches = await faceRecognition.matchFaceForAttendance(result.photoUrl);
       
-      let matches = [];
-      
-      if (useVectorMatching && vectorFunctionAvailable) {
-        // Use PostgreSQL vector matching
-        const embedding = await generateFaceEmbedding(result.photoData.base64);
-        
-        if (!embedding) {
-          setLastScanResult({ 
-            success: false,
-            type: 'no_face',
-            message: 'No face detected'
-          });
-          return;
-        }
-        
-        matches = await findSimilarFacesVector(embedding);
-      } else {
-        // Use traditional face-api.js matching
-        matches = await findSimilarFacesTraditional(result.photoData.base64);
-      }
-      
-      console.log('Found matches:', matches?.length);
-      
-      if (matches.length === 0) {
+      if (matches.length === 0 || matches[0].confidence < 0.60) {
         setLastScanResult({ 
           success: false,
-          type: 'no_match',
-          message: 'No matching student found'
+          type: 'no_match'
         });
         return;
       }
       
       const bestMatch = matches[0];
-      const MATCH_THRESHOLD = useVectorMatching ? 0.65 : 0.6;
       
-      if (bestMatch.similarity < MATCH_THRESHOLD) {
-        setLastScanResult({ 
-          success: false,
-          type: 'low_confidence',
-          message: `Low confidence: ${(bestMatch.similarity * 100).toFixed(1)}%`
-        });
-        return;
-      }
-      
-      // Get full student data
-      const { data: studentData, error: studentError } = await supabase
+      // Get student data
+      const { data: studentData } = await supabase
         .from('students')
         .select('*')
-        .eq('matric_number', bestMatch.matric_number)
+        .eq('student_id', bestMatch.studentId)
         .eq('enrollment_status', 'enrolled')
-        .single();
+        .maybeSingle();
       
-      if (studentError || !studentData) {
+      if (!studentData) {
         setLastScanResult({ 
           success: false,
-          type: 'not_enrolled',
-          message: 'Student not enrolled'
+          type: 'not_enrolled'
         });
         return;
       }
       
       // Record attendance
-      const method = useVectorMatching ? 'postgres_vector' : 'faceapi_js';
-      const attendanceResult = await recordAttendance(studentData, bestMatch.similarity, method);
+      const attendanceResult = await recordAttendance(studentData, bestMatch.confidence);
       
       if (attendanceResult.alreadyMarked) {
         setLastScanResult({
@@ -314,8 +171,7 @@ const AttendancePage: React.FC = () => {
           student: {
             name: studentData.name,
             matric_number: studentData.matric_number
-          },
-          message: 'Attendance already marked today'
+          }
         });
         setAlreadyMarkedScans(prev => prev + 1);
       } else if (attendanceResult.success) {
@@ -324,10 +180,7 @@ const AttendancePage: React.FC = () => {
           student: {
             name: studentData.name,
             matric_number: studentData.matric_number
-          },
-          similarity: bestMatch.similarity,
-          method: method,
-          message: 'Attendance marked successfully'
+          }
         });
         setSuccessfulScans(prev => prev + 1);
         
@@ -344,43 +197,49 @@ const AttendancePage: React.FC = () => {
       console.error('Face recognition error:', error);
       setLastScanResult({ 
         success: false,
-        type: 'error',
-        message: error.message || 'Processing error'
+        type: 'error'
       });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Toggle between vector and traditional matching
-  const toggleMatchingMethod = () => {
-    if (!vectorFunctionAvailable && !useVectorMatching) {
-      message.warning('Vector matching not available');
-      return;
-    }
-    
-    const newMethod = !useVectorMatching;
-    setUseVectorMatching(newMethod);
-    message.info(`Switched to ${newMethod ? 'PostgreSQL Vector' : 'Face-API.js'} matching`);
-  };
-
   // Start scanning
   const startScanning = async () => {
-    // Preload models
-    try {
-      message.loading({ content: 'Loading face models...', key: 'loading' });
-      await faceRecognition.loadModels();
-      setFaceModelsLoaded(true);
-      message.success({ content: 'Models loaded', key: 'loading' });
-    } catch (error) {
-      message.error('Failed to load face models');
-      return;
+    if (!faceModelsLoaded) {
+      try {
+        await faceRecognition.loadModels();
+        setFaceModelsLoaded(true);
+      } catch (error) {
+        console.log('Face models loading...');
+      }
     }
-    
     setIsCameraActive(true);
     setLastScanResult(null);
     markedStudentsRef.current.clear();
-    message.info('Face scanning started');
+  };
+
+  // Stop scanning
+  const stopScanning = () => {
+    setIsCameraActive(false);
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+    }
+  };
+
+  // Reset scanner
+  const resetScanner = () => {
+    setIsCameraActive(false);
+    setLastScanResult(null);
+    setSelectedCourse('');
+    setSelectedCourseData(null);
+    setScanCount(0);
+    setSuccessfulScans(0);
+    setAlreadyMarkedScans(0);
+    markedStudentsRef.current.clear();
+    if (scanTimeoutRef.current) {
+      clearTimeout(scanTimeoutRef.current);
+    }
   };
 
   // Back to course selection
@@ -390,26 +249,19 @@ const AttendancePage: React.FC = () => {
     setSelectedCourseData(null);
   };
 
-  // Fetch courses
-  const fetchCourses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('courses')
-        .select('*')
-        .order('code');
-      
-      if (error) throw error;
-      setCourses(data || []);
-    } catch (error: any) {
-      console.error('Error fetching courses:', error);
-      message.error('Failed to load courses');
-    }
-  };
-
   useEffect(() => {
     fetchCourses();
-    testVectorFunction();
     
+    const loadModels = async () => {
+      try {
+        await faceRecognition.loadModels();
+        setFaceModelsLoaded(true);
+      } catch (error) {
+        console.log('Face models loading...');
+      }
+    };
+    loadModels();
+
     return () => {
       if (scanTimeoutRef.current) {
         clearTimeout(scanTimeoutRef.current);
@@ -430,10 +282,10 @@ const AttendancePage: React.FC = () => {
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      backgroundColor: '#0a1a35',
+      backgroundColor: '#0a1a35', // Futuristic dark blue
       color: '#ffffff'
     }}>
-      {/* Main Content */}
+      {/* Main Content - Fills screen */}
       <div style={{ 
         flex: 1,
         padding: '12px',
@@ -441,35 +293,6 @@ const AttendancePage: React.FC = () => {
         flexDirection: 'column',
         overflow: 'hidden'
       }}>
-        {/* Method Toggle */}
-        {selectedCourse && !isCameraActive && (
-          <div style={{
-            position: 'absolute',
-            top: 20,
-            right: 20,
-            zIndex: 10
-          }}>
-            <Button
-              icon={useVectorMatching ? <Database size={16} /> : <Cpu size={16} />}
-              onClick={toggleMatchingMethod}
-              style={{
-                backgroundColor: useVectorMatching 
-                  ? 'rgba(0, 150, 255, 0.2)' 
-                  : 'rgba(255, 100, 0, 0.2)',
-                border: useVectorMatching 
-                  ? '1px solid rgba(0, 150, 255, 0.5)' 
-                  : '1px solid rgba(255, 100, 0, 0.5)',
-                color: useVectorMatching ? '#00aaff' : '#ff6400',
-                borderRadius: 20,
-                padding: '4px 12px'
-              }}
-              disabled={!vectorFunctionAvailable && useVectorMatching}
-            >
-              {useVectorMatching ? 'PostgreSQL Vector' : 'Face-API.js'}
-            </Button>
-          </div>
-        )}
-
         {/* Course Selection */}
         {!selectedCourse && (
           <div style={{ 
@@ -495,9 +318,14 @@ const AttendancePage: React.FC = () => {
               <Camera size={36} color="#00aaff" />
             </div>
             
-            <Title level={4} style={{ color: '#ffffff', marginBottom: 16 }}>
-              Face Recognition Attendance
-            </Title>
+            <Text style={{ 
+              fontSize: 20, 
+              marginBottom: 24, 
+              fontWeight: 600,
+              color: '#ffffff'
+            }}>
+              SELECT COURSE
+            </Text>
             
             <Select
               style={{ 
@@ -520,16 +348,6 @@ const AttendancePage: React.FC = () => {
                 label: `${course.code} - ${course.title}`,
               }))}
             />
-            
-            {!vectorFunctionAvailable && (
-              <Alert
-                type="info"
-                message="Vector Matching Available"
-                description="Run SQL setup in Supabase to enable faster PostgreSQL vector matching"
-                showIcon
-                style={{ maxWidth: 400, marginBottom: 16 }}
-              />
-            )}
           </div>
         )}
 
@@ -569,38 +387,6 @@ const AttendancePage: React.FC = () => {
               {selectedCourseData.code}
             </Text>
             
-            <Text style={{ 
-              fontSize: 16, 
-              marginBottom: 32,
-              color: '#aaccff'
-            }}>
-              {selectedCourseData.title}
-            </Text>
-            
-            {/* Method Indicator */}
-            <div style={{
-              marginBottom: 24,
-              padding: '8px 16px',
-              backgroundColor: useVectorMatching 
-                ? 'rgba(0, 150, 255, 0.1)' 
-                : 'rgba(255, 100, 0, 0.1)',
-              borderRadius: 8,
-              border: useVectorMatching 
-                ? '1px solid rgba(0, 150, 255, 0.3)' 
-                : '1px solid rgba(255, 100, 0, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            }}>
-              {useVectorMatching ? <Database size={16} color="#00aaff" /> : <Cpu size={16} color="#ff6400" />}
-              <Text style={{ 
-                fontSize: 12, 
-                color: useVectorMatching ? '#00aaff' : '#ff6400' 
-              }}>
-                {useVectorMatching ? 'PostgreSQL Vector Matching' : 'Face-API.js Matching'}
-              </Text>
-            </div>
-            
             <Button
               type="primary"
               icon={<Camera size={20} />}
@@ -630,17 +416,17 @@ const AttendancePage: React.FC = () => {
             flexDirection: 'column',
             height: '100%'
           }}>
-            {/* Header */}
+            {/* Course Code and Back Button - Top Left */}
             <div style={{
               position: 'absolute',
               top: 20,
               left: 20,
-              right: 20,
               zIndex: 100,
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: 12
             }}>
+              {/* Back Button */}
               <Button
                 icon={<ArrowLeft size={20} />}
                 onClick={handleBack}
@@ -658,6 +444,7 @@ const AttendancePage: React.FC = () => {
                 }}
               />
               
+              {/* Course Code Badge */}
               <div style={{
                 backgroundColor: 'rgba(0, 150, 255, 0.2)',
                 color: '#00aaff',
@@ -669,16 +456,20 @@ const AttendancePage: React.FC = () => {
                 gap: 8,
                 backdropFilter: 'blur(10px)'
               }}>
-                {useVectorMatching ? 
-                  <Database size={14} color="#00ffaa" /> : 
-                  <Cpu size={14} color="#00ffaa" />
-                }
                 <Badge status="processing" color="#00ffaa" />
                 <Text style={{ fontSize: 14, fontWeight: 600 }}>
                   {selectedCourseData.code}
                 </Text>
               </div>
+            </div>
 
+            {/* Success Count Badge - Top Right */}
+            <div style={{
+              position: 'absolute',
+              top: 20,
+              right: 20,
+              zIndex: 100
+            }}>
               <div style={{
                 width: 50,
                 height: 50,
@@ -701,7 +492,7 @@ const AttendancePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Camera Feed */}
+            {/* Camera Feed - Full screen */}
             <div style={{ 
               flex: 1,
               minHeight: 0,
@@ -723,7 +514,7 @@ const AttendancePage: React.FC = () => {
                 />
               </div>
 
-              {/* Scan Status */}
+              {/* Scan Status Overlay */}
               {isProcessing && (
                 <div style={{
                   position: 'absolute',
@@ -742,13 +533,13 @@ const AttendancePage: React.FC = () => {
                     fontWeight: 600,
                     backdropFilter: 'blur(10px)'
                   }}>
-                    {useVectorMatching ? 'VECTOR MATCHING...' : 'FACE MATCHING...'}
+                    SCANNING...
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Scan Result */}
+            {/* Last Scan Result - Minimal */}
             {lastScanResult && (
               <div style={{
                 position: 'absolute',
@@ -780,31 +571,22 @@ const AttendancePage: React.FC = () => {
                   fontSize: 16,
                   fontWeight: 600,
                   backdropFilter: 'blur(10px)',
-                  boxShadow: '0 0 20px rgba(0, 0, 0, 0.3)',
-                  maxWidth: '80%'
+                  boxShadow: '0 0 20px rgba(0, 0, 0, 0.3)'
                 }}>
                   {lastScanResult.success ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <CheckCircle size={20} />
-                        <span>{lastScanResult.student?.name}</span>
-                      </div>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>
-                        Matric: {lastScanResult.student?.matric_number}
-                      </div>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>
-                        Confidence: {(lastScanResult.similarity * 100).toFixed(1)}%
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <CheckCircle size={20} />
+                      <span>{lastScanResult.student?.name}</span>
                     </div>
                   ) : lastScanResult.type === 'already_marked' ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <XCircle size={20} />
-                      <span>{lastScanResult.student?.name} - ALREADY MARKED</span>
+                      <span>ALREADY MARKED</span>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <XCircle size={20} />
-                      <span>{lastScanResult.message}</span>
+                      <span>SCAN FAILED</span>
                     </div>
                   )}
                 </div>
@@ -814,7 +596,7 @@ const AttendancePage: React.FC = () => {
         )}
       </div>
 
-      {/* Status Footer */}
+      {/* Status Footer - Minimal */}
       <div style={{ 
         padding: '8px 16px',
         backgroundColor: 'rgba(10, 26, 53, 0.8)',
@@ -835,35 +617,17 @@ const AttendancePage: React.FC = () => {
               boxShadow: faceModelsLoaded ? '0 0 8px #00ffaa' : '0 0 8px #ffaa00'
             }} />
             <Text style={{ fontSize: 11, color: '#aaccff' }}>
-              {faceModelsLoaded ? 'MODELS READY' : 'LOADING MODELS'}
+              {faceModelsLoaded ? 'READY' : 'LOADING'}
             </Text>
           </Space>
-          
-          <Space>
-            <div style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              backgroundColor: useVectorMatching ? '#00aaff' : '#ff6400',
-              boxShadow: useVectorMatching ? '0 0 8px #00aaff' : '0 0 8px #ff6400'
-            }} />
-            <Text style={{ fontSize: 11, color: '#aaccff' }}>
-              {useVectorMatching ? 'VECTOR' : 'TRADITIONAL'}
-            </Text>
-          </Space>
-          
-          <Space>
-            <Text style={{ fontSize: 11, color: '#aaccff' }}>
-              Scans: {scanCount} | Marked: {successfulScans}
-            </Text>
-            <Text style={{ fontSize: 11, color: '#aaccff' }}>
-              <Clock size={10} style={{ marginRight: 4 }} />
-              {dayjs().format('HH:mm')}
-            </Text>
-          </Space>
+          <Text style={{ fontSize: 11, color: '#aaccff' }}>
+            <Clock size={10} style={{ marginRight: 4 }} />
+            {dayjs().format('HH:mm')}
+          </Text>
         </div>
       </div>
 
+      {/* Add CSS animations */}
       <style>
         {`
           @keyframes pulse {
