@@ -208,130 +208,236 @@ const EnrollmentPage: React.FC = () => {
     return photoData;
   };
 
-  // Process enrollment
-  const processEnrollmentWithPhoto = async (photoData: string) => {
-    console.log('Processing enrollment...');
+  
+  // Update the processEnrollmentWithPhoto function with better debugging
+const processEnrollmentWithPhoto = async (photoData: string) => {
+  console.log('Processing enrollment...');
+  
+  try {
+    setLoading(true);
     
-    try {
-      setLoading(true);
-      
-      const studentId = studentData.matric_number || matricNumber;
-      const studentName = studentData.name;
-      const studentLevel = studentData.level;
-      const studentProgramId = studentData.program_id;
-      
-      if (!studentId || !studentName) {
-        message.error('Missing student information');
-        setLoading(false);
-        return;
-      }
+    const studentId = studentData.matric_number || matricNumber;
+    const studentName = studentData.name;
+    const studentLevel = studentData.level;
+    const studentProgramId = studentData.program_id;
+    const studentGender = studentData.gender || 'male';
+    
+    if (!studentId || !studentName) {
+      message.error('Missing student information');
+      setLoading(false);
+      return;
+    }
 
-      // Compress image
+    console.log('Enrolling student:', { studentId, studentName, studentLevel, studentProgramId });
+
+    // Compress image
+    let photoUrl = '';
+    try {
       const compressedImage = await compressImage(photoData, 640, 0.8);
       const fileName = `enrollment_${Date.now()}_${studentName.replace(/\s+/g, '_')}.jpg`;
       
-      let photoUrl = '';
-      
       // Upload to storage
-      try {
-        const blob = dataURLtoBlob(compressedImage);
-        const { error: storageError } = await supabase.storage
+      const blob = dataURLtoBlob(compressedImage);
+      const { error: storageError } = await supabase.storage
+        .from('student-photos')
+        .upload(fileName, blob, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+      
+      if (storageError) {
+        console.warn('Storage upload failed:', storageError);
+        photoUrl = compressedImage; // Use data URL as fallback
+      } else {
+        const { data: publicUrlData } = supabase.storage
           .from('student-photos')
-          .upload(fileName, blob, {
-            contentType: 'image/jpeg',
-            upsert: true
-          });
-        
-        if (!storageError) {
-          const { data: publicUrlData } = supabase.storage
-            .from('student-photos')
-            .getPublicUrl(fileName);
-          photoUrl = publicUrlData.publicUrl;
-        }
-      } catch (storageError) {
-        console.warn('Storage upload failed');
+          .getPublicUrl(fileName);
+        photoUrl = publicUrlData.publicUrl;
+        console.log('Photo uploaded to:', photoUrl);
       }
+    } catch (storageError) {
+      console.warn('Image processing failed:', storageError);
+      photoUrl = photoData; // Use original photo data
+    }
 
-      if (!photoUrl) {
-        photoUrl = compressedImage;
-      }
-
-      // Get program name
-      const selectedProgram = programs.find(p => p.id === studentProgramId);
-      const programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
-      
-      // Extract face embeddings
-      let faceEmbedding: number[] = [];
-      let extractionMethod = 'fallback';
-      let faceDetected = false;
-      
-      try {
-        if (!faceModelsLoaded) {
-          await loadFaceModels();
-        }
-        
-        const descriptor = await faceRecognition.extractFaceDescriptor(photoData);
-        
-        if (descriptor) {
-          faceDetected = true;
-          extractionMethod = 'face-api.js';
-          faceEmbedding = Array.from(descriptor);
-          
-          // Save to localStorage
-          try {
-            await faceRecognition.updateFaceEmbedding(studentId, descriptor);
-          } catch (storageError) {
-            console.warn('Failed to save embedding to localStorage');
-          }
-        }
-      } catch (faceError) {
-        console.error('Face extraction failed:', faceError);
+    // Get program name
+    const selectedProgram = programs.find(p => p.id === studentProgramId);
+    const programName = selectedProgram?.name || selectedProgram?.code || 'Not specified';
+    
+    // Extract face embeddings
+    let faceEmbedding: number[] = [];
+    let extractionMethod = 'fallback';
+    let faceDetected = false;
+    
+    try {
+      if (!faceModelsLoaded) {
+        await loadFaceModels();
       }
       
-      // Generate short embedding (128D)
-      const shortEmbedding = generateShortEmbedding(faceEmbedding, 128);
+      const descriptor = await faceRecognition.extractFaceDescriptor(photoData);
       
-      // Format for PostgreSQL
-      const formattedFaceEmbedding = formatForPostgresVector(faceEmbedding);
-      const formattedShortEmbedding = formatForPostgresVector(shortEmbedding);
+      if (descriptor) {
+        faceDetected = true;
+        extractionMethod = 'face-api.js';
+        faceEmbedding = Array.from(descriptor);
+        
+        console.log('Face detected, embedding length:', faceEmbedding.length);
+        
+        // Save to localStorage
+        try {
+          await faceRecognition.updateFaceEmbedding(studentId, descriptor);
+        } catch (storageError) {
+          console.warn('Failed to save embedding to localStorage');
+        }
+      } else {
+        console.log('No face detected in photo');
+      }
+    } catch (faceError) {
+      console.error('Face extraction failed:', faceError);
+    }
+    
+    // Generate short embedding (128D)
+    const shortEmbedding = generateShortEmbedding(faceEmbedding, 128);
+    
+    console.log('Embeddings prepared:', {
+      faceEmbeddingLength: faceEmbedding.length,
+      shortEmbeddingLength: shortEmbedding.length,
+      faceDetected,
+      extractionMethod
+    });
+    
+    // Prepare data for database - SIMPLIFIED VERSION
+    const studentDataForDb: any = {
+      student_id: studentId,
+      name: studentName,
+      matric_number: studentId,
+      level: studentLevel,
+      program: programName,
+      program_id: studentProgramId,
+      gender: studentGender,
+      enrollment_status: 'enrolled',
+      enrollment_date: new Date().toISOString().split('T')[0],
+      photo_url: photoUrl,
+      photo_data: photoUrl,
+      face_embedding: shortEmbedding,
+      face_enrolled_at: new Date().toISOString(),
+      face_match_threshold: 0.7,
+      face_detected: faceDetected,
+      face_extraction_method: extractionMethod
+    };
+    
+    // Try to save face_embedding_vector if we have it
+    if (faceEmbedding.length > 0) {
+      studentDataForDb.face_embedding_vector = formatForPostgresVector(faceEmbedding);
+    }
+    
+    console.log('Student data to save:', studentDataForDb);
+    
+    // Save to database with better error handling
+    let saveSuccess = false;
+    let saveError = null;
+    
+    try {
+      console.log('Attempting to save to Supabase...');
       
-      // Prepare data for database
-      const studentDataForDb: any = {
-        student_id: studentId,
-        name: studentName,
-        matric_number: studentId,
-        level: studentLevel,
-        program: programName,
-        program_id: studentProgramId,
-        enrollment_status: 'enrolled',
-        enrollment_date: new Date().toISOString().split('T')[0],
-        last_updated: new Date().toISOString(),
-        photo_url: photoUrl,
-        photo_data: photoUrl,
-        face_embedding: formattedShortEmbedding,
-        face_embedding_vector: formattedFaceEmbedding,
-        face_enrolled_at: new Date().toISOString(),
-        face_match_threshold: 0.7,
-        face_detected: faceDetected,
-        face_extraction_method: extractionMethod
-      };
+      // First, check if student already exists
+      const { data: existingStudent, error: checkError } = await supabase
+        .from('students')
+        .select('matric_number')
+        .eq('matric_number', studentId)
+        .single();
       
-      // Save to database
-      try {
-        const { error: dbError } = await supabase
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.log('Check existing student error:', checkError);
+      }
+      
+      let dbResult;
+      if (existingStudent) {
+        // Update existing student
+        console.log('Updating existing student...');
+        dbResult = await supabase
           .from('students')
-          .insert([studentDataForDb]);
+          .update(studentDataForDb)
+          .eq('matric_number', studentId)
+          .select();
+      } else {
+        // Insert new student
+        console.log('Inserting new student...');
+        dbResult = await supabase
+          .from('students')
+          .insert([studentDataForDb])
+          .select();
+      }
+      
+      const { data, error } = dbResult;
+      
+      if (error) {
+        saveError = error;
+        console.error('Database operation failed:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         
-        if (dbError) {
-          console.error('Database error:', dbError);
+        // Try with minimal data if the full insert fails
+        console.log('Trying with minimal data...');
+        const minimalData = {
+          student_id: studentId,
+          name: studentName,
+          matric_number: studentId,
+          enrollment_status: 'enrolled',
+          photo_url: photoUrl,
+          enrollment_date: new Date().toISOString().split('T')[0],
+          face_embedding: shortEmbedding,
+          level: studentLevel,
+          program: programName
+        };
+        
+        const { error: minimalError } = await supabase
+          .from('students')
+          .upsert([minimalData], { onConflict: 'matric_number' });
           
-          // Try upsert as fallback
-          await supabase
-            .from('students')
-            .upsert([studentDataForDb], { onConflict: 'matric_number' });
+        if (minimalError) {
+          throw new Error(`Minimal save also failed: ${minimalError.message}`);
+        } else {
+          saveSuccess = true;
+          console.log('✅ Minimal data saved successfully');
         }
-        
-        // Save photo to student_photos table
+      } else {
+        saveSuccess = true;
+        console.log('✅ Full data saved successfully:', data);
+      }
+      
+    } catch (dbError: any) {
+      saveError = dbError;
+      console.error('Database save completely failed:', dbError);
+      
+      // Try one more time with just basic data
+      try {
+        const { error: finalError } = await supabase
+          .from('students')
+          .insert([{
+            student_id: studentId,
+            name: studentName,
+            matric_number: studentId,
+            enrollment_status: 'enrolled'
+          }]);
+          
+        if (finalError) {
+          console.error('Even basic save failed:', finalError);
+        } else {
+          saveSuccess = true;
+          console.log('✅ Basic student record saved');
+        }
+      } catch (finalError) {
+        console.error('All save attempts failed');
+      }
+    }
+    
+    // Save photo to student_photos table if main save was successful
+    if (saveSuccess) {
+      try {
         await supabase
           .from('student_photos')
           .insert([{
@@ -341,12 +447,13 @@ const EnrollmentPage: React.FC = () => {
             is_primary: true,
             created_at: new Date().toISOString()
           }]);
-        
-      } catch (dbError) {
-        console.error('Database save failed:', dbError);
-        throw dbError;
+        console.log('✅ Photo saved to student_photos table');
+      } catch (photoError) {
+        console.warn('Photo table save skipped:', photoError);
       }
-      
+    }
+    
+    if (saveSuccess) {
       // Set success result
       setEnrollmentResult({
         success: true,
@@ -358,28 +465,37 @@ const EnrollmentPage: React.FC = () => {
         program: programName,
         photoUrl: photoUrl,
         faceDetected: faceDetected,
-        extractionMethod: extractionMethod
+        extractionMethod: extractionMethod,
+        savedToDatabase: saveSuccess
       });
       
       setEnrollmentComplete(true);
       setShowPhotoPreview(false);
       message.success(`${studentName} enrolled successfully!`);
       
-    } catch (error: any) {
-      console.error('Enrollment failed:', error);
+      // Log success for debugging
+      console.log('🎉 Enrollment completed successfully!');
       
-      setEnrollmentResult({
-        success: false,
-        message: error.message || 'Enrollment failed'
-      });
-      
-      setEnrollmentComplete(true);
-      setShowPhotoPreview(false);
-      message.error('Enrollment failed');
-    } finally {
-      setLoading(false);
+    } else {
+      throw new Error(`Failed to save to database: ${saveError?.message || 'Unknown error'}`);
     }
-  };
+    
+  } catch (error: any) {
+    console.error('❌ Enrollment failed:', error);
+    
+    setEnrollmentResult({
+      success: false,
+      message: error.message || 'Enrollment failed',
+      errorDetails: error.toString()
+    });
+    
+    setEnrollmentComplete(true);
+    setShowPhotoPreview(false);
+    message.error(`Enrollment failed: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Handle enrollment completion
   const handleEnrollmentComplete = async (result: any) => {
