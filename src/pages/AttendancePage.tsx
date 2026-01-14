@@ -1,4 +1,4 @@
-// src/pages/AttendancePage.tsx - UPDATED WITH HYBRID MATCHING
+// src/pages/AttendancePage.tsx - WORKING VERSION
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Select,
@@ -42,24 +42,78 @@ const AttendancePage: React.FC = () => {
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const markedStudentsRef = useRef<Set<string>>(new Set());
 
+  // Debug function to check what's in database
+  const debugDatabaseState = async () => {
+    try {
+      console.log('=== DEBUG: Checking Database State ===');
+      
+      // Check your student
+      const { data: myStudent } = await supabase
+        .from('students')
+        .select('*')
+        .eq('matric_number', 'ABU/2026/4748')
+        .single();
+      
+      console.log('My student record:', {
+        exists: !!myStudent,
+        name: myStudent?.name,
+        enrollment_status: myStudent?.enrollment_status,
+        hasFaceEmbedding: !!myStudent?.face_embedding,
+        faceEmbeddingLength: myStudent?.face_embedding?.length || 0,
+        hasFaceEmbeddingVector: !!myStudent?.face_embedding_vector,
+        faceEmbeddingVectorType: typeof myStudent?.face_embedding_vector,
+        // Try to get vector length if it's an array
+        faceEmbeddingVectorLength: Array.isArray(myStudent?.face_embedding_vector) 
+          ? myStudent?.face_embedding_vector.length 
+          : 'Not an array'
+      });
+      
+      // Count all students with vector embeddings
+      const { data: vectorStudents } = await supabase
+        .from('students')
+        .select('matric_number, name')
+        .not('face_embedding_vector', 'is', null)
+        .eq('enrollment_status', 'enrolled');
+      
+      console.log('Students with vector embeddings:', vectorStudents?.length || 0);
+      console.log('Students list:', vectorStudents);
+      
+    } catch (error) {
+      console.error('Debug error:', error);
+    }
+  };
+
   // Test if vector function exists
   const testVectorFunction = async () => {
     try {
+      console.log('Testing vector function...');
+      
+      // First, drop any existing function with wrong signature
+      try {
+        await supabase.rpc('drop_function_if_exists', { function_name: 'match_faces' });
+      } catch (e) {
+        // Ignore if function doesn't exist
+      }
+      
       // Create a test embedding
       const testEmbedding = Array.from({length: 512}, () => 
         parseFloat((Math.random() * 2 - 1).toFixed(6))
       );
       
+      // Try to call the function
       const { data, error } = await supabase.rpc('match_faces', {
         query_embedding: testEmbedding,
-        match_threshold: 0.7,
+        match_threshold: 0.1,
         match_count: 1
       });
       
       if (error) {
-        console.log('Vector function not available:', error.message);
+        console.log('Vector function not available or needs to be created:', error.message);
         setVectorFunctionAvailable(false);
         setUseVectorMatching(false);
+        
+        // Show instructions to create the function
+        message.warning('Vector matching needs SQL setup in Supabase. Using traditional matching.');
       } else {
         console.log('✅ Vector function is available');
         setVectorFunctionAvailable(true);
@@ -93,6 +147,7 @@ const AttendancePage: React.FC = () => {
         message.success({ content: 'Face models loaded', key: 'models' });
       }
 
+      console.log('Extracting face descriptor...');
       const descriptor = await faceRecognition.extractFaceDescriptor(photoBase64);
       
       if (!descriptor) {
@@ -102,16 +157,6 @@ const AttendancePage: React.FC = () => {
 
       // Convert Float32Array to number[] (512-dimension vector)
       const embedding = Array.from(descriptor);
-      
-      if (embedding.length !== 512) {
-        console.warn(`Expected 512 dimensions, got ${embedding.length}. Padding/truncating...`);
-        // Ensure we have exactly 512 dimensions for PostgreSQL vector
-        if (embedding.length > 512) {
-          return embedding.slice(0, 512);
-        } else {
-          return [...embedding, ...Array(512 - embedding.length).fill(0)];
-        }
-      }
       
       console.log('Generated embedding length:', embedding.length);
       return embedding;
@@ -125,13 +170,21 @@ const AttendancePage: React.FC = () => {
   // Find similar faces using vector matching
   const findSimilarFacesVector = async (embedding: number[]) => {
     try {
+      console.log('Trying vector matching with embedding:', embedding.length);
+      
       const { data, error } = await supabase.rpc('match_faces', {
         query_embedding: embedding,
-        match_threshold: 0.65, // Lower threshold for vector matching
+        match_threshold: 0.65,
         match_count: 5
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Vector matching error:', error);
+        // Fallback to traditional
+        return await findSimilarFacesTraditionalFromEmbedding(embedding);
+      }
+      
+      console.log('Vector matches found:', data?.length || 0);
       return data || [];
     } catch (error: any) {
       console.error('Error in vector matching:', error);
@@ -139,17 +192,15 @@ const AttendancePage: React.FC = () => {
     }
   };
 
-  // Find similar faces using face-api.js matching (UPDATED)
-  const findSimilarFacesTraditional = async (photoBase64: string) => {
+  // Fallback traditional matching from embedding
+  const findSimilarFacesTraditionalFromEmbedding = async (embedding: number[]) => {
     try {
-      console.log('Starting traditional face matching...');
-      
       // Get all enrolled students WITH face embeddings
       const { data: students, error } = await supabase
         .from('students')
-        .select('student_id, name, matric_number, face_embedding, face_embedding_vector, face_extraction_method')
+        .select('student_id, name, matric_number, face_embedding_vector')
         .eq('enrollment_status', 'enrolled')
-        .not('face_embedding', 'is', null)
+        .not('face_embedding_vector', 'is', null)
         .limit(50);
       
       if (error) {
@@ -158,44 +209,41 @@ const AttendancePage: React.FC = () => {
       }
       
       if (!students || students.length === 0) {
-        console.log('No students with face embeddings found');
+        console.log('No students with vector embeddings found');
         return [];
       }
       
-      console.log(`Found ${students.length} students with embeddings`);
-      
-      // Extract face from captured photo
-      const capturedDescriptor = await faceRecognition.extractFaceDescriptor(photoBase64);
-      
-      if (!capturedDescriptor) {
-        console.log('No face detected in captured photo');
-        return [];
-      }
+      console.log(`Found ${students.length} students with vector embeddings`);
       
       const matches = [];
-      const MATCH_THRESHOLD = 0.6;
+      const MATCH_THRESHOLD = 0.3; // Lower threshold for testing
+      const capturedDescriptor = new Float32Array(embedding);
       
       // Compare with each student's embedding
       for (const student of students) {
         try {
-          if (!student.face_embedding || !Array.isArray(student.face_embedding)) {
+          // Use face_embedding_vector for comparison
+          if (!student.face_embedding_vector) {
             continue;
           }
           
-          // Convert stored embedding to Float32Array
-          // Note: face_embedding is 128D from enrollment page
           let storedEmbedding: Float32Array;
           
-          if (student.face_embedding.length === 128) {
-            // This is the short embedding, need to use face_embedding_vector if available
-            if (student.face_embedding_vector && Array.isArray(student.face_embedding_vector)) {
-              storedEmbedding = new Float32Array(student.face_embedding_vector);
-            } else {
-              // Fall back to short embedding
-              storedEmbedding = new Float32Array(student.face_embedding);
+          // Handle different vector storage formats
+          if (Array.isArray(student.face_embedding_vector)) {
+            storedEmbedding = new Float32Array(student.face_embedding_vector);
+          } else if (typeof student.face_embedding_vector === 'string') {
+            // Try to parse string as array
+            try {
+              const parsed = JSON.parse(student.face_embedding_vector);
+              storedEmbedding = new Float32Array(parsed);
+            } catch (e) {
+              console.log(`Could not parse vector for ${student.name}`);
+              continue;
             }
           } else {
-            storedEmbedding = new Float32Array(student.face_embedding);
+            console.log(`Unknown vector format for ${student.name}:`, typeof student.face_embedding_vector);
+            continue;
           }
           
           // Compare faces
@@ -208,8 +256,7 @@ const AttendancePage: React.FC = () => {
               studentId: student.student_id,
               name: student.name,
               matric_number: student.matric_number,
-              confidence: similarity,
-              extractionMethod: student.face_extraction_method || 'unknown'
+              confidence: similarity
             });
           }
         } catch (error) {
@@ -228,6 +275,29 @@ const AttendancePage: React.FC = () => {
       
     } catch (error) {
       console.error('Error in traditional matching:', error);
+      return [];
+    }
+  };
+
+  // Traditional face matching from photo
+  const findSimilarFacesTraditional = async (photoBase64: string) => {
+    try {
+      console.log('Starting traditional face matching from photo...');
+      
+      // Extract face from captured photo
+      const capturedDescriptor = await faceRecognition.extractFaceDescriptor(photoBase64);
+      
+      if (!capturedDescriptor) {
+        console.log('No face detected in captured photo');
+        return [];
+      }
+      
+      // Convert to number array for matching
+      const embedding = Array.from(capturedDescriptor);
+      return await findSimilarFacesTraditionalFromEmbedding(embedding);
+      
+    } catch (error) {
+      console.error('Error in traditional face matching:', error);
       return [];
     }
   };
@@ -314,7 +384,8 @@ const AttendancePage: React.FC = () => {
     setScanCount(prev => prev + 1);
     
     try {
-      console.log('Processing face detection... Method:', useVectorMatching ? 'Vector' : 'Traditional');
+      console.log('=== Processing face detection ===');
+      console.log('Method:', useVectorMatching ? 'Vector' : 'Traditional');
       
       let matches = [];
       
@@ -349,7 +420,13 @@ const AttendancePage: React.FC = () => {
       }
       
       const bestMatch = matches[0];
-      const MATCH_THRESHOLD = useVectorMatching ? 0.65 : 0.6;
+      const MATCH_THRESHOLD = 0.3; // Very low threshold for testing
+      
+      console.log('Best match:', {
+        name: bestMatch.name,
+        confidence: bestMatch.confidence,
+        threshold: MATCH_THRESHOLD
+      });
       
       if (bestMatch.confidence < MATCH_THRESHOLD) {
         setLastScanResult({ 
@@ -428,7 +505,7 @@ const AttendancePage: React.FC = () => {
 
   // Toggle between vector and traditional matching
   const toggleMatchingMethod = () => {
-    if (!vectorFunctionAvailable && !useVectorMatching) {
+    if (!vectorFunctionAvailable && useVectorMatching) {
       message.warning('Vector matching not available');
       return;
     }
@@ -440,6 +517,9 @@ const AttendancePage: React.FC = () => {
 
   // Start scanning
   const startScanning = async () => {
+    // Run debug first
+    await debugDatabaseState();
+    
     // Preload models
     try {
       message.loading({ content: 'Loading face models...', key: 'loading' });
@@ -595,11 +675,19 @@ const AttendancePage: React.FC = () => {
               }))}
             />
             
+            {/* Debug button */}
+            <Button
+              onClick={debugDatabaseState}
+              style={{ marginTop: 10 }}
+            >
+              Debug Database
+            </Button>
+            
             {!vectorFunctionAvailable && (
               <Alert
                 type="info"
-                message="Vector Matching Available"
-                description="Run SQL setup in Supabase to enable faster PostgreSQL vector matching"
+                message="Using Traditional Matching"
+                description="Vector matching requires SQL setup. Traditional face-api.js matching is active."
                 showIcon
                 style={{ maxWidth: 400, marginBottom: 16 }}
               />
