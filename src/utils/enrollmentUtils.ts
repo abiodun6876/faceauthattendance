@@ -3,15 +3,15 @@ import { supabase } from '../lib/supabase';
 import faceRecognition from './faceRecognition';
 import { compressImage } from './imageUtils';
 
+
 export interface EnrollmentData {
   student_id: string;
   name: string;
-  email?: string;
-  phone?: string;
-  gender?: string;
-  program_id?: string;
-  program?: string;
-  level?: number;
+  gender: string;
+  program_id: string;
+  program_name: string;
+  program_code: string;
+  level: number;
   photoData: string;
 }
 
@@ -69,29 +69,30 @@ export async function enrollStudent(data: EnrollmentData) {
       photoUrl = compressedImage;
     }
     
+    
     // Prepare student data
-    const studentData = {
-      student_id: matricNumber,
-      matric_number: matricNumber,
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      gender: data.gender || 'male',
-      program_id: data.program_id,
-      program: data.program,
-      program_name: data.program,
-      level: data.level || 100,
-      level_code: data.level ? `L${data.level}` : 'L100',
-      face_embedding: finalEmbedding,
-      face_embedding_vector: finalEmbedding,
-      face_detected: faceDetected,
-      face_enrolled_at: new Date().toISOString(),
-      face_match_threshold: faceDetected ? 0.65 : 0.5,
-      photo_url: photoUrl,
-      enrollment_status: 'enrolled' as const,
-      is_active: true,
-      enrollment_date: new Date().toISOString().split('T')[0]
-    };
+const studentData = {
+  student_id: matricNumber,
+  matric_number: matricNumber,
+  name: data.name,
+  // Removed: email and phone fields
+  gender: data.gender || 'male',
+  program_id: data.program_id,
+  program: data.program_name, // Changed from data.program
+  program_name: data.program_name,
+  program_code: data.program_code, // Added program code
+  level: data.level || 100,
+  level_code: data.level ? `L${data.level}` : 'L100',
+  face_embedding: finalEmbedding,
+  face_embedding_vector: finalEmbedding,
+  face_detected: faceDetected,
+  face_enrolled_at: new Date().toISOString(),
+  face_match_threshold: faceDetected ? 0.65 : 0.5,
+  photo_url: photoUrl,
+  enrollment_status: 'enrolled' as const,
+  is_active: true,
+  enrollment_date: new Date().toISOString().split('T')[0]
+};
     
     // Save to database
     console.log('🟡 Saving to database...');

@@ -1,5 +1,5 @@
 // pages/EnrollmentPage.tsx - Fixed version
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Form, 
   Input, 
@@ -13,20 +13,54 @@ import {
   Col,
   Tag,
   Space,
-   Spin
+  Spin
 } from 'antd';
 import { Camera, User, BookOpen, CheckCircle, IdCard } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { enrollStudent, EnrollmentData } from '../utils/enrollmentUtils';
+import { fetchPrograms } from '../utils/api'; // Assuming you have an API utility
 
 const { Title, Text } = Typography;
 
+interface Program {
+  id: string;
+  code: string;
+  name: string;
+  short_name?: string;
+  faculty_id?: string;
+  department_id?: string;
+  program_type?: string;
+  duration_years?: number;
+  is_active?: boolean; // Add this
+  created_at?: string;
+  updated_at?: string;
+}
 
 const EnrollmentPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [fetchingPrograms, setFetchingPrograms] = useState(false);
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [enrollmentResult, setEnrollmentResult] = useState<any>(null);
   const [form] = Form.useForm();
+
+  // Fetch programs from database on component mount
+  useEffect(() => {
+    const loadPrograms = async () => {
+      setFetchingPrograms(true);
+      try {
+        const programsData = await fetchPrograms();
+        setPrograms(programsData);
+      } catch (error) {
+        console.error('Failed to fetch programs:', error);
+        message.error('Failed to load programs. Please try again.');
+      } finally {
+        setFetchingPrograms(false);
+      }
+    };
+
+    loadPrograms();
+  }, []);
 
   const handleEnrollmentComplete = async (photoData: string) => {
     setLoading(true);
@@ -34,9 +68,12 @@ const EnrollmentPage: React.FC = () => {
     try {
       const formValues = form.getFieldsValue();
       
+      // Find the selected program details
+      const selectedProgram = programs.find(p => p.id === formValues.program_id);
+      
       // Generate matric number if not provided
       if (!formValues.matric_number) {
-        const newMatric = generateMatricNumber();
+        const newMatric = generateMatricNumber(selectedProgram);
         form.setFieldValue('matric_number', newMatric);
         formValues.matric_number = newMatric;
       }
@@ -44,10 +81,10 @@ const EnrollmentPage: React.FC = () => {
       const enrollmentData: EnrollmentData = {
         student_id: formValues.matric_number,
         name: formValues.name,
-        email: formValues.email,
-        phone: formValues.phone,
         gender: formValues.gender,
-        program: formValues.program,
+        program_id: formValues.program_id,
+        program_name: selectedProgram?.name || '',
+        program_code: selectedProgram?.code || '',
         level: formValues.level,
         photoData
       };
@@ -68,10 +105,11 @@ const EnrollmentPage: React.FC = () => {
     }
   };
 
-  const generateMatricNumber = () => {
+  const generateMatricNumber = (program?: Program) => {
     const currentYear = new Date().getFullYear();
     const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    return `ABU/${currentYear}/${randomNum}`;
+    const programCode = program?.code ? program.code.substring(0, 3).toUpperCase() : 'GEN';
+    return `${programCode}/${currentYear}/${randomNum}`;
   };
 
   const resetForm = () => {
@@ -97,7 +135,7 @@ const EnrollmentPage: React.FC = () => {
               <Form.Item
                 label="Full Name"
                 name="name"
-                rules={[{ required: true, message: 'Please enter name' }]}
+                rules={[{ required: true, message: 'Please enter student name' }]}
               >
                 <Input size="large" placeholder="Enter student full name" />
               </Form.Item>
@@ -113,7 +151,9 @@ const EnrollmentPage: React.FC = () => {
                     style={{ flex: 1 }}
                   />
                   <Button onClick={() => {
-                    const newMatric = generateMatricNumber();
+                    const programId = form.getFieldValue('program_id');
+                    const selectedProgram = programs.find(p => p.id === programId);
+                    const newMatric = generateMatricNumber(selectedProgram);
                     form.setFieldValue('matric_number', newMatric);
                     message.success('New matric number generated');
                   }}>
@@ -144,25 +184,29 @@ const EnrollmentPage: React.FC = () => {
               </Form.Item>
             </Col>
             
-            <Col span={12}>
-              <Form.Item label="Email" name="email">
-                <Input size="large" type="email" placeholder="student@email.com" />
-              </Form.Item>
-            </Col>
-            
-            <Col span={12}>
-              <Form.Item label="Phone" name="phone">
-                <Input size="large" placeholder="+234 XXX XXX XXXX" />
-              </Form.Item>
-            </Col>
-            
             <Col span={24}>
               <Form.Item 
                 label="Program" 
-                name="program"
-                rules={[{ required: true, message: 'Please enter program' }]}
+                name="program_id"
+                rules={[{ required: true, message: 'Please select a program' }]}
               >
-                <Input size="large" placeholder="e.g., Computer Science" />
+                <Select
+  size="large"
+  placeholder="Select program"
+  loading={fetchingPrograms}
+  showSearch
+  optionFilterProp="label"
+  filterOption={(input, option) => 
+    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+  }
+  options={programs
+    .filter(program => program.is_active !== false)
+    .map(program => ({
+      label: `${program.name} (${program.code})`,
+      value: program.id,
+    }))
+  }
+/>
               </Form.Item>
             </Col>
           </Row>
@@ -172,6 +216,7 @@ const EnrollmentPage: React.FC = () => {
               type="primary" 
               size="large"
               onClick={() => setCurrentStep(1)}
+              disabled={fetchingPrograms}
             >
               Continue to Face Capture
             </Button>
@@ -244,7 +289,8 @@ const EnrollmentPage: React.FC = () => {
                 
                 <div style={{ marginBottom: 16 }}>
                   <Text strong>Program: </Text>
-                  <Text>{enrollmentResult.student.program}</Text>
+                  <Text>{enrollmentResult.student.program_name}</Text>
+                  <Text type="secondary"> ({enrollmentResult.student.program_code})</Text>
                 </div>
                 
                 <div style={{ marginBottom: 16 }}>
