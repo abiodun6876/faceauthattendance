@@ -194,43 +194,6 @@ export interface Course {
   enrollments?: Enrollment[];
 }
 
-export interface Event {
-  id: string;
-  name: string;
-  description?: string;
-  type: "class" | "lecture" | "seminar" | "exam" | "practical" | "tutorial" | "meeting" | "workshop";
-  start_time: string;
-  end_time: string;
-  date: string;
-  location?: string;
-  faculty_id?: string;
-  faculty_code?: string;
-  faculty?: Faculty;
-  department_id?: string;
-  department_code?: string;
-  department?: Department;
-  program_id?: string;
-  program?: Program;
-  course_code?: string;
-  course_title?: string;
-  course_id?: string;
-  course?: Course;
-  level_id?: string;
-  level?: Level;
-  lecturer_id?: string;
-  lecturer_name?: string;
-  created_by: string;
-  academic_session_id?: string;
-  academic_session?: AcademicSession;
-  semester_id?: string;
-  semester?: Semester;
-  auto_enroll?: boolean;
-  max_capacity?: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface AttendanceRecord {
   id: string;
   event_id?: string;
