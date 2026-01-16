@@ -1,4 +1,4 @@
-// pages/EnrollmentPage.tsx - Fixed version
+// pages/EnrollmentPage.tsx
 import React, { useState, useEffect } from 'react';
 import { 
   Form, 
@@ -15,26 +15,12 @@ import {
   Space,
   Spin
 } from 'antd';
-import { Camera, User, BookOpen, CheckCircle, IdCard } from 'lucide-react';
+import { Camera, User, CheckCircle, IdCard } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { enrollStudent, EnrollmentData } from '../utils/enrollmentUtils';
-import { fetchPrograms } from '../utils/api'; // Assuming you have an API utility
+import { fetchPrograms, Program } from '../utils/api';
 
 const { Title, Text } = Typography;
-
-interface Program {
-  id: string;
-  code: string;
-  name: string;
-  short_name?: string;
-  faculty_id?: string;
-  department_id?: string;
-  program_type?: string;
-  duration_years?: number;
-  is_active?: boolean; // Add this
-  created_at?: string;
-  updated_at?: string;
-}
 
 const EnrollmentPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -50,10 +36,15 @@ const EnrollmentPage: React.FC = () => {
       setFetchingPrograms(true);
       try {
         const programsData = await fetchPrograms();
+        console.log('Programs loaded:', programsData);
         setPrograms(programsData);
-      } catch (error) {
+        
+        if (programsData.length === 0) {
+          message.warning('No programs found in the database. Please add programs first.');
+        }
+      } catch (error: any) {
         console.error('Failed to fetch programs:', error);
-        message.error('Failed to load programs. Please try again.');
+        message.error(`Failed to load programs: ${error.message}`);
       } finally {
         setFetchingPrograms(false);
       }
@@ -68,8 +59,17 @@ const EnrollmentPage: React.FC = () => {
     try {
       const formValues = form.getFieldsValue();
       
+      // Validate required fields
+      if (!formValues.name || !formValues.program_id) {
+        throw new Error('Please fill in all required fields');
+      }
+      
       // Find the selected program details
       const selectedProgram = programs.find(p => p.id === formValues.program_id);
+      
+      if (!selectedProgram) {
+        throw new Error('Selected program not found');
+      }
       
       // Generate matric number if not provided
       if (!formValues.matric_number) {
@@ -83,11 +83,13 @@ const EnrollmentPage: React.FC = () => {
         name: formValues.name,
         gender: formValues.gender,
         program_id: formValues.program_id,
-        program_name: selectedProgram?.name || '',
-        program_code: selectedProgram?.code || '',
+        program_name: selectedProgram.name,
+        program_code: selectedProgram.code,
         level: formValues.level,
         photoData
       };
+      
+      console.log('Enrollment data:', enrollmentData);
       
       const result = await enrollStudent(enrollmentData);
       
@@ -99,6 +101,7 @@ const EnrollmentPage: React.FC = () => {
         message.error(`Enrollment failed: ${result.error}`);
       }
     } catch (error: any) {
+      console.error('Enrollment error:', error);
       message.error(`Error: ${error.message}`);
     } finally {
       setLoading(false);
@@ -124,12 +127,20 @@ const EnrollmentPage: React.FC = () => {
     });
   };
 
+  // Prepare program options for the Select component
+  const programOptions = programs
+    .filter(program => program.is_active !== false)
+    .map(program => ({
+      label: `${program.name} (${program.code})`,
+      value: program.id,
+    }));
+
   const steps = [
     {
       title: 'Basic Info',
       icon: <User size={16} />,
       content: (
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" initialValues={{ gender: 'male', level: 100 }}>
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item
@@ -150,13 +161,16 @@ const EnrollmentPage: React.FC = () => {
                     readOnly 
                     style={{ flex: 1 }}
                   />
-                  <Button onClick={() => {
-                    const programId = form.getFieldValue('program_id');
-                    const selectedProgram = programs.find(p => p.id === programId);
-                    const newMatric = generateMatricNumber(selectedProgram);
-                    form.setFieldValue('matric_number', newMatric);
-                    message.success('New matric number generated');
-                  }}>
+                  <Button 
+                    onClick={() => {
+                      const programId = form.getFieldValue('program_id');
+                      const selectedProgram = programs.find(p => p.id === programId);
+                      const newMatric = generateMatricNumber(selectedProgram);
+                      form.setFieldValue('matric_number', newMatric);
+                      message.success('New matric number generated');
+                    }}
+                    disabled={!form.getFieldValue('program_id')}
+                  >
                     Generate
                   </Button>
                 </div>
@@ -164,7 +178,7 @@ const EnrollmentPage: React.FC = () => {
             </Col>
             
             <Col span={12}>
-              <Form.Item label="Gender" name="gender" initialValue="male">
+              <Form.Item label="Gender" name="gender">
                 <Select size="large">
                   <Select.Option value="male">Male</Select.Option>
                   <Select.Option value="female">Female</Select.Option>
@@ -173,7 +187,7 @@ const EnrollmentPage: React.FC = () => {
             </Col>
             
             <Col span={12}>
-              <Form.Item label="Level" name="level" initialValue={100}>
+              <Form.Item label="Level" name="level">
                 <Select size="large">
                   {[100, 200, 300, 400, 500].map(level => (
                     <Select.Option key={level} value={level}>
@@ -191,22 +205,23 @@ const EnrollmentPage: React.FC = () => {
                 rules={[{ required: true, message: 'Please select a program' }]}
               >
                 <Select
-  size="large"
-  placeholder="Select program"
-  loading={fetchingPrograms}
-  showSearch
-  optionFilterProp="label"
-  filterOption={(input, option) => 
-    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-  }
-  options={programs
-    .filter(program => program.is_active !== false)
-    .map(program => ({
-      label: `${program.name} (${program.code})`,
-      value: program.id,
-    }))
-  }
-/>
+                  size="large"
+                  placeholder={fetchingPrograms ? "Loading programs..." : "Select program"}
+                  loading={fetchingPrograms}
+                  showSearch
+                  optionFilterProp="label"
+                  filterOption={(input, option) => 
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  options={programOptions}
+                  notFoundContent={
+                    fetchingPrograms ? 
+                      <Spin size="small" /> : 
+                      programs.length === 0 ? 
+                        "No programs available. Please add programs first." : 
+                        "No matching programs found"
+                  }
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -215,8 +230,18 @@ const EnrollmentPage: React.FC = () => {
             <Button 
               type="primary" 
               size="large"
-              onClick={() => setCurrentStep(1)}
-              disabled={fetchingPrograms}
+              onClick={() => {
+                form.validateFields()
+                  .then(() => {
+                    if (programs.length === 0) {
+                      message.error('No programs available. Please add programs first.');
+                      return;
+                    }
+                    setCurrentStep(1);
+                  })
+                  .catch(() => message.error('Please fill in all required fields'));
+              }}
+              disabled={fetchingPrograms || programs.length === 0}
             >
               Continue to Face Capture
             </Button>

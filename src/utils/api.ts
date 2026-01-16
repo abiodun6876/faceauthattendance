@@ -1,5 +1,4 @@
 // utils/api.ts
-
 export interface Program {
   id: string;
   code: string;
@@ -15,9 +14,27 @@ export interface Program {
 }
 
 export const fetchPrograms = async (): Promise<Program[]> => {
-  const response = await fetch('/api/programs');
-  if (!response.ok) {
-    throw new Error('Failed to fetch programs');
+  try {
+    const response = await fetch('/api/programs');
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch programs: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Handle different response formats
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data.programs) {
+      return data.programs;
+    } else if (data.data) {
+      return data.data;
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Error fetching programs:', error);
+    throw error;
   }
-  return response.json();
 };
