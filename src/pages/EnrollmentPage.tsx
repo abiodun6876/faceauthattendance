@@ -18,62 +18,40 @@ import {
 import { Camera, User, CheckCircle, IdCard } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { enrollStudent, EnrollmentData } from '../utils/enrollmentUtils';
-import { fetchPrograms, Program } from '../utils/api';
 
 const { Title, Text } = Typography;
 
 const EnrollmentPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [fetchingPrograms, setFetchingPrograms] = useState(false);
-  const [programs, setPrograms] = useState<Program[]>([]);
   const [enrollmentResult, setEnrollmentResult] = useState<any>(null);
   const [form] = Form.useForm();
 
-  // Fetch programs from database on component mount
+  // Initialize form values
   useEffect(() => {
-    const loadPrograms = async () => {
-      setFetchingPrograms(true);
-      try {
-        const programsData = await fetchPrograms();
-        console.log('Programs loaded:', programsData);
-        setPrograms(programsData);
-        
-        if (programsData.length === 0) {
-          message.warning('No programs found in the database. Please add programs first.');
-        }
-      } catch (error: any) {
-        console.error('Failed to fetch programs:', error);
-        message.error(`Failed to load programs: ${error.message}`);
-      } finally {
-        setFetchingPrograms(false);
-      }
-    };
-
-    loadPrograms();
-  }, []);
+    form.setFieldsValue({
+      gender: 'male',
+      level: 100,
+      program_code: 'CSC' // Default program code
+    });
+  }, [form]);
 
   const handleEnrollmentComplete = async (photoData: string) => {
+    console.log('Enrollment photo captured, starting enrollment...');
     setLoading(true);
     
     try {
       const formValues = form.getFieldsValue();
+      console.log('Form values:', formValues);
       
       // Validate required fields
-      if (!formValues.name || !formValues.program_id) {
-        throw new Error('Please fill in all required fields');
-      }
-      
-      // Find the selected program details
-      const selectedProgram = programs.find(p => p.id === formValues.program_id);
-      
-      if (!selectedProgram) {
-        throw new Error('Selected program not found');
+      if (!formValues.name) {
+        throw new Error('Please enter student name');
       }
       
       // Generate matric number if not provided
       if (!formValues.matric_number) {
-        const newMatric = generateMatricNumber(selectedProgram);
+        const newMatric = generateMatricNumber(formValues.program_code);
         form.setFieldValue('matric_number', newMatric);
         formValues.matric_number = newMatric;
       }
@@ -82,16 +60,17 @@ const EnrollmentPage: React.FC = () => {
         student_id: formValues.matric_number,
         name: formValues.name,
         gender: formValues.gender,
-        program_id: formValues.program_id,
-        program_name: selectedProgram.name,
-        program_code: selectedProgram.code,
+        program_id: formValues.program_code || 'CSC', // Use program code as ID
+        program_name: getProgramName(formValues.program_code),
+        program_code: formValues.program_code || 'CSC',
         level: formValues.level,
         photoData
       };
       
-      console.log('Enrollment data:', enrollmentData);
+      console.log('Enrollment data prepared:', enrollmentData);
       
       const result = await enrollStudent(enrollmentData);
+      console.log('Enrollment result:', result);
       
       if (result.success) {
         setEnrollmentResult(result);
@@ -108,39 +87,68 @@ const EnrollmentPage: React.FC = () => {
     }
   };
 
-  const generateMatricNumber = (program?: Program) => {
+  const generateMatricNumber = (programCode: string = 'GEN') => {
     const currentYear = new Date().getFullYear();
     const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const programCode = program?.code ? program.code.substring(0, 3).toUpperCase() : 'GEN';
-    return `${programCode}/${currentYear}/${randomNum}`;
+    const code = programCode.substring(0, 3).toUpperCase();
+    return `${code}/${currentYear}/${randomNum}`;
+  };
+
+  const getProgramName = (programCode: string): string => {
+    const programMap: Record<string, string> = {
+      'CSC': 'Computer Science',
+      'EEE': 'Electrical Engineering',
+      'LAW': 'Law',
+      'MED': 'Medicine',
+      'MSC-CS': 'Master of Science in Computer Science',
+      'BSC-CS': 'Bachelor of Science in Computer Science',
+      'MBA': 'Master of Business Administration',
+      'PHD-CS': 'Doctor of Philosophy in Computer Science',
+      'BSC-EE': 'Bachelor of Science in Electrical Engineering',
+      'BSC-ME': 'Bachelor of Science in Mechanical Engineering'
+    };
+    return programMap[programCode] || programCode;
   };
 
   const resetForm = () => {
     form.resetFields();
-    setCurrentStep(0);
-    setEnrollmentResult(null);
-    
-    // Set default values
+    // Reset to default values
     form.setFieldsValue({
       gender: 'male',
-      level: 100
+      level: 100,
+      program_code: 'CSC'
     });
+    setCurrentStep(0);
+    setEnrollmentResult(null);
   };
 
-  // Prepare program options for the Select component
-  const programOptions = programs
-    .filter(program => program.is_active !== false)
-    .map(program => ({
-      label: `${program.name} (${program.code})`,
-      value: program.id,
-    }));
+  // Available program codes
+  const programOptions = [
+    { label: 'Computer Science (CSC)', value: 'CSC' },
+    { label: 'Electrical Engineering (EEE)', value: 'EEE' },
+    { label: 'Law (LAW)', value: 'LAW' },
+    { label: 'Medicine (MED)', value: 'MED' },
+    { label: 'Computer Science - BSc (BSC-CS)', value: 'BSC-CS' },
+    { label: 'Computer Science - MSc (MSC-CS)', value: 'MSC-CS' },
+    { label: 'Computer Science - PhD (PHD-CS)', value: 'PHD-CS' },
+    { label: 'Electrical Engineering - BSc (BSC-EE)', value: 'BSC-EE' },
+    { label: 'Mechanical Engineering - BSc (BSC-ME)', value: 'BSC-ME' },
+    { label: 'Business Administration - MBA (MBA)', value: 'MBA' },
+  ];
 
   const steps = [
     {
-      title: 'Basic Info',
+      title: 'Student Info',
       icon: <User size={16} />,
       content: (
-        <Form form={form} layout="vertical" initialValues={{ gender: 'male', level: 100 }}>
+        <Form 
+          form={form} 
+          layout="vertical" 
+          initialValues={{ gender: 'male', level: 100, program_code: 'CSC' }}
+          onFinish={() => {
+            setCurrentStep(1);
+          }}
+        >
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item
@@ -148,13 +156,16 @@ const EnrollmentPage: React.FC = () => {
                 name="name"
                 rules={[{ required: true, message: 'Please enter student name' }]}
               >
-                <Input size="large" placeholder="Enter student full name" />
+                <Input 
+                  size="large" 
+                  placeholder="Enter student full name" 
+                />
               </Form.Item>
             </Col>
             
             <Col span={24}>
               <Form.Item label="Matric Number" name="matric_number">
-                <div style={{ display: 'flex', gap: 8 }}>
+                <Input.Group compact style={{ display: 'flex' }}>
                   <Input 
                     size="large" 
                     placeholder="Will be auto-generated" 
@@ -163,17 +174,15 @@ const EnrollmentPage: React.FC = () => {
                   />
                   <Button 
                     onClick={() => {
-                      const programId = form.getFieldValue('program_id');
-                      const selectedProgram = programs.find(p => p.id === programId);
-                      const newMatric = generateMatricNumber(selectedProgram);
+                      const programCode = form.getFieldValue('program_code');
+                      const newMatric = generateMatricNumber(programCode);
                       form.setFieldValue('matric_number', newMatric);
                       message.success('New matric number generated');
                     }}
-                    disabled={!form.getFieldValue('program_id')}
                   >
                     Generate
                   </Button>
-                </div>
+                </Input.Group>
               </Form.Item>
             </Col>
             
@@ -201,26 +210,18 @@ const EnrollmentPage: React.FC = () => {
             <Col span={24}>
               <Form.Item 
                 label="Program" 
-                name="program_id"
+                name="program_code"
                 rules={[{ required: true, message: 'Please select a program' }]}
               >
                 <Select
                   size="large"
-                  placeholder={fetchingPrograms ? "Loading programs..." : "Select program"}
-                  loading={fetchingPrograms}
+                  placeholder="Select program"
                   showSearch
                   optionFilterProp="label"
                   filterOption={(input, option) => 
                     (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
                   options={programOptions}
-                  notFoundContent={
-                    fetchingPrograms ? 
-                      <Spin size="small" /> : 
-                      programs.length === 0 ? 
-                        "No programs available. Please add programs first." : 
-                        "No matching programs found"
-                  }
                 />
               </Form.Item>
             </Col>
@@ -230,18 +231,7 @@ const EnrollmentPage: React.FC = () => {
             <Button 
               type="primary" 
               size="large"
-              onClick={() => {
-                form.validateFields()
-                  .then(() => {
-                    if (programs.length === 0) {
-                      message.error('No programs available. Please add programs first.');
-                      return;
-                    }
-                    setCurrentStep(1);
-                  })
-                  .catch(() => message.error('Please fill in all required fields'));
-              }}
-              disabled={fetchingPrograms || programs.length === 0}
+              htmlType="submit"
             >
               Continue to Face Capture
             </Button>
@@ -256,10 +246,16 @@ const EnrollmentPage: React.FC = () => {
         <div style={{ textAlign: 'center' }}>
           <Title level={4} style={{ marginBottom: 16 }}>Face Enrollment</Title>
           <Text type="secondary" style={{ marginBottom: 24, display: 'block' }}>
-            Capture student's face for recognition. Ensure good lighting and face the camera directly.
+            Position student's face in the frame and click Capture Face
           </Text>
           
-          <div style={{ height: 400, margin: '24px 0', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ 
+            height: 400, 
+            margin: '24px 0', 
+            borderRadius: 8, 
+            overflow: 'hidden',
+            backgroundColor: '#000'
+          }}>
             <FaceCamera
               mode="enrollment"
               onEnrollmentComplete={handleEnrollmentComplete}
@@ -268,12 +264,34 @@ const EnrollmentPage: React.FC = () => {
             />
           </div>
           
-          <Space>
+          {/* Debug button - can remove later */}
+          <div style={{ marginTop: 16 }}>
+            <Button
+              type="dashed"
+              onClick={async () => {
+                const formValues = form.getFieldsValue();
+                if (!formValues.name) {
+                  message.error('Please fill in name first');
+                  return;
+                }
+                
+                setLoading(true);
+                // Create a test photo for debugging
+                const testPhoto = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=';
+                await handleEnrollmentComplete(testPhoto);
+              }}
+              loading={loading}
+            >
+              Test Enrollment (No Camera)
+            </Button>
+          </div>
+          
+          <Space style={{ marginTop: 16 }}>
             <Button onClick={() => setCurrentStep(0)}>
               Back
             </Button>
             <Text type="secondary">
-              Click the capture button when ready
+              Make sure face is clearly visible
             </Text>
           </Space>
         </div>
@@ -293,44 +311,36 @@ const EnrollmentPage: React.FC = () => {
               
               <Card style={{ 
                 textAlign: 'left', 
-                marginBottom: 32,
                 maxWidth: 500,
                 margin: '0 auto 32px'
               }}>
                 <div style={{ marginBottom: 16 }}>
                   <Text strong>Name: </Text>
-                  <Text>{enrollmentResult.student.name}</Text>
+                  <Text>{enrollmentResult.student?.name}</Text>
                 </div>
                 
                 <div style={{ marginBottom: 16 }}>
                   <Text strong>Matric Number: </Text>
-                  <Tag color="blue">{enrollmentResult.student.matric_number}</Tag>
+                  <Tag color="blue">{enrollmentResult.student?.matric_number}</Tag>
                 </div>
                 
                 <div style={{ marginBottom: 16 }}>
                   <Text strong>Level: </Text>
-                  <Tag color="purple">Level {enrollmentResult.student.level}</Tag>
+                  <Tag color="purple">Level {enrollmentResult.student?.level}</Tag>
                 </div>
                 
                 <div style={{ marginBottom: 16 }}>
                   <Text strong>Program: </Text>
-                  <Text>{enrollmentResult.student.program_name}</Text>
-                  <Text type="secondary"> ({enrollmentResult.student.program_code})</Text>
+                  <Text>{enrollmentResult.student?.program_name}</Text>
+                  <Text type="secondary"> ({enrollmentResult.student?.program_code})</Text>
                 </div>
                 
                 <div style={{ marginBottom: 16 }}>
-                  <Text strong>Face Detection: </Text>
+                  <Text strong>Face Enrollment: </Text>
                   <Tag color={enrollmentResult.faceDetected ? "green" : "orange"}>
-                    {enrollmentResult.faceDetected ? '✅ Detected' : '⚠️ Fallback'}
+                    {enrollmentResult.faceDetected ? '✅ Face Recorded' : '⚠️ No Face Detected'}
                   </Tag>
                 </div>
-                
-                {enrollmentResult.embeddingDimensions && (
-                  <div>
-                    <Text strong>Embedding: </Text>
-                    <Text>{enrollmentResult.embeddingDimensions} dimensions</Text>
-                  </div>
-                )}
               </Card>
               
               <Space>
@@ -375,9 +385,14 @@ const EnrollmentPage: React.FC = () => {
                 </Text>
               </Card>
               
-              <Button type="primary" onClick={resetForm}>
-                Try Again
-              </Button>
+              <Space>
+                <Button type="primary" onClick={() => setCurrentStep(0)}>
+                  Start Over
+                </Button>
+                <Button onClick={resetForm}>
+                  Try Again
+                </Button>
+              </Space>
             </>
           )}
         </div>

@@ -1,4 +1,6 @@
 // utils/api.ts
+import { supabase } from '../lib/supabase';
+
 export interface Program {
   id: string;
   code: string;
@@ -15,26 +17,51 @@ export interface Program {
 
 export const fetchPrograms = async (): Promise<Program[]> => {
   try {
-    const response = await fetch('/api/programs');
+    console.log('Fetching programs from database...');
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch programs: ${response.status}`);
+    const { data, error } = await supabase
+      .from('programs')
+      .select('*')
+      .eq('is_active', true)  // Only fetch active programs
+      .order('name');  // Order by name
+
+    if (error) {
+      console.error('Database error fetching programs:', error);
+      throw error;
     }
+
+    console.log('Fetched programs:', data);
     
-    const data = await response.json();
+    // Ensure we return an array even if data is null
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchPrograms:', error);
     
-    // Handle different response formats
-    if (Array.isArray(data)) {
-      return data;
-    } else if (data.programs) {
-      return data.programs;
-    } else if (data.data) {
-      return data.data;
-    }
-    
+    // Return empty array instead of throwing to prevent page crash
     return [];
+  }
+};
+
+// Alternative: fetch with additional filters
+export const fetchProgramsForEnrollment = async (): Promise<Program[]> => {
+  try {
+    console.log('Fetching programs for enrollment...');
+    
+    const { data, error } = await supabase
+      .from('programs')
+      .select('id, code, name, short_name, program_type, duration_years, is_active')
+      .eq('is_active', true)
+      .order('name');
+
+    if (error) {
+      console.error('Database error:', error);
+      return [];
+    }
+
+    console.log(`Found ${data?.length || 0} active programs`);
+    return data || [];
   } catch (error) {
     console.error('Error fetching programs:', error);
-    throw error;
+    return [];
   }
 };

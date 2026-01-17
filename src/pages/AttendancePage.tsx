@@ -1,488 +1,462 @@
-// pages/AttendancePage.tsx - Fixed version
+// pages/AttendancePage.tsx
 import React, { useState, useEffect } from 'react';
 import { 
-  Select, 
-  Button, 
-  Typography, 
-  Space, 
   Card, 
+  Typography, 
+  Button, 
   message, 
-  Steps,
-  Badge,
+  Row, 
+  Col, 
+  Tag, 
+  Spin,
+  List,
+  Avatar,
+  Space,
   Alert,
-  Spin
+  Modal
 } from 'antd';
-import { 
-  Camera, 
-  CheckCircle, 
-  XCircle,
-  Clock,
-  ArrowLeft,
-  BookOpen
-} from 'lucide-react';
+import { Camera, Users, Clock, UserCheck, AlertCircle } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
+import faceRecognition from '../utils/faceRecognition';
 import { supabase } from '../lib/supabase';
-import { 
-  markAttendance, 
-  AttendanceData,
-  AttendanceResult 
-} from '../utils/attendanceUtils';
-import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 
-const AttendancePage: React.FC = () => {
-  const [courses, setCourses] = useState<any[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<any>(null);
-  const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<AttendanceResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState({ 
-    totalScans: 0, 
-    successfulScans: 0,
-    alreadyMarked: 0 
-  });
-  const [currentStep, setCurrentStep] = useState(0);
+interface MatchResult {
+  studentId: string;
+  name: string;
+  matric_number: string;
+  confidence: number;
+}
 
+const AttendancePage: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const [matches, setMatches] = useState<MatchResult[]>([]);
+  const [attendanceMarked, setAttendanceMarked] = useState(false);
+  const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [captureMode, setCaptureMode] = useState<'manual' | 'auto'>('manual');
+
+  // Load face recognition models on component mount
   useEffect(() => {
-    fetchCourses();
+    const loadModels = async () => {
+      try {
+        console.log('Loading face recognition models for attendance...');
+        await faceRecognition.loadModels();
+        setModelsLoaded(true);
+        console.log('Face models loaded successfully');
+      } catch (error) {
+        console.error('Failed to load face models:', error);
+        message.warning('Face recognition models not loaded. Attendance may not work properly.');
+      }
+    };
+
+    loadModels();
   }, []);
 
-  const fetchCourses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('courses')
-        .select('*')
-        .order('code');
-      
-      if (error) throw error;
-      setCourses(data || []);
-    } catch (error: any) {
-      message.error('Failed to load courses');
+  const handleAttendanceComplete = async (result: { success: boolean; photoData?: { base64: string } }) => {
+    if (!result.success || !result.photoData) {
+      message.error('Failed to capture photo');
+      return;
     }
-  };
 
-  const handleFaceCapture = async (photoData: string) => {
-    if (!selectedCourse || loading) return;
-    
+    // Check if models are loaded
+    if (!modelsLoaded) {
+      message.error('Face recognition models not loaded yet. Please wait...');
+      return;
+    }
+
     setLoading(true);
-    setStats(prev => ({ ...prev, totalScans: prev.totalScans + 1 }));
+    setCurrentPhoto(result.photoData.base64);
+    setMatches([]); // Clear previous matches
     
     try {
-      const attendanceData: AttendanceData = {
-        course_code: selectedCourse.code,
-        course_title: selectedCourse.title,
-        level: selectedCourse.level
-      };
+      console.log('Finding face matches...');
       
-      const markResult = await markAttendance(photoData, attendanceData);
+      // Check if there's a face in the image first
+      const faceDescriptor = await faceRecognition.extractFaceDescriptor(result.photoData.base64);
       
-      setResult(markResult);
+      if (!faceDescriptor) {
+        message.warning('No face detected in the image. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Face detected, searching for matches...');
+      const foundMatches = await faceRecognition.matchFaceForAttendance(result.photoData.base64);
       
-      // TypeScript now understands the discriminated union
-      if (markResult.success) {
-        setStats(prev => ({ 
-          ...prev, 
-          successfulScans: prev.successfulScans + 1 
-        }));
-        message.success(`✅ Attendance marked for ${markResult.student.name}`);
-        
-        // Auto-clear result after 3 seconds
-        setTimeout(() => {
-          setResult(null);
-        }, 3000);
-      } else if (markResult.error?.includes('already marked')) {
-        setStats(prev => ({ 
-          ...prev, 
-          alreadyMarked: prev.alreadyMarked + 1 
-        }));
-        
-        if (markResult.student) {
-          message.warning(`⚠️ ${markResult.student.name} already marked today`);
-        } else {
-          message.warning(`⚠️ Student already marked today`);
-        }
+      console.log('Matches found:', foundMatches);
+      setMatches(foundMatches);
+      
+      if (foundMatches.length === 0) {
+        message.warning('No matching student found. Try again or enroll the student.');
       } else {
-        message.warning(markResult.error || 'No matching student found');
+        message.success(`Found ${foundMatches.length} potential match(es)`);
       }
     } catch (error: any) {
-      message.error(`❌ Error: ${error.message}`);
-      setResult({
-        success: false,
-        error: error.message
-      });
+      console.error('Error matching face:', error);
+      message.error(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const startScanning = () => {
-    if (!selectedCourse) {
-      message.warning('Please select a course first');
-      return;
-    }
-    setScanning(true);
-    setCurrentStep(1);
-    setResult(null);
-    message.info('🎬 Face scanning started');
-  };
-
-  const stopScanning = () => {
-    setScanning(false);
-    setCurrentStep(0);
-    setResult(null);
-    message.info('⏹️ Scanning stopped');
-  };
-
-  const debugDatabase = async () => {
+  const markAttendance = async (studentId: string, studentName: string, matricNumber: string) => {
     try {
-      const { data: students } = await supabase
-        .from('students_new')
-        .select('matric_number, name, face_detected')
-        .eq('enrollment_status', 'enrolled')
-        .limit(5);
+      setLoading(true);
       
-      console.log('📊 Students in database:', students);
+      // 1. Get current date and time
+      const now = new Date();
+      const attendanceDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const attendanceTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
       
-      const { count } = await supabase
-        .from('students_new')
-        .select('*', { count: 'exact', head: true })
-        .eq('enrollment_status', 'enrolled');
+      // 2. Save attendance to database
+      const { data, error } = await supabase
+        .from('attendance')
+        .insert([{
+          student_id: studentId,
+          matric_number: matricNumber,
+          name: studentName,
+          date: attendanceDate,
+          time: attendanceTime,
+          status: 'present',
+          method: 'face_recognition',
+          confidence: matches.find(m => m.studentId === studentId)?.confidence || 0
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      message.success(`Attendance marked for ${studentName} at ${attendanceTime}`);
+      setAttendanceMarked(true);
       
-      message.info(`📋 Found ${count || 0} enrolled students`);
-    } catch (error) {
-      console.error('Debug error:', error);
+      // 3. Reset after 3 seconds
+      setTimeout(() => {
+        setMatches([]);
+        setAttendanceMarked(false);
+        setCurrentPhoto(null);
+        setLoading(false);
+      }, 3000);
+      
+    } catch (error: any) {
+      console.error('Error marking attendance:', error);
+      message.error(`Failed to mark attendance: ${error.message}`);
+      setLoading(false);
     }
+  };
+
+  const retryCapture = () => {
+    setMatches([]);
+    setCurrentPhoto(null);
+    message.info('Ready for new capture');
+  };
+
+  const showMatchDetails = (match: MatchResult) => {
+    Modal.info({
+      title: 'Match Details',
+      content: (
+        <div>
+          <p><strong>Name:</strong> {match.name}</p>
+          <p><strong>Matric Number:</strong> {match.matric_number}</p>
+          <p><strong>Confidence:</strong> {(match.confidence * 100).toFixed(1)}%</p>
+          <p><strong>Status:</strong> {match.confidence > 0.8 ? 'High Confidence' : 'Medium Confidence'}</p>
+        </div>
+      ),
+    });
   };
 
   return (
-    <div style={{ 
-      padding: '20px',
-      minHeight: '100vh',
-      backgroundColor: '#f0f2f5'
-    }}>
-      <Card style={{ 
-        borderRadius: 12,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-      }}>
+    <div style={{ padding: '24px', maxWidth: 1000, margin: '0 auto' }}>
+      <Card>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <Title level={3} style={{ marginBottom: 8 }}>
-            Face Recognition Attendance
-          </Title>
+          <div style={{ 
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 8
+          }}>
+            <UserCheck size={32} color="#52c41a" />
+            <Title level={3} style={{ margin: 0 }}>
+              Attendance System
+            </Title>
+          </div>
           <Text type="secondary">
-            AFE Babalola University - Automated Attendance System
+            AFE Babalola University - Face Recognition Attendance
           </Text>
+          
+          {!modelsLoaded && (
+            <Alert
+              message="Loading face recognition models..."
+              type="warning"
+              showIcon
+              style={{ marginTop: 16, maxWidth: 500, margin: '16px auto 0' }}
+            />
+          )}
         </div>
 
-        <Steps 
-          current={currentStep} 
-          style={{ marginBottom: 32 }}
-          items={[
-            { title: 'Course Selection', icon: <BookOpen size={16} /> },
-            { title: 'Face Scanning', icon: <Camera size={16} /> },
-          ]}
-        />
-
-        {!scanning ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ marginBottom: 32 }}>
-              <Select
-                style={{ width: '100%', maxWidth: 500 }}
-                placeholder="📚 Select a course"
-                size="large"
-                showSearch
-                optionFilterProp="label"
-                onChange={(value) => {
-                  const course = courses.find(c => c.id === value);
-                  setSelectedCourse(course);
-                }}
-                options={courses.map(course => ({
-                  value: course.id,
-                  label: `${course.code} - ${course.title} (Level ${course.level || 'N/A'})`
-                }))}
-              />
-            </div>
-            
-            {selectedCourse && (
-              <Card style={{ 
-                marginBottom: 32,
-                textAlign: 'left',
-                maxWidth: 500,
-                margin: '0 auto'
-              }}>
-                <div style={{ marginBottom: 8 }}>
-                  <Text strong>Selected Course: </Text>
-                  <Text>{selectedCourse.code} - {selectedCourse.title}</Text>
-                </div>
-                <div style={{ marginBottom: 8 }}>
-                  <Text strong>Level: </Text>
-                  <Badge 
-                    count={`Level ${selectedCourse.level || 'N/A'}`} 
-                    style={{ backgroundColor: '#1890ff' }}
-                  />
-                </div>
-                <div>
-                  <Text strong>Course Code: </Text>
-                  <Text code>{selectedCourse.code}</Text>
-                </div>
-              </Card>
-            )}
-            
-            <Space style={{ marginTop: 32 }}>
-              <Button
-                type="primary"
-                size="large"
-                icon={<Camera size={20} />}
-                onClick={startScanning}
-                disabled={!selectedCourse}
-                style={{ 
-                  height: 60, 
-                  fontSize: 18, 
-                  padding: '0 48px',
-                  borderRadius: 8
-                }}
-              >
-                START SCANNING
-              </Button>
-              
-              <Button
-                size="large"
-                onClick={debugDatabase}
-                style={{ height: 60 }}
-              >
-                Debug Database
-              </Button>
-            </Space>
-            
-            <div style={{ marginTop: 32 }}>
-              <Alert
-                message="Instructions"
-                description="1. Select a course 2. Start scanning 3. Students will be automatically marked present when their face is detected"
-                type="info"
-                showIcon
-                style={{ maxWidth: 500, margin: '0 auto' }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 24,
-              flexWrap: 'wrap',
-              gap: 16
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Button
-                  icon={<ArrowLeft size={20} />}
-                  onClick={stopScanning}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                />
-                
-                <div>
-                  <Text strong style={{ display: 'block' }}>
-                    {selectedCourse?.code}
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {selectedCourse?.title}
-                  </Text>
-                </div>
-              </div>
-              
-              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <Text strong style={{ display: 'block', fontSize: 12 }}>
-                    Successful
-                  </Text>
-                  <Badge 
-                    count={stats.successfulScans}
-                    style={{ 
-                      backgroundColor: '#52c41a',
-                      fontSize: 18,
-                      padding: '8px 16px'
-                    }}
-                  />
-                </div>
-                
-                <div style={{ textAlign: 'center' }}>
-                  <Text strong style={{ display: 'block', fontSize: 12 }}>
-                    Total Scans
-                  </Text>
-                  <Badge 
-                    count={stats.totalScans}
-                    style={{ 
-                      backgroundColor: '#1890ff',
-                      fontSize: 18,
-                      padding: '8px 16px'
-                    }}
-                  />
-                </div>
-                
-                <div style={{ textAlign: 'center' }}>
-                  <Text strong style={{ display: 'block', fontSize: 12 }}>
-                    Already Marked
-                  </Text>
-                  <Badge 
-                    count={stats.alreadyMarked}
-                    style={{ 
-                      backgroundColor: '#faad14',
-                      fontSize: 18,
-                      padding: '8px 16px'
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
+        <Row gutter={24}>
+          <Col xs={24} md={12}>
             <Card 
-              style={{ 
-                marginBottom: 24,
-                borderRadius: 12,
-                overflow: 'hidden',
-                border: '2px solid #1890ff',
-                boxShadow: '0 0 20px rgba(24, 144, 255, 0.1)'
-              }}
+              title={
+                <Space>
+                  <Camera size={20} />
+                  <span>Face Capture</span>
+                  <Tag color={modelsLoaded ? "success" : "warning"}>
+                    {modelsLoaded ? "Ready" : "Loading..."}
+                  </Tag>
+                </Space>
+              }
+              style={{ height: '100%' }}
+              extra={
+                <Space>
+                  <Button 
+                    size="small" 
+                    type={captureMode === 'manual' ? 'primary' : 'default'}
+                    onClick={() => setCaptureMode('manual')}
+                  >
+                    Manual
+                  </Button>
+                  <Button 
+                    size="small"
+                    type={captureMode === 'auto' ? 'primary' : 'default'}
+                    onClick={() => setCaptureMode('auto')}
+                  >
+                    Auto
+                  </Button>
+                </Space>
+              }
             >
-              <div style={{ height: 500 }}>
+              <div style={{ height: 400, borderRadius: 8, overflow: 'hidden' }}>
                 <FaceCamera
                   mode="attendance"
-                  onAttendanceComplete={(result: any) => {
-                    if (result.success && result.photoData) {
-                      handleFaceCapture(result.photoData.base64);
-                    }
-                  }}
-                  autoCapture={true}
-                  captureInterval={3000}
+                  onAttendanceComplete={handleAttendanceComplete}
+                  autoCapture={captureMode === 'auto'}
+                  captureInterval={5000}
                   loading={loading}
                 />
               </div>
               
-              {loading && (
-                <div style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 100
-                }}>
+              <div style={{ marginTop: 16, textAlign: 'center' }}>
+                <Text type="secondary">
+                  {captureMode === 'auto' 
+                    ? 'Auto-capture every 5 seconds' 
+                    : 'Click the camera button to capture'}
+                </Text>
+                
+                {currentPhoto && !loading && (
+                  <div style={{ marginTop: 8 }}>
+                    <Button 
+                      size="small" 
+                      onClick={retryCapture}
+                    >
+                      Capture Again
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </Col>
+          
+          <Col xs={24} md={12}>
+            <Card 
+              title={
+                <Space>
+                  <Users size={20} />
+                  <span>Recognition Results</span>
+                  {matches.length > 0 && (
+                    <Tag color="blue">{matches.length} match(es)</Tag>
+                  )}
+                </Space>
+              }
+              style={{ height: '100%' }}
+              extra={
+                matches.length > 0 && (
+                  <Button 
+                    size="small" 
+                    onClick={retryCapture}
+                    disabled={attendanceMarked}
+                  >
+                    Clear Results
+                  </Button>
+                )
+              }
+            >
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
                   <Spin size="large" />
-                  <Text style={{ 
-                    display: 'block', 
-                    marginTop: 16,
-                    color: 'white',
-                    textShadow: '0 2px 4px rgba(0,0,0,0.5)'
-                  }}>
-                    Processing face...
+                  <Text style={{ display: 'block', marginTop: 16 }}>
+                    Processing face recognition...
                   </Text>
+                </div>
+              ) : matches.length > 0 ? (
+                <div>
+                  <Alert
+                    message={
+                      <Space>
+                        <AlertCircle size={16} />
+                        <span>Select the correct student to mark attendance</span>
+                      </Space>
+                    }
+                    type="info"
+                    showIcon={false}
+                    style={{ marginBottom: 16 }}
+                  />
+                  
+                  <List
+                    dataSource={matches}
+                    renderItem={(match, index) => (
+                      <List.Item
+                        key={match.studentId}
+                        actions={[
+                          <Space direction="vertical" size="small">
+                            <Button
+                              type="primary"
+                              onClick={() => markAttendance(match.studentId, match.name, match.matric_number)}
+                              disabled={attendanceMarked}
+                              loading={loading}
+                            >
+                              Mark Attendance
+                            </Button>
+                            <Button
+                              size="small"
+                              onClick={() => showMatchDetails(match)}
+                            >
+                              Details
+                            </Button>
+                          </Space>
+                        ]}
+                      >
+                        <List.Item.Meta
+                          avatar={
+                            <Avatar 
+                              size="large"
+                              style={{ 
+                                backgroundColor: index === 0 ? '#1890ff' : '#d9d9d9',
+                                color: 'white',
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => showMatchDetails(match)}
+                            >
+                              {match.name.charAt(0)}
+                            </Avatar>
+                          }
+                          title={
+                            <Space>
+                              <Text strong style={{ cursor: 'pointer' }} onClick={() => showMatchDetails(match)}>
+                                {match.name}
+                              </Text>
+                              <Tag color={index === 0 ? "green" : "default"}>
+                                {index === 0 ? "Best Match" : "Alternative"}
+                              </Tag>
+                            </Space>
+                          }
+                          description={
+                            <>
+                              <div>
+                                <Text strong>Matric: </Text>
+                                <Tag color="blue">{match.matric_number}</Tag>
+                              </div>
+                              <div style={{ marginTop: 4 }}>
+                                <Text strong>Confidence: </Text>
+                                <Tag color={
+                                  match.confidence > 0.8 ? "success" : 
+                                  match.confidence > 0.65 ? "warning" : "default"
+                                }>
+                                  {(match.confidence * 100).toFixed(1)}%
+                                </Tag>
+                                <Text type="secondary" style={{ marginLeft: 8 }}>
+                                  {match.confidence > 0.8 ? 'High' : 
+                                   match.confidence > 0.65 ? 'Medium' : 'Low'}
+                                </Text>
+                              </div>
+                            </>
+                          }
+                        />
+                      </List.Item>
+                    )}
+                  />
+                </div>
+              ) : currentPhoto && !loading ? (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>😕</div>
+                  <Title level={4}>No Match Found</Title>
+                  <Text type="secondary" style={{ marginBottom: 24 }}>
+                    The face was not recognized in our database.
+                  </Text>
+                  <Space>
+                    <Button onClick={retryCapture}>
+                      Try Again
+                    </Button>
+                    <Button type="dashed" onClick={() => window.location.href = '/enrollment'}>
+                      Enroll Student
+                    </Button>
+                  </Space>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>📸</div>
+                  <Title level={4}>Ready for Attendance</Title>
+                  <Text type="secondary" style={{ marginBottom: 24 }}>
+                    {modelsLoaded 
+                      ? 'Capture a photo to begin face recognition' 
+                      : 'Waiting for face recognition models to load...'}
+                  </Text>
+                  {!modelsLoaded && (
+                    <Spin size="large" style={{ marginBottom: 16 }} />
+                  )}
                 </div>
               )}
             </Card>
-
-            {result && (
-              <Card style={{ 
-                backgroundColor: result.success ? '#f6ffed' : 
-                              result.error?.includes('already') ? '#fffbe6' : '#fff2f0',
-                borderColor: result.success ? '#b7eb8f' : 
-                            result.error?.includes('already') ? '#ffe58f' : '#ffccc7',
-                borderRadius: 8,
-                transition: 'all 0.3s'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  {result.success ? (
-                    <CheckCircle size={32} color="#52c41a" />
-                  ) : result.error?.includes('already') ? (
-                    <Clock size={32} color="#faad14" />
-                  ) : (
-                    <XCircle size={32} color="#ff4d4f" />
-                  )}
-                  
-                  <div style={{ flex: 1 }}>
-                    {result.success ? (
-                      <>
-                        <Text strong style={{ fontSize: 16, display: 'block' }}>
-                          {result.student.name}
-                        </Text>
-                        <div style={{ marginTop: 4 }}>
-                          <Text type="secondary" style={{ marginRight: 16 }}>
-                            Matric: {result.student.matric_number}
-                          </Text>
-                          <Text type="secondary">
-                            Confidence: {(result.confidence * 100).toFixed(1)}%
-                          </Text>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <Text 
-                          strong 
-                          style={{ 
-                            fontSize: 16, 
-                            display: 'block',
-                            color: result.error?.includes('already') ? '#faad14' : '#ff4d4f'
-                          }}
-                        >
-                          {result.error}
-                        </Text>
-                        {result.student && (
-                          <Text type="secondary" style={{ marginTop: 4 }}>
-                            Student: {result.student.name}
-                          </Text>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  
-                  <div style={{ textAlign: 'right' }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {dayjs().format('HH:mm:ss')}
-                    </Text>
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            <div style={{ marginTop: 24, textAlign: 'center' }}>
-              <Alert
-                message="Scanning Active"
-                description={
-                  <div>
-                    <div>• Auto-capturing every 3 seconds</div>
-                    <div>• Position face in the center of the frame</div>
-                    <div>• Ensure good lighting conditions</div>
-                    <div>• Results auto-clear after 3 seconds</div>
-                  </div>
-                }
-                type="success"
-                showIcon
-              />
-            </div>
-          </div>
-        )}
+          </Col>
+        </Row>
         
+        {/* Status Footer */}
         <div style={{ 
-          marginTop: 32, 
-          paddingTop: 16, 
-          borderTop: '1px solid #f0f0f0',
-          textAlign: 'center' 
+          marginTop: 24, 
+          padding: 16, 
+          backgroundColor: '#fafafa', 
+          borderRadius: 8,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}>
-          <Space>
-            <Text type="secondary">
-              <Clock size={12} style={{ marginRight: 4 }} />
-              {dayjs().format('DD/MM/YYYY HH:mm')}
-            </Text>
-            <Text type="secondary">
-              System Status: {scanning ? '🟢 Active' : '⚪ Ready'}
-            </Text>
-          </Space>
+          <div>
+            <Text type="secondary">System Status: </Text>
+            <Tag color={modelsLoaded ? "success" : "processing"}>
+              {modelsLoaded ? "Face Recognition Ready" : "Loading Models..."}
+            </Tag>
+          </div>
+          <div>
+            <Button 
+              type="link" 
+              onClick={() => window.location.href = '/enrollment'}
+            >
+              Go to Enrollment
+            </Button>
+            <Button 
+              type="link" 
+              onClick={() => {
+                const status = faceRecognition.getStatus();
+                console.log('Face recognition status:', status);
+                Modal.info({
+                  title: 'System Status',
+                  content: (
+                    <div>
+                      <p><strong>Models Loaded:</strong> {status.modelsLoaded ? 'Yes' : 'No'}</p>
+                      <p><strong>Backend:</strong> {status.backend}</p>
+                      <p><strong>WebGL Support:</strong> {status.hasWebGL ? 'Yes' : 'No'}</p>
+                      <p><strong>Local Embeddings:</strong> {status.localEmbeddingsCount}</p>
+                    </div>
+                  ),
+                });
+              }}
+            >
+              View Details
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

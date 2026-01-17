@@ -1,165 +1,182 @@
-// utils/enrollmentUtils.ts - New utility file
+// utils/enrollmentUtils.ts
 import { supabase } from '../lib/supabase';
 import faceRecognition from './faceRecognition';
-import { compressImage } from './imageUtils';
-
 
 export interface EnrollmentData {
   student_id: string;
   name: string;
   gender: string;
-  program_id: string;
+  program_id?: string;
   program_name: string;
   program_code: string;
   level: number;
   photoData: string;
 }
 
-export async function enrollStudent(data: EnrollmentData) {
+export interface EnrollmentResult {
+  success: boolean;
+  student?: {
+    id: string;
+    student_id: string;
+    name: string;
+    matric_number: string;
+    gender: string;
+    program_name: string;
+    program_code: string;
+    level: number;
+    enrollment_status: string;
+    enrollment_date: string;
+    has_face_embedding?: boolean;
+  };
+  error?: string;
+  faceDetected?: boolean;
+  embeddingDimensions?: number;
+}
+
+export const enrollStudent = async (data: EnrollmentData): Promise<EnrollmentResult> => {
   try {
-    console.log('🟡 Starting enrollment process...');
+    console.log('Starting enrollment process...');
     
-    // Generate matric number if not provided
-    const matricNumber = data.student_id || generateMatricNumber();
+    // 1. Check if student already exists
+    const { data: existingStudent, error: checkError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('matric_number', data.student_id)
+      .single();
+
+    // If there's an error but it's not "no rows" error, throw it
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Database check error:', checkError);
+      throw new Error(`Database error: ${checkError.message}`);
+    }
+
+    // If student exists, return error
+    if (existingStudent) {
+      return {
+        success: false,
+        error: `Student with matric number ${data.student_id} already exists`
+      };
+    }
+
+    // 2. Extract face descriptor
+    console.log('Extracting face descriptor...');
+    const faceDescriptor = await faceRecognition.extractFaceDescriptor(data.photoData);
     
-    // Load face models
-    await faceRecognition.loadModels();
-    
-    // Extract face embedding
-    console.log('🟡 Extracting face features...');
-    const descriptor = await faceRecognition.extractFaceDescriptor(data.photoData);
-    
-    let faceEmbedding: number[] = [];
-    let faceDetected = false;
-    
-    if (descriptor) {
-      faceDetected = true;
-      faceEmbedding = Array.from(descriptor);
-      console.log('✅ Face detected, embedding length:', faceEmbedding.length);
+    if (!faceDescriptor) {
+      console.warn('No face detected. Proceeding without face data...');
     } else {
-      console.log('⚠️ No face detected, using fallback');
-      // Generate random embedding for fallback
-      faceEmbedding = Array.from({ length: 128 }, () => Math.random() * 2 - 1);
+      console.log('Face descriptor extracted:', faceDescriptor.length, 'dimensions');
     }
-    
-    // Convert to 128D if needed
-    const finalEmbedding = generate128DEmbedding(faceEmbedding);
-    console.log('✅ Final embedding (128D):', finalEmbedding.length);
-    
-    // Compress and upload photo
-    console.log('🟡 Processing photo...');
-    const compressedImage = await compressImage(data.photoData, 640, 0.8);
-    const fileName = `enrollment_${Date.now()}_${data.name.replace(/\s+/g, '_')}.jpg`;
-    
-    let photoUrl = '';
-    try {
-      const blob = dataURLtoBlob(compressedImage);
-      const { error: uploadError } = await supabase.storage
-        .from('student-photos')
-        .upload(fileName, blob);
-      
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage
-          .from('student-photos')
-          .getPublicUrl(fileName);
-        photoUrl = urlData.publicUrl;
-      }
-    } catch (storageError) {
-      console.warn('Storage upload failed, using base64:', storageError);
-      photoUrl = compressedImage;
-    }
-    
-    
-    // Prepare student data
-const studentData = {
-  student_id: matricNumber,
-  matric_number: matricNumber,
-  name: data.name,
-  // Removed: email and phone fields
-  gender: data.gender || 'male',
-  program_id: data.program_id,
-  program: data.program_name, // Changed from data.program
-  program_name: data.program_name,
-  program_code: data.program_code, // Added program code
-  level: data.level || 100,
-  level_code: data.level ? `L${data.level}` : 'L100',
-  face_embedding: finalEmbedding,
-  face_embedding_vector: finalEmbedding,
-  face_detected: faceDetected,
-  face_enrolled_at: new Date().toISOString(),
-  face_match_threshold: faceDetected ? 0.65 : 0.5,
-  photo_url: photoUrl,
-  enrollment_status: 'enrolled' as const,
-  is_active: true,
-  enrollment_date: new Date().toISOString().split('T')[0]
-};
-    
-    // Save to database
-    console.log('🟡 Saving to database...');
-    const { data: savedStudent, error } = await supabase
-      .from('students_new')
-      .upsert([studentData], {
-        onConflict: 'matric_number'
-      })
+
+    // 3. Prepare student data
+    const studentData = {
+      student_id: data.student_id,
+      name: data.name,
+      matric_number: data.student_id,
+      gender: data.gender,
+      program_name: data.program_name,
+      program_code: data.program_code,
+      level: data.level,
+      enrollment_status: 'enrolled',
+      enrollment_date: new Date().toISOString(),
+      ...(data.program_id && { program_id: data.program_id })
+    };
+
+    // 4. Save to database
+    console.log('Saving to database...', studentData);
+    const { data: newStudent, error: dbError } = await supabase
+      .from('students')
+      .insert([studentData])
       .select()
       .single();
-    
-    if (error) {
-      throw new Error(`Database error: ${error.message}`);
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+      throw new Error(`Failed to save student: ${dbError.message}`);
     }
-    
-    console.log('✅ Student enrolled successfully!');
+
+    console.log('Student saved to database:', newStudent);
+
+    // 5. Save face embedding if detected
+    let embeddingSaved = false;
+    if (faceDescriptor && newStudent) {
+      try {
+        console.log('Saving face embedding...');
+        
+        // Convert Float32Array to regular array for JSON storage
+        const embeddingArray = Array.from(faceDescriptor);
+        
+        // Save to database
+        const { error: embeddingError } = await supabase
+          .from('students')
+          .update({ 
+            face_embedding: embeddingArray,
+            last_face_update: new Date().toISOString()
+          })
+          .eq('id', newStudent.id);
+
+        if (embeddingError) {
+          console.warn('Failed to save face embedding to database:', embeddingError);
+        } else {
+          // Also save locally
+          faceRecognition.saveEmbeddingToLocal(data.student_id, faceDescriptor);
+          embeddingSaved = true;
+          console.log('Face embedding saved successfully');
+        }
+      } catch (embeddingError) {
+        console.warn('Failed to save face embedding:', embeddingError);
+      }
+    }
+
+    // 6. Return success result
     return {
       success: true,
-      student: savedStudent,
-      faceDetected,
-      embeddingDimensions: finalEmbedding.length
+      student: {
+        id: newStudent.id,
+        student_id: newStudent.student_id,
+        name: newStudent.name,
+        matric_number: newStudent.matric_number,
+        gender: newStudent.gender,
+        program_name: newStudent.program_name,
+        program_code: newStudent.program_code,
+        level: newStudent.level,
+        enrollment_status: newStudent.enrollment_status,
+        enrollment_date: newStudent.enrollment_date,
+        has_face_embedding: embeddingSaved
+      },
+      faceDetected: !!faceDescriptor,
+      embeddingDimensions: faceDescriptor?.length
     };
-    
+
   } catch (error: any) {
-    console.error('❌ Enrollment failed:', error);
+    console.error('Enrollment error:', error);
     return {
       success: false,
-      error: error.message
+      error: error.message || 'Unknown error during enrollment'
     };
   }
-}
+};
 
-function generateMatricNumber(): string {
-  const currentYear = new Date().getFullYear();
-  const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  return `ABU/${currentYear}/${randomNum}`;
-}
-
-function generate128DEmbedding(embedding: number[]): number[] {
-  if (embedding.length <= 128) {
-    return embedding.length === 128 ? embedding : [...embedding, ...Array(128 - embedding.length).fill(0)];
+// Helper function to check if enrollment is working
+export const testEnrollment = async (): Promise<boolean> => {
+  try {
+    console.log('Testing enrollment connection...');
+    
+    // Test database connection
+    const { data, error } = await supabase
+      .from('students')
+      .select('count')
+      .limit(1);
+    
+    if (error) {
+      console.error('Database test failed:', error);
+      return false;
+    }
+    
+    console.log('Database connection successful');
+    return true;
+  } catch (error) {
+    console.error('Test failed:', error);
+    return false;
   }
-  
-  // Downsample 512D to 128D
-  const result: number[] = [];
-  const segmentSize = embedding.length / 128;
-  
-  for (let i = 0; i < 128; i++) {
-    const start = Math.floor(i * segmentSize);
-    const end = Math.floor((i + 1) * segmentSize);
-    const segment = embedding.slice(start, end);
-    const average = segment.reduce((sum, val) => sum + val, 0) / segment.length;
-    result.push(parseFloat(average.toFixed(6)));
-  }
-  
-  return result;
-}
-
-function dataURLtoBlob(dataURL: string): Blob {
-  const arr = dataURL.split(',');
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-  const bstr = atob(arr[1]);
-  const u8arr = new Uint8Array(bstr.length);
-  
-  for (let i = 0; i < bstr.length; i++) {
-    u8arr[i] = bstr.charCodeAt(i);
-  }
-  
-  return new Blob([u8arr], { type: mime });
-}
+};
