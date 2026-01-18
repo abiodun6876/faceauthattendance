@@ -294,12 +294,7 @@ const AttendancePage: React.FC = () => {
               }}>
                 <Camera size={20} color="white" />
               </div>
-              <div>
-                <Title level={3} style={{ margin: 0, color: 'white', fontWeight: 'bold' }}>ABUAD FACE AUTH</Title>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 12 }}>
-                  AFE Babalola University
-                </Text>
-              </div>
+              
             </div>
             
             {/* Right side - Stats */}
@@ -325,18 +320,7 @@ const AttendancePage: React.FC = () => {
                 <Title level={2} style={{ margin: '4px 0 0 0', color: '#52c41a' }}>{presentToday}</Title>
               </div>
               
-              <div style={{ textAlign: 'center' }}>
-                <Text style={{ 
-                  color: 'rgba(255, 255, 255, 0.7)', 
-                  fontSize: 12,
-                  fontWeight: '500',
-                  display: 'block',
-                  marginBottom: 4
-                }}>
-                  SCANS
-                </Text>
-                <Title level={2} style={{ margin: '4px 0 0 0', color: '#1890ff' }}>{scanCount}</Title>
-              </div>
+              
               
               <div style={{ textAlign: 'center', minWidth: 60 }}>
                 <Clock size={16} color="rgba(255, 255, 255, 0.7)" style={{ marginBottom: 4 }} />
@@ -431,9 +415,7 @@ const AttendancePage: React.FC = () => {
               }}>
                 {/* Left side - Mode Info */}
                 <div>
-                  <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14 }}>
-                    Mode: <Tag color="blue" style={{ marginLeft: 4 }}>attendance</Tag>
-                  </Text>
+                  
                   <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14, marginLeft: 16 }}>
                     Camera: <Tag color="green" style={{ marginLeft: 4 }}>Active</Tag>
                   </Text>
@@ -454,23 +436,11 @@ const AttendancePage: React.FC = () => {
                         </Text>
                       } 
                     />
-                    <Text style={{ 
-                      color: 'rgba(255, 255, 255, 0.7)', 
-                      fontSize: 14 
-                    }}>
-                      AUTO-SCAN: {scanCount}
-                    </Text>
+                   
                   </Space>
                 </div>
                 
-                {/* Right side - Instruction */}
-                <Text style={{ 
-                  color: 'rgba(255, 255, 255, 0.7)', 
-                  fontSize: 16,
-                  fontWeight: '500'
-                }}>
-                  Position face within the circle
-                </Text>
+                
               </div>
             </div>
           </div>
@@ -490,74 +460,7 @@ const AttendancePage: React.FC = () => {
               </Text>
             </div>
             
-            <Space>
-              <Button
-                type="primary"
-                onClick={() => window.location.href = '/enrollment'}
-                icon={<User size={16} />}
-                size="large"
-              >
-                Enroll Student
-              </Button>
-              <Button
-                onClick={async () => {
-                  const today = new Date().toISOString().split('T')[0];
-                  const { data: todayAttendance } = await supabase
-                    .from('attendance')
-                    .select('*')
-                    .eq('date', today)
-                    .order('time', { ascending: false });
-                  
-                  Modal.info({
-                    title: `Today's Attendance (${todayAttendance?.length || 0})`,
-                    width: 600,
-                    content: (
-                      <div style={{ maxHeight: 400, overflow: 'auto' }}>
-                        {todayAttendance?.map((record, index) => (
-                          <div key={index} style={{ 
-                            padding: '12px',
-                            borderBottom: '1px solid #f0f0f0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 12
-                          }}>
-                            <div style={{ 
-                              width: 32, 
-                              height: 32, 
-                              borderRadius: '50%', 
-                              backgroundColor: '#1890ff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'white',
-                              fontWeight: 'bold'
-                            }}>
-                              {record.name.charAt(0)}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <Text strong>{record.name}</Text>
-                              <div style={{ fontSize: 12, color: '#666' }}>
-                                {record.matric_number} • {record.time}
-                              </div>
-                            </div>
-                            <Tag color="success">Present</Tag>
-                          </div>
-                        ))}
-                      </div>
-                    ),
-                  });
-                }}
-                icon={<Users size={16} />}
-                size="large"
-                style={{ 
-                  backgroundColor: 'transparent',
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                  color: 'white'
-                }}
-              >
-                View Attendance
-              </Button>
-            </Space>
+           
           </div>
         </div>
       )}
@@ -599,7 +502,7 @@ const AttendancePage: React.FC = () => {
                 PROCESSING...
               </Title>
               <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 16 }}>
-                Recognizing face features
+                Recognizing student 
               </Text>
             </div>
           ) : attendanceMarked ? (
@@ -697,32 +600,7 @@ const AttendancePage: React.FC = () => {
                 </Tag>
               </div>
 
-              {/* Action Buttons */}
-              <Space size="large" style={{ width: '100%', justifyContent: 'center' }}>
-                <Button
-                  size="large"
-                  onClick={resetToCamera}
-                  style={{ 
-                    height: 50, 
-                    padding: '0 32px',
-                    backgroundColor: 'transparent',
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                    color: 'white'
-                  }}
-                >
-                  Scan Again
-                </Button>
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={manualConfirmAttendance}
-                  icon={<CheckCircle size={20} />}
-                  style={{ height: 50, padding: '0 32px' }}
-                  loading={processing}
-                >
-                  Confirm Attendance
-                </Button>
-              </Space>
+              
             </div>
           ) : (
             <div style={{ textAlign: 'center' }}>
@@ -745,26 +623,8 @@ const AttendancePage: React.FC = () => {
                 Face not recognized in database
               </Text>
               <Space>
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={resetToCamera}
-                  icon={<Camera size={20} />}
-                >
-                  Try Again
-                </Button>
-                <Button
-                  size="large"
-                  onClick={() => window.location.href = '/enrollment'}
-                  icon={<User size={20} />}
-                  style={{ 
-                    backgroundColor: 'transparent',
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                    color: 'white'
-                  }}
-                >
-                  Enroll Student
-                </Button>
+               
+                
               </Space>
             </div>
           )}
