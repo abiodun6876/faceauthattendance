@@ -5,14 +5,14 @@ import {
   Button, 
   message, 
   Modal,
-  Statistic,
   Progress,
   Badge,
   Space,
   Tag,
-  Spin
+  Spin,
+  Alert
 } from 'antd';
-import { Camera, CheckCircle, XCircle, User, Clock, Users } from 'lucide-react';
+import { Camera, CheckCircle, XCircle, User, Clock, Users, AlertCircle } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import faceRecognition from '../utils/faceRecognition';
 import { supabase } from '../lib/supabase';
@@ -34,23 +34,33 @@ const AttendancePage: React.FC = () => {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [scanCount, setScanCount] = useState(0);
   const [presentToday, setPresentToday] = useState(0);
-  const [showCamera, setShowCamera] = useState(true);
+  const [showCamera, setShowCamera] = useState(false); // Start false until models load
+  const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
 
-  // Load face recognition models
+  // Load face recognition models on component mount - Using your working logic
   useEffect(() => {
-    const initialize = async () => {
+    const loadModels = async () => {
       try {
-        console.log('Loading face recognition models...');
+        console.log('🔄 Loading face recognition models for attendance...');
+        setShowCamera(false); // Hide camera while loading
+        
         await faceRecognition.loadModels();
+        
         setModelsLoaded(true);
-        console.log('Face models loaded successfully');
+        console.log('✅ Face models loaded successfully');
+        
+        // Only show camera after models are loaded
+        setShowCamera(true);
+        
+        // Load today's attendance count
         loadTodayCount();
       } catch (error) {
-        console.error('Failed to load face models:', error);
+        console.error('❌ Failed to load face models:', error);
+        message.warning('Face recognition models not loaded. Attendance may not work properly.');
       }
     };
 
-    initialize();
+    loadModels();
   }, []);
 
   // Load today's attendance count
@@ -74,8 +84,9 @@ const AttendancePage: React.FC = () => {
       return;
     }
 
+    // Check if models are loaded - Using your check
     if (!modelsLoaded) {
-      message.error('Face recognition models not loaded yet');
+      message.error('Face recognition models not loaded yet. Please wait...');
       return;
     }
 
@@ -83,12 +94,29 @@ const AttendancePage: React.FC = () => {
     setProcessing(true);
     setScanCount(prev => prev + 1);
     setBestMatch(null);
-    setShowCamera(false);
+    setCurrentPhoto(result.photoData.base64);
+    setShowCamera(false); // Hide camera while processing
 
     try {
-      console.log('Finding face matches...');
+      console.log('🔍 Finding face matches...');
       
+      // Check if there's a face in the image first - Using your logic
+      const faceDescriptor = await faceRecognition.extractFaceDescriptor(result.photoData.base64);
+      
+      if (!faceDescriptor) {
+        message.warning('No face detected in the image. Please try again.');
+        setTimeout(() => {
+          setProcessing(false);
+          setLoading(false);
+          setShowCamera(true);
+        }, 2000);
+        return;
+      }
+
+      console.log('👤 Face detected, searching for matches...');
       const foundMatches = await faceRecognition.matchFaceForAttendance(result.photoData.base64);
+      
+      console.log('✅ Matches found:', foundMatches);
       
       if (foundMatches.length === 0) {
         message.warning('No matching student found');
@@ -114,8 +142,8 @@ const AttendancePage: React.FC = () => {
       }
       
     } catch (error: any) {
-      console.error('Error:', error);
-      message.error('Recognition error');
+      console.error('❌ Error:', error);
+      message.error(`Error: ${error.message}`);
       setProcessing(false);
       setLoading(false);
       setShowCamera(true);
@@ -128,7 +156,7 @@ const AttendancePage: React.FC = () => {
       const attendanceDate = now.toISOString().split('T')[0];
       const attendanceTime = now.toTimeString().split(' ')[0];
       
-      // Check if already marked today
+      // Check if already marked today - Using your logic
       const { data: existingAttendance } = await supabase
         .from('attendance')
         .select('*')
@@ -137,7 +165,7 @@ const AttendancePage: React.FC = () => {
         .maybeSingle();
 
       if (existingAttendance) {
-        message.warning(`${match.name} already marked today`);
+        message.warning(`${match.name} already marked today at ${existingAttendance.time}`);
         setAttendanceMarked(true);
         setTimeout(() => resetToCamera(), 3000);
         return;
@@ -160,7 +188,7 @@ const AttendancePage: React.FC = () => {
 
       if (error) throw error;
 
-      message.success(`✅ ${match.name}`);
+      message.success(`✅ Attendance marked for ${match.name} at ${attendanceTime}`);
       setAttendanceMarked(true);
       setPresentToday(prev => prev + 1);
       
@@ -168,7 +196,7 @@ const AttendancePage: React.FC = () => {
       
     } catch (error: any) {
       console.error('Error marking attendance:', error);
-      message.error('Failed to mark attendance');
+      message.error(`Failed to mark attendance: ${error.message}`);
       resetToCamera();
     }
   };
@@ -178,7 +206,8 @@ const AttendancePage: React.FC = () => {
     setAttendanceMarked(false);
     setProcessing(false);
     setLoading(false);
-    setShowCamera(true);
+    setCurrentPhoto(null);
+    setShowCamera(true); // Show camera again
   };
 
   const manualConfirmAttendance = async () => {
@@ -201,8 +230,41 @@ const AttendancePage: React.FC = () => {
       padding: 0,
       margin: 0
     }}>
-      {/* Full Screen Camera View */}
-      {showCamera && (
+      {/* Show loading screen until models are loaded */}
+      {!modelsLoaded && (
+        <div style={{
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#0a0e17'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <Spin size="large" style={{ marginBottom: 24, color: '#1890ff' }} />
+            <Title level={2} style={{ color: 'white', marginBottom: 16 }}>
+              Loading Face Recognition Models...
+            </Title>
+            <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 16 }}>
+              Please wait while we initialize the face recognition system
+            </Text>
+            <Alert
+              message="Face recognition models not loaded yet"
+              type="warning"
+              showIcon
+              style={{ 
+                marginTop: 24, 
+                maxWidth: 400,
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                borderColor: 'rgba(255, 255, 255, 0.1)'
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Full Screen Camera View - Only show after models are loaded */}
+      {showCamera && modelsLoaded && (
         <div style={{ 
           height: '100vh',
           display: 'flex',
@@ -211,18 +273,20 @@ const AttendancePage: React.FC = () => {
           {/* Header */}
           <div style={{ 
             padding: '16px 24px',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             position: 'relative',
-            zIndex: 10
+            zIndex: 10,
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
           }}>
+            {/* Left side - Logo and Title */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ 
                 width: 40, 
                 height: 40, 
-                borderRadius: '50%', 
+                borderRadius: '8px', 
                 backgroundColor: '#1890ff',
                 display: 'flex',
                 alignItems: 'center',
@@ -231,38 +295,71 @@ const AttendancePage: React.FC = () => {
                 <Camera size={20} color="white" />
               </div>
               <div>
-                <Title level={4} style={{ margin: 0, color: 'white' }}>ABUAD FACE AUTH</Title>
+                <Title level={3} style={{ margin: 0, color: 'white', fontWeight: 'bold' }}>ABUAD FACE AUTH</Title>
                 <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 12 }}>
                   AFE Babalola University
                 </Text>
               </div>
             </div>
             
-            <Space size="large">
+            {/* Right side - Stats */}
+            <Space size="large" style={{ alignItems: 'center' }}>
               <div style={{ textAlign: 'center' }}>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 12 }}>PRESENT TODAY</Text>
-                <Title level={3} style={{ margin: 0, color: '#52c41a' }}>{presentToday}</Title>
+                <Text style={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  fontSize: 12,
+                  fontWeight: '500',
+                  display: 'block',
+                  marginBottom: 4
+                }}>
+                  PRESENT
+                </Text>
+                <Text style={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  fontSize: 12,
+                  fontWeight: '500',
+                  display: 'block'
+                }}>
+                  TODAY
+                </Text>
+                <Title level={2} style={{ margin: '4px 0 0 0', color: '#52c41a' }}>{presentToday}</Title>
               </div>
+              
               <div style={{ textAlign: 'center' }}>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 12 }}>SCANS</Text>
-                <Title level={3} style={{ margin: 0, color: '#1890ff' }}>{scanCount}</Title>
+                <Text style={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  fontSize: 12,
+                  fontWeight: '500',
+                  display: 'block',
+                  marginBottom: 4
+                }}>
+                  SCANS
+                </Text>
+                <Title level={2} style={{ margin: '4px 0 0 0', color: '#1890ff' }}>{scanCount}</Title>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <Clock size={20} color="rgba(255, 255, 255, 0.7)" />
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', marginLeft: 4 }}>{currentTime}</Text>
+              
+              <div style={{ textAlign: 'center', minWidth: 60 }}>
+                <Clock size={16} color="rgba(255, 255, 255, 0.7)" style={{ marginBottom: 4 }} />
+                <Text style={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  fontSize: 14,
+                  fontWeight: '500'
+                }}>
+                  {currentTime}
+                </Text>
               </div>
             </Space>
           </div>
 
-          {/* Camera Area */}
+          {/* Main Camera Area */}
           <div style={{ 
             flex: 1,
             position: 'relative',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            backgroundColor: '#000'
           }}>
-            {/* Camera Preview */}
             <div style={{ 
               width: '100%',
               height: '100%',
@@ -319,30 +416,61 @@ const AttendancePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Status Indicators */}
+              {/* Status Bar at Bottom */}
               <div style={{
                 position: 'absolute',
-                bottom: 40,
+                bottom: 0,
                 left: 0,
                 right: 0,
-                textAlign: 'center'
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: '16px 24px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderTop: '1px solid rgba(255, 255, 255, 0.1)'
               }}>
-                <Space direction="vertical" size="small">
-                  <Badge 
-                    status={modelsLoaded ? "success" : "processing"} 
-                    text={
-                      <Text style={{ color: 'white' }}>
-                        {modelsLoaded ? "READY" : "INITIALIZING..."}
-                      </Text>
-                    } 
-                  />
-                  <Tag color="blue" style={{ fontSize: 12, border: 'none' }}>
-                    AUTO-SCAN: {scanCount}
-                  </Tag>
+                {/* Left side - Mode Info */}
+                <div>
                   <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14 }}>
-                    Position face within the circle
+                    Mode: <Tag color="blue" style={{ marginLeft: 4 }}>attendance</Tag>
                   </Text>
-                </Space>
+                  <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 14, marginLeft: 16 }}>
+                    Camera: <Tag color="green" style={{ marginLeft: 4 }}>Active</Tag>
+                  </Text>
+                </div>
+                
+                {/* Center - Status Message */}
+                <div style={{ textAlign: 'center' }}>
+                  <Space direction="vertical" size="small">
+                    <Badge 
+                      status="success"
+                      text={
+                        <Text style={{ 
+                          color: '#52c41a',
+                          fontSize: 16,
+                          fontWeight: 'bold'
+                        }}>
+                          READY
+                        </Text>
+                      } 
+                    />
+                    <Text style={{ 
+                      color: 'rgba(255, 255, 255, 0.7)', 
+                      fontSize: 14 
+                    }}>
+                      AUTO-SCAN: {scanCount}
+                    </Text>
+                  </Space>
+                </div>
+                
+                {/* Right side - Instruction */}
+                <Text style={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  fontSize: 16,
+                  fontWeight: '500'
+                }}>
+                  Position face within the circle
+                </Text>
               </div>
             </div>
           </div>
@@ -350,10 +478,11 @@ const AttendancePage: React.FC = () => {
           {/* Bottom Controls */}
           <div style={{ 
             padding: '16px 24px',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            alignItems: 'center',
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)'
           }}>
             <div>
               <Text style={{ color: 'rgba(255, 255, 255, 0.7)' }}>
@@ -366,6 +495,7 @@ const AttendancePage: React.FC = () => {
                 type="primary"
                 onClick={() => window.location.href = '/enrollment'}
                 icon={<User size={16} />}
+                size="large"
               >
                 Enroll Student
               </Button>
@@ -418,6 +548,12 @@ const AttendancePage: React.FC = () => {
                   });
                 }}
                 icon={<Users size={16} />}
+                size="large"
+                style={{ 
+                  backgroundColor: 'transparent',
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                  color: 'white'
+                }}
               >
                 View Attendance
               </Button>
@@ -427,7 +563,7 @@ const AttendancePage: React.FC = () => {
       )}
 
       {/* Processing/Results View */}
-      {!showCamera && (
+      {!showCamera && modelsLoaded && (
         <div style={{ 
           height: '100vh',
           display: 'flex',
