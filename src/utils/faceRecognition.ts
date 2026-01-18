@@ -101,70 +101,87 @@ class FaceRecognition {
   
   // ========== FACE EXTRACTION METHODS ==========
   
-  async extractFaceDescriptor(imageData: string): Promise<Float32Array | null> {
-    try {
-      if (!this.modelsLoaded) {
-        await this.loadModels();
-      }
-      
-      // Convert base64 to HTMLImageElement
-      const img = await this.base64ToImage(imageData);
-      
-      // MOBILE OPTIMIZATION: Use smaller input size
-      const maxSize = 320; // Smaller for mobile
-      const scale = Math.min(maxSize / img.width, maxSize / img.height);
-      const resizedWidth = img.width * scale;
-      const resizedHeight = img.height * scale;
-      
-      // Detect face with mobile-optimized settings
-      let detection;
-      
-      if (this.useTinyModel) {
-        detection = await faceapi
-          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({
-            inputSize: 160, // Smaller for mobile
-            scoreThreshold: 0.5
-          }))
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-      } else {
-        detection = await faceapi
-          .detectSingleFace(img)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-      }
-      
-      if (!detection) {
-        console.log('No face detected in image');
-        return null;
-      }
-      
-      console.log('Face detected successfully on mobile');
-      return detection.descriptor;
-      
-    } catch (error) {
-      console.error('Error extracting face descriptor on mobile:', error);
-      
-      // Check for specific mobile errors
-      if (error.message.includes('WebGL')) {
-        console.error('WebGL error - common on mobile. Check browser settings.');
-      }
-      
+  // In faceRecognition.ts - FIXED extractFaceDescriptor
+async extractFaceDescriptor(imageData: string): Promise<Float32Array | null> {
+  try {
+    if (!this.modelsLoaded) {
+      await this.loadModels();
+    }
+    
+    console.log('Extracting descriptor from image data...');
+    
+    // IMPORTANT: Handle base64 data URL
+    let cleanBase64 = imageData;
+    if (!imageData.startsWith('data:')) {
+      // If it's pure base64 without data URL, add it
+      cleanBase64 = `data:image/jpeg;base64,${imageData}`;
+    } else if (!imageData.includes('base64')) {
+      // If it's a data URL but not base64, convert
+      cleanBase64 = `data:image/jpeg;base64,${imageData.split(',')[1]}`;
+    }
+    
+    // Create image element
+    const img = await this.createImageElement(cleanBase64);
+    
+    if (!img.width || !img.height) {
+      console.error('Invalid image dimensions');
       return null;
     }
+    
+    // Detect face
+    console.log('Detecting face...');
+    let detection;
+    
+    if (this.useTinyModel) {
+      detection = await faceapi
+        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({
+          inputSize: 160,
+          scoreThreshold: 0.3 // Lower threshold for better detection
+        }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+    } else {
+      detection = await faceapi
+        .detectSingleFace(img)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+    }
+    
+    if (!detection) {
+      console.log('No face detected');
+      return null;
+    }
+    
+    console.log('Face detected, descriptor length:', detection.descriptor.length);
+    return detection.descriptor;
+    
+  } catch (error) {
+    console.error('Error extracting face descriptor:', error);
+    return null;
   }
+}
+
+// Helper method for creating image
+private createImageElement(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    
+    img.onload = () => {
+      console.log('Image loaded successfully, dimensions:', img.width, 'x', img.height);
+      resolve(img);
+    };
+    
+    img.onerror = (err) => {
+      console.error('Failed to load image:', err);
+      reject(new Error('Failed to load image'));
+    };
+    
+    img.src = src;
+    img.crossOrigin = 'anonymous';
+  });
+}
   
-  // Helper: Convert base64 to Image
-  private base64ToImage(base64: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = base64;
-      img.crossOrigin = 'anonymous'; // Important for CORS
-    });
-  }
-  
+ 
   // ========== FACE COMPARISON METHODS ==========
   
   // Compare two face descriptors
