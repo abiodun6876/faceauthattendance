@@ -498,7 +498,7 @@ const AttendancePage: React.FC = () => {
         confidence_score: confidence,
         face_match_score: confidence,
         photo_url: photoData,
-        verification_method: 'face_recognition',
+        verification_method: 'face',
         created_at: now,
         updated_at: now
       };
@@ -578,6 +578,7 @@ const AttendancePage: React.FC = () => {
       // FALLBACK: Client-side matching if RPC returns no results or fails
       if (matches.length === 0) {
         console.log('Fetching embeddings from face_enrollments for fallback matching...');
+        // FAIL-SAFE: We include all active enrollments regardless of user status
         const { data: enrollments, error: fetchError } = await supabase
           .from('face_enrollments')
           .select('embedding, user_id, users(*)')
@@ -587,11 +588,12 @@ const AttendancePage: React.FC = () => {
         if (fetchError) {
           console.error('Fallback fetch error:', fetchError);
         } else if (enrollments && enrollments.length > 0) {
+          console.log(`Checking ${enrollments.length} enrollments client-side...`);
           for (const enc of enrollments) {
             if (enc.embedding && faceService.compareFaces(faceResult.embedding, enc.embedding, 0.6)) {
               if (enc.users) {
                 matches.push(enc.users);
-                console.log('✅ Client-side match found in record:', enc.users.full_name);
+                console.log('✅ Match found (fail-safe):', enc.users.full_name);
                 break;
               }
             }
@@ -637,11 +639,11 @@ const AttendancePage: React.FC = () => {
         loadRecentAttendance()
       ]);
 
-      // FAST TRACK: Automatically close result and resume scanning after 2.5 seconds
+      // FAST TRACK: Automatically close result and resume scanning after 1.5 seconds
       if (autoScan) {
         setTimeout(() => {
           setShowResultModal(false);
-        }, 2500);
+        }, 1500);
       }
 
     } catch (error: any) {
@@ -1031,7 +1033,7 @@ const AttendancePage: React.FC = () => {
                     }
                   }}
                   autoCapture={autoScan}
-                  captureInterval={2000}
+                  captureInterval={1500}
                   loading={processing}
                   deviceInfo={deviceInfo}
                   organizationName={deviceInfo.organization?.name}

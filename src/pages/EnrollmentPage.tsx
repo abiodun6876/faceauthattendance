@@ -367,19 +367,28 @@ const EnrollmentPage: React.FC = () => {
       }
 
       // Update user with face enrollment info
-      const { error: updateError } = await supabase
+      const { data: updatedUser, error: updateError } = await supabase
         .from('users')
         .update({
           enrollment_status: 'enrolled',
           face_enrolled_at: new Date().toISOString(),
           face_photo_url: photoData,
-          face_embedding: embeddingString, // Also store as string in users table
+          face_embedding: embeddingString,
           face_embedding_stored: true,
           updated_at: new Date().toISOString()
         })
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select()
+        .single();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Final status update failed:', updateError);
+        // We don't throw here to avoid rollback if the face data is already saved
+        // but we should warn the user
+        message.warning('User enrolled but status update failed. Please contact admin.');
+      } else {
+        console.log('User status successfully updated to enrolled:', updatedUser.id);
+      }
 
       // Create log entry
       await supabase
