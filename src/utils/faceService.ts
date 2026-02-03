@@ -223,6 +223,27 @@ class FaceService {
     }
   }
 
+  compareFaces(descriptor1: Float32Array, descriptor2: any, threshold = 0.6): boolean {
+    try {
+      let d2 = descriptor2;
+      if (typeof d2 === 'string') {
+        d2 = new Float32Array(JSON.parse(d2));
+      } else if (Array.isArray(d2)) {
+        d2 = new Float32Array(d2);
+      } else if (d2 && typeof d2 === 'object') {
+        d2 = new Float32Array(Object.values(d2));
+      }
+
+      if (!d2 || d2.length !== 128) return false;
+
+      const distance = faceapi.euclideanDistance(descriptor1, d2);
+      return distance < threshold;
+    } catch (e) {
+      console.error('Error comparing faces:', e);
+      return false;
+    }
+  }
+
   getStatus() {
     return {
       modelsLoaded: this.modelsLoaded,

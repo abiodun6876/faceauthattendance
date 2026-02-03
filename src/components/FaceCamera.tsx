@@ -9,8 +9,8 @@ const { Text } = Typography;
 interface FaceCameraProps {
   mode: 'enrollment' | 'attendance';
   onEnrollmentComplete?: (photoData: string) => void;
-  onAttendanceComplete?: (result: { 
-    success: boolean; 
+  onAttendanceComplete?: (result: {
+    success: boolean;
     photoData?: { base64: string };
     user?: any;
     confidence?: number;
@@ -43,18 +43,18 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     const checkCameraPermissions = async () => {
       try {
         console.log('Checking camera permissions...');
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
             facingMode: 'user'
-          } 
+          }
         });
         console.log('Camera access granted');
-        
+
         // Stop the stream immediately
         stream.getTracks().forEach(track => track.stop());
-        
+
         setCameraError('');
         setCameraReady(true);
       } catch (error: any) {
@@ -69,27 +69,27 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
 
   const capturePhoto = useCallback(() => {
     console.log('Attempting to capture photo...');
-    
+
     if (!webcamRef.current || !cameraReady) {
       console.error('Webcam not ready');
       message.error('Camera not ready');
       return null;
     }
-    
+
     try {
       const imageSrc = webcamRef.current.getScreenshot({
         width: 640,
         height: 480
       });
-      
+
       console.log('Photo captured successfully');
-      
+
       if (!imageSrc) {
         console.error('getScreenshot returned null/undefined');
         message.error('Failed to capture photo');
         return null;
       }
-      
+
       return imageSrc;
     } catch (error) {
       console.error('Error capturing photo:', error);
@@ -101,14 +101,14 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   const handleCapture = useCallback(() => {
     console.log('Capture button clicked');
     const photoData = capturePhoto();
-    
+
     if (!photoData) {
       message.error('Failed to capture photo');
       return;
     }
-    
+
     console.log('Photo captured successfully, calling callback...');
-    
+
     if (mode === 'enrollment' && onEnrollmentComplete) {
       onEnrollmentComplete(photoData);
     } else if (mode === 'attendance' && onAttendanceComplete) {
@@ -130,7 +130,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         }, 1000);
       }, captureInterval);
     }
-    
+
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -147,10 +147,10 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   // Show camera error message
   if (cameraError) {
     return (
-      <div style={{ 
-        height: '100%', 
-        display: 'flex', 
-        flexDirection: 'column', 
+      <div style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#f0f0f0',
@@ -165,8 +165,8 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           showIcon
           style={{ marginBottom: 24, maxWidth: 400 }}
         />
-        <Button 
-          type="primary" 
+        <Button
+          type="primary"
           onClick={async () => {
             try {
               const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -195,9 +195,9 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
             audio={false}
             screenshotFormat="image/jpeg"
             videoConstraints={videoConstraints}
-            style={{ 
-              width: '100%', 
-              height: '100%', 
+            style={{
+              width: '100%',
+              height: '100%',
               objectFit: 'cover',
               borderRadius: 8,
               backgroundColor: '#000'
@@ -213,7 +213,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
             }}
             mirrored={true}
           />
-          
+
           {/* Device/Branch Info Overlay */}
           {(deviceInfo || organizationName) && (
             <div style={{
@@ -235,7 +235,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               {deviceInfo?.branch?.name && <Tag color="purple">{deviceInfo.branch.name}</Tag>}
             </div>
           )}
-          
+
           {/* Mode Overlay */}
           <div style={{
             position: 'absolute',
@@ -263,7 +263,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               </>
             )}
           </div>
-          
+
           {/* Auto-capture Countdown */}
           {countdown && autoCapture && (
             <div style={{
@@ -281,7 +281,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               {countdown}
             </div>
           )}
-          
+
           {/* Face Guide Overlay */}
           {mode === 'enrollment' && (
             <div style={{
@@ -297,7 +297,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               zIndex: 2
             }} />
           )}
-          
+
           {loading && (
             <div style={{
               position: 'absolute',
@@ -313,8 +313,8 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               </Text>
             </div>
           )}
-          
-          {mode === 'enrollment' && !autoCapture && !loading && (
+
+          {((mode === 'enrollment' || mode === 'attendance') && !autoCapture && !loading) && (
             <div style={{
               position: 'absolute',
               bottom: 20,
@@ -329,29 +329,29 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                 icon={<Camera />}
                 onClick={handleCapture}
                 disabled={!cameraReady}
-                style={{ 
-                  height: 60, 
+                style={{
+                  height: 60,
                   fontSize: 18,
                   padding: '0 40px',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
                 }}
               >
-                CAPTURE FACE
+                {mode === 'enrollment' ? 'CAPTURE FACE' : 'SCAN FACE'}
               </Button>
-              
+
               <div style={{ marginTop: 12 }}>
-                <Text type="secondary" style={{ 
-                  color: 'white', 
+                <Text type="secondary" style={{
+                  color: 'white',
                   textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                  fontSize: 14 
+                  fontSize: 14
                 }}>
                   Position face within the circle
                 </Text>
               </div>
             </div>
           )}
-          
+
           {/* Camera Status */}
           <div style={{
             position: 'absolute',
@@ -379,17 +379,17 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           gap: 16,
           padding: 24
         }}>
-          <div style={{ 
+          <div style={{
             fontSize: 48,
-            animation: 'pulse 2s infinite' 
+            animation: 'pulse 2s infinite'
           }}>
             📷
           </div>
           <Text type="secondary" style={{ textAlign: 'center' }}>
             Camera is disabled or not accessible
           </Text>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             onClick={async () => {
               try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });

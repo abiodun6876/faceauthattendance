@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Avatar, Menu, Drawer, message } from 'antd';
+import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Avatar, Menu, Drawer } from 'antd';
 import {
   UserPlus,
   Camera,
@@ -16,7 +16,6 @@ import {
   Menu as MenuIcon,
   X,
   Layout as LayoutIcon,
-  LogOut,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -270,13 +269,7 @@ const DashboardPage = () => {
     total: 0
   });
 
-  useEffect(() => {
-    if (device?.organization_id) {
-      loadDashboardStats();
-    }
-  }, [device]);
-
-  const loadDashboardStats = async () => {
+  const loadDashboardStats = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const organizationId = device?.organization_id;
@@ -317,7 +310,13 @@ const DashboardPage = () => {
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
     }
-  };
+  }, [device]);
+
+  useEffect(() => {
+    if (device?.organization_id) {
+      loadDashboardStats();
+    }
+  }, [device, loadDashboardStats]);
 
   const cards = [
     {

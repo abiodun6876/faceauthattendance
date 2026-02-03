@@ -242,7 +242,7 @@ const AttendancePage: React.FC = () => {
     } catch (error) {
       console.error('Error loading stats:', error);
     }
-  }, [deviceInfo?.organization_id, stats.total_users]);
+  }, [deviceInfo?.organization_id, deviceInfo?.branch_id, stats.total_users]);
 
   // Load user count
   const loadUserCount = useCallback(async () => {
@@ -269,7 +269,7 @@ const AttendancePage: React.FC = () => {
     } catch (error) {
       console.error('Error loading user count:', error);
     }
-  }, [deviceInfo?.organization_id]);
+  }, [deviceInfo?.organization_id, deviceInfo?.branch_id]);
 
   // Load recent attendance
   const loadRecentAttendance = useCallback(async (limit = 10) => {
@@ -296,7 +296,7 @@ const AttendancePage: React.FC = () => {
     } catch (error) {
       console.error('Error loading recent attendance:', error);
     }
-  }, [deviceInfo?.organization_id]);
+  }, [deviceInfo?.organization_id, deviceInfo?.branch_id]);
 
   // Check last attendance
   const checkLastAttendance = useCallback(async () => {
@@ -559,7 +559,8 @@ const AttendancePage: React.FC = () => {
       const embeddingArray = Array.from(faceResult.embedding);
       const embeddingString = JSON.stringify(embeddingArray);
 
-      const { data: matches, error: matchError } = await supabase.rpc(
+      let matches = [];
+      const { data: rpcMatches, error: matchError } = await supabase.rpc(
         'match_users_by_face',
         {
           filter_organization_id: deviceInfo?.organization_id,
@@ -568,9 +569,33 @@ const AttendancePage: React.FC = () => {
         }
       );
 
-      if (matchError) throw matchError;
+      if (matchError) {
+        console.warn('RPC matching failed, falling back to client-side matching:', matchError);
+      } else {
+        matches = rpcMatches || [];
+      }
 
-      if (!matches || matches.length === 0) {
+      // FALLBACK: Client-side matching if RPC returns no results or fails
+      if (matches.length === 0) {
+        console.log('Fetching enrolled staff for client-side matching...');
+        const { data: enrolledUsers } = await supabase
+          .from('users')
+          .select('*')
+          .eq('organization_id', deviceInfo?.organization_id)
+          .eq('face_embedding_stored', true);
+
+        if (enrolledUsers && enrolledUsers.length > 0) {
+          for (const user of enrolledUsers) {
+            if (user.face_embedding && faceService.compareFaces(faceResult.embedding, user.face_embedding)) {
+              matches.push(user);
+              console.log('✅ Client-side match found:', user.full_name);
+              break;
+            }
+          }
+        }
+      }
+
+      if (matches.length === 0) {
         throw new Error('No matching user found');
       }
 
@@ -696,6 +721,7 @@ const AttendancePage: React.FC = () => {
   }, [
     manualId,
     deviceInfo?.organization_id,
+    deviceInfo?.branch_id,
     determineAttendanceAction,
     recordAttendance,
     loadStats,
@@ -993,6 +1019,42 @@ const AttendancePage: React.FC = () => {
                   deviceInfo={deviceInfo}
                   organizationName={deviceInfo.organization?.name}
                 />
+                {!autoScan && !processing && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.4)',
+                    zIndex: 10
+                  }}>
+                    <Button
+                      type="primary"
+                      size="large"
+                      onClick={() => setAutoScan(true)}
+                      icon={<Camera size={24} />}
+                      style={{
+                        height: 80,
+                        width: 200,
+                        fontSize: 20,
+                        borderRadius: 40,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                        background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
+                        border: 'none'
+                      }}
+                    >
+                      START SCANNING
+                    </Button>
+                    <Text style={{ color: '#fff', marginTop: 16, fontSize: 16, textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                      Click to begin automatic face detection
+                    </Text>
+                  </div>
+                )}
               </div>
 
               {/* Manual Attendance */}
