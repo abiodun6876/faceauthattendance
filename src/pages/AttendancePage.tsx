@@ -413,25 +413,37 @@ const AttendancePage: React.FC = () => {
 
     const today = dayjs().format('YYYY-MM-DD');
 
-    // Check existing attendance for today
-    const { data: existingRecord } = await supabase
-      .from('attendance')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('date', today)
-      .eq('organization_id', deviceInfo?.organization_id)
-      .single();
+    try {
+      // Check existing attendance for today
+      const { data: existingRecord, error } = await supabase
+        .from('attendance')
+        .select('id, clock_in, clock_out')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .eq('organization_id', deviceInfo?.organization_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (!existingRecord) {
+      if (error) {
+        console.error('Error fetching existing attendance:', error);
+        return 'clock_in';
+      }
+
+      if (!existingRecord) {
+        return 'clock_in';
+      }
+
+      // If already clocked out today
+      if (existingRecord.clock_out) {
+        return 'clock_in';
+      }
+
+      return 'clock_out';
+    } catch (e) {
+      console.error('Exception in determineAttendanceAction:', e);
       return 'clock_in';
     }
-
-    // If already clocked out today (for toggle mode)
-    if (existingRecord.clock_out) {
-      return 'clock_in';
-    }
-
-    return 'clock_out';
   }, [attendanceMode, userAction, deviceInfo?.organization_id]);
 
   // Record attendance
@@ -560,40 +572,44 @@ const AttendancePage: React.FC = () => {
       const embeddingString = JSON.stringify(embeddingArray);
 
       let matches = [];
+      console.log('🔍 Searching for matching users in DB...');
+
       const { data: rpcMatches, error: matchError } = await supabase.rpc(
         'match_users_by_face',
         {
           filter_organization_id: deviceInfo?.organization_id,
-          match_threshold: 0.70,
+          match_threshold: 0.60, // Lowered from 0.7 for better detection
           query_embedding: embeddingString
         }
       );
 
       if (matchError) {
-        console.warn('RPC matching failed, falling back to client-side matching:', matchError);
+        console.warn('RPC matching failed, falling back to comprehensive scan:', matchError);
       } else {
         matches = rpcMatches || [];
+        console.log(`RPC found ${matches.length} matches.`);
       }
 
       // FALLBACK: Client-side matching if RPC returns no results or fails
       if (matches.length === 0) {
-        console.log('Fetching embeddings from face_enrollments for fallback matching...');
-        // FAIL-SAFE: We include all active enrollments regardless of user status
+        console.log('Checking face_enrollments for a direct match...');
         const { data: enrollments, error: fetchError } = await supabase
           .from('face_enrollments')
-          .select('embedding, user_id, users(*)')
+          .select('embedding, user_id, users:users(*)')
           .eq('organization_id', deviceInfo?.organization_id)
           .eq('is_active', true);
 
         if (fetchError) {
           console.error('Fallback fetch error:', fetchError);
         } else if (enrollments && enrollments.length > 0) {
-          console.log(`Checking ${enrollments.length} enrollments client-side...`);
+          console.log(`Analyzing ${enrollments.length} active enrollments...`);
           for (const enc of enrollments) {
             if (enc.embedding && faceService.compareFaces(faceResult.embedding, enc.embedding, 0.6)) {
               if (enc.users) {
-                matches.push(enc.users);
-                console.log('✅ Match found (fail-safe):', enc.users.full_name);
+                // Supabase join syntax: handle both field name and table name
+                const userObj = enc.users;
+                matches.push(userObj);
+                console.log('✅ Identity Verified via Fallback:', userObj.full_name);
                 break;
               }
             }
@@ -602,7 +618,7 @@ const AttendancePage: React.FC = () => {
       }
 
       if (matches.length === 0) {
-        throw new Error('No matching user found');
+        throw new Error('Identity not recognized. Please scan again or enroll first.');
       }
 
       const matchedUser = matches[0];
