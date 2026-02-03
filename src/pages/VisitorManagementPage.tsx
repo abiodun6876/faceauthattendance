@@ -1,5 +1,5 @@
 // pages/VisitorManagementPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Card,
@@ -17,8 +17,7 @@ import {
     Typography,
     Row,
     Col,
-    Statistic,
-    Tabs
+    Statistic
 } from 'antd';
 import {
     Users,
@@ -27,7 +26,6 @@ import {
     Calendar,
     Clock,
     CheckCircle,
-    XCircle,
     Key
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -36,18 +34,15 @@ import dayjs from 'dayjs';
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
-const { TabPane } = Tabs;
 
 const VisitorManagementPage: React.FC = () => {
     const navigate = useNavigate();
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [appointments, setAppointments] = useState<any[]>([]);
-    const [visitors, setVisitors] = useState<any[]>([]);
     const [staff, setStaff] = useState<any[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [checkInModalVisible, setCheckInModalVisible] = useState(false);
-    const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
     const [stats, setStats] = useState({
         pending: 0,
         approved: 0,
@@ -55,19 +50,7 @@ const VisitorManagementPage: React.FC = () => {
         today: 0
     });
 
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
-        await Promise.all([
-            loadAppointments(),
-            loadVisitors(),
-            loadStaff()
-        ]);
-    };
-
-    const loadAppointments = async () => {
+    const loadAppointments = useCallback(async () => {
         try {
             setLoading(true);
             const organizationId = localStorage.getItem('organization_id');
@@ -102,24 +85,9 @@ const VisitorManagementPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    const loadVisitors = async () => {
-        try {
-            const organizationId = localStorage.getItem('organization_id');
-            const { data, error } = await supabase
-                .from('visitors' as any)
-                .select('*')
-                .eq('organization_id', organizationId);
-
-            if (error) throw error;
-            setVisitors(data || []);
-        } catch (error: any) {
-            console.error('Error loading visitors:', error);
-        }
-    };
-
-    const loadStaff = async () => {
+    const loadStaff = useCallback(async () => {
         try {
             const organizationId = localStorage.getItem('organization_id');
             const { data, error } = await supabase
@@ -133,7 +101,18 @@ const VisitorManagementPage: React.FC = () => {
         } catch (error: any) {
             console.error('Error loading staff:', error);
         }
-    };
+    }, []);
+
+    const loadData = useCallback(async () => {
+        await Promise.all([
+            loadAppointments(),
+            loadStaff()
+        ]);
+    }, [loadAppointments, loadStaff]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const handleBookAppointment = async (values: any) => {
         try {
@@ -141,27 +120,22 @@ const VisitorManagementPage: React.FC = () => {
             const organizationId = localStorage.getItem('organization_id');
             const branchId = localStorage.getItem('branch_id');
 
-            // Create or get visitor
-            let visitorId = values.visitor_id;
+            // Create new visitor
+            const { data: newVisitor, error: visitorError } = await supabase
+                .from('visitors' as any)
+                .insert({
+                    organization_id: organizationId,
+                    full_name: values.visitor_name,
+                    email: values.visitor_email,
+                    phone: values.visitor_phone,
+                    company: values.visitor_company
+                })
+                .select()
+                .single();
 
-            if (!visitorId) {
-                // Create new visitor
-                const { data: newVisitor, error: visitorError } = await supabase
-                    .from('visitors' as any)
-                    .insert({
-                        organization_id: organizationId,
-                        full_name: values.visitor_name,
-                        email: values.visitor_email,
-                        phone: values.visitor_phone,
-                        company: values.visitor_company
-                    })
-                    .select()
-                    .single();
-
-                if (visitorError) throw visitorError;
-                const v = newVisitor as any;
-                visitorId = v.id;
-            }
+            if (visitorError) throw visitorError;
+            const v = newVisitor as any;
+            const visitorId = v.id;
 
             // Create appointment
             const { data: appointment, error } = await supabase

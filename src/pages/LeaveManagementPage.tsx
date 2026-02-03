@@ -1,5 +1,5 @@
 // pages/LeaveManagementPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Card,
@@ -50,11 +50,7 @@ const LeaveManagementPage: React.FC = () => {
         total: 0
     });
 
-    useEffect(() => {
-        loadLeaveRequests();
-    }, [activeTab]);
-
-    const loadLeaveRequests = async () => {
+    const loadLeaveRequests = useCallback(async () => {
         try {
             setLoading(true);
             const organizationId = localStorage.getItem('organization_id');
@@ -94,7 +90,11 @@ const LeaveManagementPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeTab]);
+
+    useEffect(() => {
+        loadLeaveRequests();
+    }, [loadLeaveRequests]);
 
     const handleSubmit = async (values: any) => {
         try {

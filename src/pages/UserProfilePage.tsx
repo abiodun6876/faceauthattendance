@@ -89,11 +89,9 @@ const UserProfilePage: React.FC = () => {
             reader.readAsDataURL(file);
 
             reader.onload = async () => {
-                const base64 = reader.result as string;
-
                 // Upload to Supabase Storage
                 const fileName = `${userId}_${Date.now()}.jpg`;
-                const { data, error } = await supabase.storage
+                const { error } = await supabase.storage
                     .from('user-photos')
                     .upload(fileName, file, {
                         cacheControl: '3600',

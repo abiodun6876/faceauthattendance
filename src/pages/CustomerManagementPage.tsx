@@ -25,8 +25,6 @@ import {
     Building,
     Mail,
     Phone,
-    MapPin,
-    Eye,
     Edit
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
