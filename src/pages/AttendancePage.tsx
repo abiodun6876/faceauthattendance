@@ -654,6 +654,14 @@ const AttendancePage: React.FC = () => {
       setAttendanceResult(result);
       setShowResultModal(true);
       message.error(error.message || 'Attendance failed');
+
+      // AUTO RECOVERY: Close modal faster for "No face" errors to resume scanning
+      if (autoScan) {
+        const isFaceError = error.message?.includes('No face detected');
+        setTimeout(() => {
+          setShowResultModal(false);
+        }, isFaceError ? 1500 : 4000);
+      }
     } finally {
       setProcessing(false);
     }

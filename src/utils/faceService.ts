@@ -19,7 +19,7 @@ interface FaceDetectionResult {
 class FaceService {
   private modelsLoaded = false;
   private isInitializing = false;
-  private qualityThreshold = 50; // Minimum quality score (0-100)
+  private qualityThreshold = 40; // Minimum quality score (0-100)
   private minFaceSize = 100; // Minimum face size in pixels
   private blurThreshold = 100; // Lower is better quality
 
@@ -77,21 +77,31 @@ class FaceService {
       // Create image element
       const img = await this.loadImage(photoData);
 
-      // Detect face
-      const detectionOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 512,
-        scoreThreshold: 0.5
-      });
+      // Multi-pass detection for better reliability
+      const inputSizes = [320, 160, 512];
+      let detections = [];
 
-      const detections = await faceapi.detectAllFaces(img, detectionOptions)
-        .withFaceLandmarks()
-        .withFaceDescriptors();
+      for (const size of inputSizes) {
+        const detectionOptions = new faceapi.TinyFaceDetectorOptions({
+          inputSize: size,
+          scoreThreshold: 0.3
+        });
+
+        detections = await faceapi.detectAllFaces(img, detectionOptions)
+          .withFaceLandmarks()
+          .withFaceDescriptors();
+
+        if (detections && detections.length > 0) {
+          console.log(`Face detected with inputSize: ${size}`);
+          break;
+        }
+      }
 
       if (!detections || detections.length === 0) {
         return {
           success: false,
           faceDetected: false,
-          error: 'No face detected in the image'
+          error: 'No face detected. Please ensure you are in a well-lit area and looking directly at the camera.'
         };
       }
 

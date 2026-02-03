@@ -283,20 +283,42 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           )}
 
           {/* Face Guide Overlay */}
-          {mode === 'enrollment' && (
+          {(mode === 'enrollment' || mode === 'attendance') && (
             <div style={{
               position: 'absolute',
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              width: '60%',
-              height: '70%',
-              border: '2px dashed rgba(255,255,255,0.5)',
+              width: '280px',
+              height: '350px',
+              border: `3px ${cameraReady ? 'solid' : 'dashed'} rgba(255,255,255,0.4)`,
               borderRadius: '50%',
               pointerEvents: 'none',
-              zIndex: 2
-            }} />
+              zIndex: 2,
+              boxShadow: '0 0 0 4000px rgba(0, 0, 0, 0.3)', // Vignette effect
+              transition: 'all 0.5s ease'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '100%',
+                height: '100%',
+                borderRadius: '50%',
+                border: '1px solid rgba(255,255,255,0.2)',
+                animation: cameraReady ? 'scan-pulse 2s infinite' : 'none'
+              }} />
+            </div>
           )}
+
+          <style>{`
+            @keyframes scan-pulse {
+              0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.5; }
+              50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.8; }
+              100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.5; }
+            }
+          `}</style>
 
           {loading && (
             <div style={{
