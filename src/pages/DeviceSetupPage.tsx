@@ -59,55 +59,57 @@ const DeviceSetupPage: React.FC = () => {
     form.setFieldValue('pairing_code', code);
   };
 
-  
-  const onFinish = async (values: any) => {
-  setLoading(true);
-  
-  console.log('📱 Form values:', {
-    device_name: values.device_name,
-    device_code: values.device_code,
-    pairing_code: values.pairing_code
-  });
-  
-  // Debug: Check what organizations exist
-  try {
-    const { data: orgs } = await supabase
-      .from('organizations')
-      .select('id, name, is_active');
-    console.log('📊 Available organizations:', orgs);
-  } catch (err) {
-    console.error('❌ Failed to fetch organizations:', err);
-  }
-  
-  try {
-    // Don't pass organization_code at all - it will use the first active org
-    const result = await deviceService.registerDevice({
+
+  const onFinish = async (formValues: any) => {
+    setLoading(true);
+
+    const values = { ...form.getFieldsValue(true), ...formValues };
+
+    console.log('📱 Form values:', {
       device_name: values.device_name,
       device_code: values.device_code,
       pairing_code: values.pairing_code
-      // No organization_code parameter
     });
 
-    console.log('📊 Registration Result:', result);
-
-    if (result.success) {
-      console.log('🎉 Registration successful!');
-      message.success('Device registered successfully!');
-      
-      setTimeout(() => {
-        navigate('/branch-selection');
-      }, 1000);
-    } else {
-      console.error('💥 Registration failed:', result.error);
-      message.error(result.error || 'Failed to register device');
+    // Debug: Check what organizations exist
+    try {
+      const { data: orgs } = await supabase
+        .from('organizations')
+        .select('id, name, is_active');
+      console.log('📊 Available organizations:', orgs);
+    } catch (err) {
+      console.error('❌ Failed to fetch organizations:', err);
     }
-  } catch (error: any) {
-    console.error('🔥 Registration catch block error:', error);
-    message.error(`Unexpected error: ${error.message || 'Please try again'}`);
-  } finally {
-    setLoading(false);
-  }
-};
+
+    try {
+      // Don't pass organization_code at all - it will use the first active org
+      const result = await deviceService.registerDevice({
+        device_name: values.device_name,
+        device_code: values.device_code,
+        pairing_code: values.pairing_code
+        // No organization_code parameter
+      });
+
+      console.log('📊 Registration Result:', result);
+
+      if (result.success) {
+        console.log('🎉 Registration successful!');
+        message.success('Device registered successfully!');
+
+        setTimeout(() => {
+          navigate('/branch-selection');
+        }, 1000);
+      } else {
+        console.error('💥 Registration failed:', result.error);
+        message.error(result.error || 'Failed to register device');
+      }
+    } catch (error: any) {
+      console.error('🔥 Registration catch block error:', error);
+      message.error(`Unexpected error: ${error.message || 'Please try again'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const steps = [
     {
@@ -120,25 +122,24 @@ const DeviceSetupPage: React.FC = () => {
             label="Device Name"
             rules={[{ required: true, message: 'Please enter device name' }]}
           >
-            <Input 
-              placeholder="e.g., Main Entrance Scanner" 
+            <Input
+              placeholder="e.g., Main Entrance Scanner"
               size="large"
               prefix={<Smartphone />}
             />
           </Form.Item>
-          
+
           <Form.Item
             name="device_code"
             label="Device Code"
             rules={[{ required: true, message: 'Please generate device code' }]}
           >
-            <Input 
-              value={deviceCode}
+            <Input
               placeholder="Click generate to create code"
               size="large"
               addonBefore={
-                <Button 
-                  type="text" 
+                <Button
+                  type="text"
                   onClick={generateDeviceCode}
                   icon={<RefreshCw size={14} />}
                 >
@@ -154,12 +155,12 @@ const DeviceSetupPage: React.FC = () => {
             label="Pairing Code"
             rules={[{ required: true, message: 'Please generate pairing code' }]}
           >
-            <Input 
+            <Input
               placeholder="Click generate to create pairing code"
               size="large"
               addonBefore={
-                <Button 
-                  type="text" 
+                <Button
+                  type="text"
                   onClick={generatePairingCode}
                   icon={<Key size={14} />}
                 >
@@ -184,8 +185,8 @@ const DeviceSetupPage: React.FC = () => {
             showIcon
             style={{ marginBottom: 24 }}
           />
-          
-          
+
+
 
 
           <div style={{ textAlign: 'center', marginTop: 32 }}>
@@ -215,7 +216,7 @@ const DeviceSetupPage: React.FC = () => {
           <Paragraph type="secondary">
             Review your device information below. Click "Register Device" to complete the setup.
           </Paragraph>
-          
+
           <Card style={{ maxWidth: 500, margin: '24px auto', textAlign: 'left' }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
@@ -248,7 +249,7 @@ const DeviceSetupPage: React.FC = () => {
     if (currentStep === 0) {
       form.validateFields(['device_name', 'device_code', 'pairing_code'])
         .then(() => setCurrentStep(currentStep + 1))
-        .catch(() => {});
+        .catch(() => { });
     } else {
       setCurrentStep(currentStep + 1);
     }
@@ -297,7 +298,7 @@ const DeviceSetupPage: React.FC = () => {
               }))}
               style={{ marginBottom: 32 }}
             />
-            
+
             <div style={{ marginTop: 32 }}>
               <Alert
                 message="Setup Instructions"
@@ -314,12 +315,13 @@ const DeviceSetupPage: React.FC = () => {
               />
             </div>
           </Col>
-          
+
           <Col xs={24} md={16}>
             <Form
               form={form}
               layout="vertical"
               onFinish={onFinish}
+              preserve={true}
               initialValues={{
                 setup_method: 'manual'
               }}
@@ -369,7 +371,7 @@ const DeviceSetupPage: React.FC = () => {
                     Previous
                   </Button>
                 )}
-                
+
                 {currentStep < steps.length - 1 ? (
                   <Button
                     type="primary"
@@ -397,7 +399,7 @@ const DeviceSetupPage: React.FC = () => {
         <Divider style={{ margin: '32px 0' }}>
           <Text type="secondary">Need Help?</Text>
         </Divider>
-        
+
         <Row gutter={[16, 16]}>
           <Col span={8}>
             <div style={{ textAlign: 'center' }}>
