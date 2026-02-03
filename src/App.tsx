@@ -8,13 +8,16 @@ import {
   ArrowLeft,
   Building,
   Clock,
-  Settings
+  Settings,
+  Users
 } from 'lucide-react';
 import EnrollmentPage from './pages/EnrollmentPage';
 import AttendancePage from './pages/AttendancePage';
 import AttendanceManagementPage from './pages/AttendanceManagementPage';
 import DeviceSetupPage from './pages/DeviceSetupPage';
 import BranchSelectionPage from './pages/BranchSelectionPage';
+import UsersManagementPage from './pages/UsersManagementPage';
+import OrganizationSettingsPage from './pages/OrganizationSettingsPage';
 import { supabase, deviceService } from './lib/supabase';
 import './App.css';
 
@@ -187,6 +190,22 @@ const DashboardPage = () => {
       icon: <Building size={32} />,
       path: '/branch-selection',
       color: '#fa8c16',
+    },
+    {
+      key: 'users',
+      title: 'Users Management',
+      description: 'View and manage all users',
+      icon: <Users size={32} />,
+      path: '/users',
+      color: '#13c2c2',
+    },
+    {
+      key: 'org-settings',
+      title: 'Attendance Settings',
+      description: 'Configure times and analytics',
+      icon: <Clock size={32} />,
+      path: '/org-settings',
+      color: '#eb2f96',
     },
     {
       key: 'settings',
@@ -477,6 +496,16 @@ function App() {
               <OrganizationLayout>
                 <AttendanceManagementPage />
               </OrganizationLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/users" element={
+            <ProtectedRoute>
+              <UsersManagementPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/org-settings" element={
+            <ProtectedRoute>
+              <OrganizationSettingsPage />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" />} />
