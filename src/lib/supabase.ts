@@ -579,6 +579,56 @@ export const testConnection = async () => {
 
 
 
+// Organization service
+export const organizationService = {
+  // Create new organization
+  async createOrganization(params: {
+    name: string;
+    type: 'company' | 'school';
+    idLabel?: string;
+  }) {
+    try {
+      // Generate a subdomain from name (simplified)
+      const cleanName = params.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const subdomain = `${cleanName}-${Math.floor(Math.random() * 10000)}`;
+
+      const { data, error } = await supabase
+        .from('organizations')
+        .insert(asAny({
+          name: params.name,
+          type: params.type,
+          subdomain: subdomain,
+          settings: {
+            id_label: params.idLabel || (params.type === 'school' ? 'Student ID' : 'Staff ID'),
+            shift_based: true,
+            attendance_mode: 'shift',
+            max_shift_hours: 9,
+            overtime_allowed: true,
+            require_clock_out: true,
+            allow_multi_branch: true,
+            late_penalty_minutes: 15,
+            verification_threshold: 0.65
+          },
+          branding: {
+            primary_color: '#2563eb',
+            welcome_message: `Welcome to ${params.name}`,
+            logo_url: null
+          },
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }))
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, organization: data };
+    } catch (error: any) {
+      console.error('Error creating organization:', error);
+      return { success: false, error: error.message };
+    }
+  }
+};
 
 // Device service for managing device registration
 export const deviceService = {
@@ -721,6 +771,50 @@ export const deviceService = {
         success: false,
         error: error.message || 'An unexpected error occurred'
       };
+    }
+  },
+
+  async loginDevice(deviceCode: string, pairingCode: string) {
+    try {
+      const { data: device, error } = await supabase
+        .from('devices')
+        .select(`
+          *,
+          organization:organizations(*),
+          branch:branches(*)
+        `)
+        .eq('device_code', deviceCode)
+        .eq('pairing_code', pairingCode)
+        .single();
+
+      if (error || !device) {
+        return { success: false, error: 'Invalid device code or pairing code' };
+      }
+
+      if (!device.is_active) {
+        // Reactivate if inactive
+        await supabase
+          .from('devices')
+          .update({ is_active: true, status: 'active', last_seen: new Date().toISOString() })
+          .eq('id', device.id);
+      } else {
+        // Update last seen
+        await supabase
+          .from('devices')
+          .update({ last_seen: new Date().toISOString() })
+          .eq('id', device.id);
+      }
+
+      // Store in localStorage
+      localStorage.setItem('device_token', device.device_token);
+      localStorage.setItem('device_id', device.id);
+      localStorage.setItem('device_code', device.device_code);
+      localStorage.setItem('organization_id', device.organization_id);
+
+      return { success: true, device };
+    } catch (error: any) {
+      console.error('Login error:', error);
+      return { success: false, error: error.message };
     }
   },
 

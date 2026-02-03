@@ -38,16 +38,15 @@ class FaceService {
 
     try {
       console.log('🚀 Initializing face recognition models...');
-      
+
       // Load models (from public/models directory)
       const MODEL_URL = '/models';
-      
+
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
-        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL)
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
       ]);
 
       console.log('✅ Face models loaded successfully');
@@ -77,7 +76,7 @@ class FaceService {
 
       // Create image element
       const img = await this.loadImage(photoData);
-      
+
       // Detect face
       const detectionOptions = new faceapi.TinyFaceDetectorOptions({
         inputSize: 512,
@@ -111,7 +110,7 @@ class FaceService {
 
       // Validate face quality
       const quality = this.calculateFaceQuality(box, img);
-      
+
       if (quality < this.qualityThreshold) {
         return {
           success: false,
@@ -162,41 +161,41 @@ class FaceService {
 
   calculateFaceQuality(box: any, img: HTMLImageElement): number {
     let score = 0;
-    
+
     // 1. Face size (30%)
     const faceArea = box.width * box.height;
     const imageArea = img.width * img.height;
     const sizeRatio = (faceArea / imageArea) * 100;
     const sizeScore = Math.min(100, (sizeRatio / 20) * 100); // 20% of image is ideal
-    
+
     // 2. Face position (20%)
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
     const distanceFromCenter = Math.sqrt(
-      Math.pow(centerX - img.width / 2, 2) + 
+      Math.pow(centerX - img.width / 2, 2) +
       Math.pow(centerY - img.height / 2, 2)
     );
     const maxDistance = Math.sqrt(Math.pow(img.width, 2) + Math.pow(img.height, 2)) / 2;
     const positionScore = 100 * (1 - distanceFromCenter / maxDistance);
-    
+
     // 3. Aspect ratio (20%)
     const aspectRatio = box.width / box.height;
     const idealRatio = 0.75; // Typical face ratio
     const ratioScore = 100 * (1 - Math.abs(aspectRatio - idealRatio) / idealRatio);
-    
+
     // 4. Face landmarks symmetry would go here (30%)
     // For now, we'll give a base score
     const symmetryScore = 70;
-    
+
     score = (sizeScore * 0.3) + (positionScore * 0.2) + (ratioScore * 0.2) + (symmetryScore * 0.3);
-    
+
     return Math.round(Math.max(0, Math.min(100, score)));
   }
 
   async detectAndCropFace(photoData: string): Promise<string> {
     try {
       const result = await this.processImage(photoData);
-      
+
       if (!result.success || !result.faceBox) {
         throw new Error('No valid face detected');
       }
@@ -204,19 +203,19 @@ class FaceService {
       const img = await this.loadImage(photoData);
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
-      
+
       // Add padding around face
       const padding = 20;
       const x = Math.max(0, result.faceBox.x - padding);
       const y = Math.max(0, result.faceBox.y - padding);
       const width = Math.min(img.width - x, result.faceBox.width + padding * 2);
       const height = Math.min(img.height - y, result.faceBox.height + padding * 2);
-      
+
       canvas.width = width;
       canvas.height = height;
-      
+
       ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
-      
+
       return canvas.toDataURL('image/jpeg', 0.9);
     } catch (error) {
       console.error('Face cropping error:', error);

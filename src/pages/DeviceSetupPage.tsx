@@ -15,7 +15,8 @@ import {
   Space,
   Divider,
   QRCode,
-  message
+  message,
+  Radio
 } from 'antd';
 import {
   Smartphone,
@@ -26,7 +27,7 @@ import {
   Save,
   RefreshCw
 } from 'lucide-react';
-import supabase, { deviceService } from '../lib/supabase';
+import supabase, { deviceService, organizationService } from '../lib/supabase';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -38,6 +39,11 @@ const DeviceSetupPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [deviceCode, setDeviceCode] = useState<string>('');
   const [, setSetupMethod] = useState<'manual' | 'qr'>('manual');
+
+  // Organization Creation State
+  const [setupMode, setSetupMode] = useState<'register' | 'login'>('register');
+  const [orgMode, setOrgMode] = useState<'join' | 'create'>('join');
+  const [createOrgLoading, setCreateOrgLoading] = useState(false);
 
   // Generate a unique device code
   const generateDeviceCode = () => {
@@ -57,6 +63,56 @@ const DeviceSetupPage: React.FC = () => {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     form.setFieldValue('pairing_code', code);
+  };
+
+  // Handle Device Login
+  const handleLogin = async (values: any) => {
+    setLoading(true);
+    try {
+      const result = await deviceService.loginDevice(
+        values.login_device_code,
+        values.login_pairing_code
+      );
+
+      if (result.success && result.device) {
+        message.success('Device logged in successfully!');
+        // Redirect to dashboard
+        setTimeout(() => window.location.href = '/', 1000);
+      } else {
+        message.error(result.error || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login exception:', error);
+      message.error('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Organization Creation
+  const handleCreateOrganization = async () => {
+    try {
+      await form.validateFields(['new_org_name', 'new_org_type']);
+      const name = form.getFieldValue('new_org_name');
+      const type = form.getFieldValue('new_org_type');
+
+      setCreateOrgLoading(true);
+      const result = await organizationService.createOrganization({ name, type });
+
+      if (result.success && result.organization) {
+        message.success('Organization created successfully!');
+        // Set the organization code to the new subdomain AND switch to join mode
+        form.setFieldValue('organization_code', result.organization.subdomain);
+        setOrgMode('join');
+      } else {
+        message.error(result.error || 'Failed to create organization');
+      }
+    } catch (err) {
+      // Form validation error
+      console.error('Validation failed:', err);
+    } finally {
+      setCreateOrgLoading(false);
+    }
   };
 
 
@@ -178,29 +234,94 @@ const DeviceSetupPage: React.FC = () => {
       icon: <Building size={16} />,
       content: (
         <>
-          <Alert
-            message="Organization Setup"
-            description="If you have an organization code, enter it below. Otherwise, you'll be connected to the default organization."
-            type="info"
-            showIcon
-            style={{ marginBottom: 24 }}
-          />
+          <div style={{ marginBottom: 24, textAlign: 'center' }}>
+            <Radio.Group
+              value={orgMode}
+              onChange={e => setOrgMode(e.target.value)}
+              buttonStyle="solid"
+              style={{ marginBottom: 24 }}
+            >
+              <Radio.Button value="join">Join Existing</Radio.Button>
+              <Radio.Button value="create">Create New</Radio.Button>
+            </Radio.Group>
+          </div>
 
+          {orgMode === 'join' ? (
+            <>
+              <Alert
+                message="Organization Setup"
+                description="If you have an organization code, enter it below. Otherwise, you'll be connected to the default organization."
+                type="info"
+                showIcon
+                style={{ marginBottom: 24 }}
+              />
+              <Form.Item
+                name="organization_code"
+                label="Organization Code (Optional)"
+                extra="Leave blank to join the default organization."
+              >
+                <Input
+                  size="large"
+                  placeholder="Enter organization code or subdomain"
+                  prefix={<Building size={16} />}
+                />
+              </Form.Item>
+            </>
+          ) : (
+            <div style={{ padding: '0 12px' }}>
+              <Alert
+                message="Create New Organization"
+                description="Set up a new workspace for your company or school."
+                type="success"
+                showIcon
+                style={{ marginBottom: 24 }}
+              />
 
+              <Form.Item
+                name="new_org_name"
+                label="Organization Name"
+                rules={[{ required: true, message: 'Please enter organization name' }]}
+              >
+                <Input size="large" placeholder="e.g. Acme Corp or Springfield High" prefix={<Building size={16} />} />
+              </Form.Item>
 
+              <Form.Item
+                name="new_org_type"
+                label="Organization Type"
+                initialValue="company"
+              >
+                <Select size="large">
+                  <Option value="company">Company / Business</Option>
+                  <Option value="school">School / Educational</Option>
+                </Select>
+              </Form.Item>
+
+              <Button
+                type="primary"
+                onClick={handleCreateOrganization}
+                loading={createOrgLoading}
+                block
+                size="large"
+                style={{ marginTop: 12 }}
+              >
+                Create & Select Organization
+              </Button>
+            </div>
+          )}
 
           <div style={{ textAlign: 'center', marginTop: 32 }}>
+            <Divider>OR</Divider>
             <QRCode
               value={JSON.stringify({
                 type: 'device_registration',
                 device_code: deviceCode || form.getFieldValue('device_code'),
                 timestamp: new Date().toISOString()
               })}
-              size={200}
+              size={150}
               icon="/vite.svg"
             />
             <Text type="secondary" style={{ display: 'block', marginTop: 16 }}>
-              Scan QR code for mobile pairing
+              Scan for mobile setup
             </Text>
           </div>
         </>
@@ -317,82 +438,137 @@ const DeviceSetupPage: React.FC = () => {
           </Col>
 
           <Col xs={24} md={16}>
-            <Form
-              form={form}
-              layout="vertical"
-              onFinish={onFinish}
-              preserve={true}
-              initialValues={{
-                setup_method: 'manual'
-              }}
-            >
-              {/* Setup Method Selection */}
-              {currentStep === 0 && (
+            <div style={{ marginBottom: 32, textAlign: 'center' }}>
+              <Radio.Group
+                value={setupMode}
+                onChange={(e) => setSetupMode(e.target.value)}
+                buttonStyle="solid"
+                size="large"
+              >
+                <Radio.Button value="register">Register New Device</Radio.Button>
+                <Radio.Button value="login">Login Existing Device</Radio.Button>
+              </Radio.Group>
+            </div>
+
+            {setupMode === 'login' ? (
+              <Form
+                layout="vertical"
+                onFinish={handleLogin}
+                size="large"
+              >
+                <Alert
+                  message="Device Login"
+                  description="Enter your device credentials to reconnect this device."
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 24 }}
+                />
+
                 <Form.Item
-                  name="setup_method"
-                  label="Setup Method"
-                  style={{ marginBottom: 32 }}
+                  name="login_device_code"
+                  label="Device Code"
+                  rules={[{ required: true, message: 'Please enter device code' }]}
                 >
-                  <Select
-                    size="large"
-                    onChange={setSetupMethod}
-                  >
-                    <Option value="manual">
-                      <Space>
-                        <Key size={16} />
-                        Manual Setup
-                      </Space>
-                    </Option>
-                    <Option value="qr">
-                      <Space>
-                        <QrCode size={16} />
-                        QR Code Setup
-                      </Space>
-                    </Option>
-                  </Select>
+                  <Input prefix={<Smartphone size={16} />} placeholder="e.g. DEV-XXXX-XXXX" />
                 </Form.Item>
-              )}
 
-              {/* Current Step Content */}
-              {steps[currentStep].content}
+                <Form.Item
+                  name="login_pairing_code"
+                  label="Pairing Code"
+                  rules={[{ required: true, message: 'Please enter pairing code' }]}
+                >
+                  <Input.Password prefix={<Key size={16} />} placeholder="Enter 6-character code" />
+                </Form.Item>
 
-              {/* Navigation Buttons */}
-              <div style={{
-                display: 'flex',
-                justifyContent: currentStep > 0 ? 'space-between' : 'flex-end',
-                marginTop: 48
-              }}>
-                {currentStep > 0 && (
-                  <Button
-                    size="large"
-                    onClick={prevStep}
-                    disabled={loading}
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={loading}
+                  block
+                  size="large"
+                  icon={<RefreshCw size={16} />}
+                >
+                  Login & Sync
+                </Button>
+              </Form>
+            ) : (
+              <Form
+                form={form}
+                layout="vertical"
+                onFinish={onFinish}
+                preserve={true}
+                initialValues={{
+                  setup_method: 'manual'
+                }}
+              >
+                {/* Setup Method Selection */}
+                {currentStep === 0 && (
+                  <Form.Item
+                    name="setup_method"
+                    label="Setup Method"
+                    style={{ marginBottom: 32 }}
                   >
-                    Previous
-                  </Button>
+                    <Select
+                      size="large"
+                      onChange={setSetupMethod}
+                    >
+                      <Option value="manual">
+                        <Space>
+                          <Key size={16} />
+                          Manual Setup
+                        </Space>
+                      </Option>
+                      <Option value="qr">
+                        <Space>
+                          <QrCode size={16} />
+                          QR Code Setup
+                        </Space>
+                      </Option>
+                    </Select>
+                  </Form.Item>
                 )}
 
-                {currentStep < steps.length - 1 ? (
-                  <Button
-                    type="primary"
-                    size="large"
-                    onClick={nextStep}
-                  >
-                    Next Step
-                  </Button>
-                ) : (
-                  <Button
-                    type="primary"
-                    size="large"
-                    htmlType="submit"
-                    loading={loading}
-                    icon={<Save size={18} />}
-                  >
-                    Register Device
-                  </Button>
-                )}
-              </div>
-            </Form>
+                {/* Current Step Content */}
+                {steps[currentStep].content}
+
+                {/* Navigation Buttons */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: currentStep > 0 ? 'space-between' : 'flex-end',
+                  marginTop: 48
+                }}>
+                  {currentStep > 0 && (
+                    <Button
+                      size="large"
+                      onClick={prevStep}
+                      disabled={loading}
+                    >
+                      Previous
+                    </Button>
+                  )}
+
+                  {currentStep < steps.length - 1 ? (
+                    <Button
+                      type="primary"
+                      size="large"
+                      onClick={nextStep}
+                    >
+                      Next Step
+                    </Button>
+                  ) : (
+                    <Button
+                      type="primary"
+                      size="large"
+                      htmlType="submit"
+                      loading={loading}
+                      icon={<Save size={18} />}
+                    >
+                      Register Device
+                    </Button>
+                  )}
+                </div>
+              </Form>
+            )}
           </Col>
         </Row>
 
