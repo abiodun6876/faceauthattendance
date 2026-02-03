@@ -9,7 +9,10 @@ import {
   Building,
   Clock,
   Settings,
-  Users
+  Users,
+  Briefcase,
+  CalendarDays,
+  UserCheck
 } from 'lucide-react';
 import EnrollmentPage from './pages/EnrollmentPage';
 import AttendancePage from './pages/AttendancePage';
@@ -19,6 +22,9 @@ import BranchSelectionPage from './pages/BranchSelectionPage';
 import UsersManagementPage from './pages/UsersManagementPage';
 import OrganizationSettingsPage from './pages/OrganizationSettingsPage';
 import UserProfilePage from './pages/UserProfilePage';
+import VisitorManagementPage from './pages/VisitorManagementPage';
+import CustomerManagementPage from './pages/CustomerManagementPage';
+import LeaveManagementPage from './pages/LeaveManagementPage';
 import { supabase, deviceService } from './lib/supabase';
 import './App.css';
 
@@ -193,20 +199,44 @@ const DashboardPage = () => {
       color: '#fa8c16',
     },
     {
+      key: 'visitors',
+      title: 'Visitor Management',
+      description: 'Appointments & Pass Codes',
+      icon: <UserCheck size={32} />,
+      path: '/visitors',
+      color: '#13c2c2',
+    },
+    {
+      key: 'customers',
+      title: 'Customer Management',
+      description: 'Manage clients & business',
+      icon: <Briefcase size={32} />,
+      path: '/customers',
+      color: '#eb2f96',
+    },
+    {
+      key: 'leave',
+      title: 'Leave Management',
+      description: 'Schedule & Leave status',
+      icon: <CalendarDays size={32} />,
+      path: '/leave',
+      color: '#fa541c',
+    },
+    {
       key: 'users',
       title: 'Users Management',
-      description: 'View and manage all users',
+      description: 'Manage staff and students',
       icon: <Users size={32} />,
       path: '/users',
-      color: '#13c2c2',
+      color: '#722ed1',
     },
     {
       key: 'org-settings',
       title: 'Attendance Settings',
-      description: 'Configure times and analytics',
-      icon: <Clock size={32} />,
+      description: 'Work hours & Late rules',
+      icon: <Settings size={32} />,
       path: '/org-settings',
-      color: '#eb2f96',
+      color: '#2f54eb',
     },
     {
       key: 'settings',
@@ -512,6 +542,21 @@ function App() {
           <Route path="/users/:userId/edit" element={
             <ProtectedRoute>
               <UserProfilePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/visitors" element={
+            <ProtectedRoute>
+              <VisitorManagementPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/customers" element={
+            <ProtectedRoute>
+              <CustomerManagementPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/leave" element={
+            <ProtectedRoute>
+              <LeaveManagementPage />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" />} />
