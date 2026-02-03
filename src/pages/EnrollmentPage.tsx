@@ -367,7 +367,7 @@ const EnrollmentPage: React.FC = () => {
       }
 
       // Update user with face enrollment info
-      await supabase
+      const { error: updateError } = await supabase
         .from('users')
         .update({
           enrollment_status: 'enrolled',
@@ -378,6 +378,8 @@ const EnrollmentPage: React.FC = () => {
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
+
+      if (updateError) throw updateError;
 
       // Create log entry
       await supabase

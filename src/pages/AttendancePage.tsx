@@ -577,19 +577,23 @@ const AttendancePage: React.FC = () => {
 
       // FALLBACK: Client-side matching if RPC returns no results or fails
       if (matches.length === 0) {
-        console.log('Fetching enrolled staff for client-side matching...');
-        const { data: enrolledUsers } = await supabase
-          .from('users')
-          .select('*')
+        console.log('Fetching embeddings from face_enrollments for fallback matching...');
+        const { data: enrollments, error: fetchError } = await supabase
+          .from('face_enrollments')
+          .select('embedding, user_id, users(*)')
           .eq('organization_id', deviceInfo?.organization_id)
-          .eq('face_embedding_stored', true);
+          .eq('is_active', true);
 
-        if (enrolledUsers && enrolledUsers.length > 0) {
-          for (const user of enrolledUsers) {
-            if (user.face_embedding && faceService.compareFaces(faceResult.embedding, user.face_embedding)) {
-              matches.push(user);
-              console.log('✅ Client-side match found:', user.full_name);
-              break;
+        if (fetchError) {
+          console.error('Fallback fetch error:', fetchError);
+        } else if (enrollments && enrollments.length > 0) {
+          for (const enc of enrollments) {
+            if (enc.embedding && faceService.compareFaces(faceResult.embedding, enc.embedding, 0.6)) {
+              if (enc.users) {
+                matches.push(enc.users);
+                console.log('✅ Client-side match found in record:', enc.users.full_name);
+                break;
+              }
             }
           }
         }
@@ -625,15 +629,20 @@ const AttendancePage: React.FC = () => {
 
       setAttendanceResult(result);
       setShowResultModal(true);
+      message.success(`${action === 'clock_in' ? 'Clocked in' : 'Clocked out'} successfully!`);
 
       // Refresh data
       await Promise.all([
         loadStats(),
-        loadRecentAttendance(),
-        checkLastAttendance()
+        loadRecentAttendance()
       ]);
 
-      message.success(`${action === 'clock_in' ? 'Clocked in' : 'Clocked out'} successfully!`);
+      // FAST TRACK: Automatically close result and resume scanning after 2.5 seconds
+      if (autoScan) {
+        setTimeout(() => {
+          setShowResultModal(false);
+        }, 2500);
+      }
 
     } catch (error: any) {
       console.error('Attendance error:', error);
@@ -1014,7 +1023,7 @@ const AttendancePage: React.FC = () => {
                     }
                   }}
                   autoCapture={autoScan}
-                  captureInterval={3000}
+                  captureInterval={2000}
                   loading={processing}
                   deviceInfo={deviceInfo}
                   organizationName={deviceInfo.organization?.name}
