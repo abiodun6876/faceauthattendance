@@ -25,6 +25,7 @@ import {
     UserPlus,
     ArrowLeft,
     Eye,
+    Edit,
     Download
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -218,6 +219,14 @@ const UsersManagementPage: React.FC = () => {
                         onClick={() => showUserDetails(record)}
                     >
                         View
+                    </Button>
+                    <Button
+                        type="text"
+                        icon={<Edit size={16} />}
+                        onClick={() => navigate(`/users/${record.id}/edit`)}
+                        style={{ color: '#1890ff' }}
+                    >
+                        Edit
                     </Button>
                 </Space>
             ),

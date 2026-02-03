@@ -18,6 +18,7 @@ import DeviceSetupPage from './pages/DeviceSetupPage';
 import BranchSelectionPage from './pages/BranchSelectionPage';
 import UsersManagementPage from './pages/UsersManagementPage';
 import OrganizationSettingsPage from './pages/OrganizationSettingsPage';
+import UserProfilePage from './pages/UserProfilePage';
 import { supabase, deviceService } from './lib/supabase';
 import './App.css';
 
@@ -506,6 +507,11 @@ function App() {
           <Route path="/org-settings" element={
             <ProtectedRoute>
               <OrganizationSettingsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/users/:userId/edit" element={
+            <ProtectedRoute>
+              <UserProfilePage />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" />} />
