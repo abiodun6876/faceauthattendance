@@ -611,3 +611,37 @@ COMMENT ON TABLE organizations IS 'Multi-tenant organizations table - core of Fa
 COMMENT ON TABLE devices IS 'Hardware terminals controlled by vendor - key business model';
 
 SELECT '✅ Database schema created successfully!' as message;
+
+
+
+
+-- 1. Create a policy to allow anyone to insert new face enrollments
+-- (Necessary for the enrollment process to work)
+DROP POLICY IF EXISTS "Allow face enrollment inserts" ON public.face_enrollments;
+CREATE POLICY "Allow face enrollment inserts" ON public.face_enrollments
+    FOR INSERT 
+    TO public 
+    WITH CHECK (true);
+
+-- 2. Create a policy to allow anyone to view face enrollments
+-- (Necessary for face recognition to work)
+DROP POLICY IF EXISTS "Allow face enrollment selection" ON public.face_enrollments;
+CREATE POLICY "Allow face enrollment selection" ON public.face_enrollments
+    FOR SELECT 
+    TO public 
+    USING (true);
+
+-- 3. Create a policy to allow anyone to insert match logs
+DROP POLICY IF EXISTS "Allow log inserts" ON public.face_match_logs;
+CREATE POLICY "Allow log inserts" ON public.face_match_logs
+    FOR INSERT 
+    TO public 
+    WITH CHECK (true);
+
+-- 4. Ensure RLS is active on these tables
+ALTER TABLE public.face_enrollments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.face_match_logs ENABLE ROW LEVEL SECURITY;
+
+-- 5. Verification: Grant permissions to the 'anon' and 'authenticated' roles
+GRANT ALL ON public.face_enrollments TO anon, authenticated;
+GRANT ALL ON public.face_match_logs TO anon, authenticated;

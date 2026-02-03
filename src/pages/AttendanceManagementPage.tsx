@@ -89,8 +89,8 @@ const AttendanceManagementPage: React.FC = () => {
   const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
   const [filteredData, setFilteredData] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [branches, _setBranches] = useState<{id: string, name: string}[]>([]);
-  const [departments, _setDepartments] = useState<{id: string, name: string}[]>([]);
+  const [branches, _setBranches] = useState<{ id: string, name: string }[]>([]);
+  const [departments, _setDepartments] = useState<{ id: string, name: string }[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -119,7 +119,7 @@ const AttendanceManagementPage: React.FC = () => {
         .from('users')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
-      
+
       return count || 0;
     } catch (error) {
       console.error('Error fetching active users:', error);
@@ -135,7 +135,7 @@ const AttendanceManagementPage: React.FC = () => {
     const faceVerified = data.filter(record => record.verification_method === 'face').length;
     const manual = data.filter(record => record.verification_method === 'manual').length;
     const activeUsers = await fetchActiveUsers();
-    
+
     setStats({
       total: data.length,
       present,
@@ -167,31 +167,31 @@ const AttendanceManagementPage: React.FC = () => {
       if (attendance) {
         setAttendanceData(attendance as any);
         setFilteredData(attendance as any);
-        
+
         // Extract unique values for filters - store in variable that's actually used
         const uniqueUserIds = Array.from(new Set(attendance.map(record => record.user_id).filter(Boolean)));
         console.log('Unique user IDs:', uniqueUserIds.length);
-        
+
         // Fetch branches for filter
         const { data: branchesData } = await supabase
           .from('branches')
           .select('id, name')
           .eq('is_active', true);
-        
+
         // Fetch departments for filter
         const { data: departmentsData } = await supabase
           .from('departments')
           .select('id, name')
           .eq('is_active', true);
-        
+
         // Set branches and departments (commented out setters since we're using _ prefix)
         // _setBranches(branchesData || []);
         // _setDepartments(departmentsData || []);
-        
+
         // Log the data to use the variables
         console.log('Branches data:', branchesData?.length || 0);
         console.log('Departments data:', departmentsData?.length || 0);
-        
+
         // In the fetchAttendanceData function, update the users query:
         const { data: usersData } = await supabase
           .from('users')
@@ -199,7 +199,7 @@ const AttendanceManagementPage: React.FC = () => {
           .eq('is_active', true);
 
         setUsers(usersData as UserRecord[]);
-        
+
         // Calculate statistics
         calculateStats(attendance);
       }
@@ -255,8 +255,8 @@ const AttendanceManagementPage: React.FC = () => {
       const [startDate, endDate] = filters.dateRange;
       filtered = filtered.filter(record => {
         const recordDate = dayjs(record.date);
-        return recordDate.isAfter(startDate.subtract(1, 'day')) && 
-               recordDate.isBefore(endDate.add(1, 'day'));
+        return recordDate.isAfter(startDate.subtract(1, 'day')) &&
+          recordDate.isBefore(endDate.add(1, 'day'));
       });
     }
 
@@ -288,7 +288,7 @@ const AttendanceManagementPage: React.FC = () => {
   // Export data
   const exportToCSV = useCallback(() => {
     const headers = ['Staff ID', 'Full Name', 'Email', 'Date', 'Clock In', 'Clock Out', 'Status', 'Method', 'Confidence Score', 'Branch', 'Department', 'Face Match Score', 'Device ID'];
-    
+
     const csvData = filteredData.map(record => [
       record.user?.staff_id || '',
       record.user?.full_name || '',
@@ -320,7 +320,7 @@ const AttendanceManagementPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     message.success('Data exported successfully');
   }, [filteredData]);
 
@@ -423,8 +423,8 @@ const AttendanceManagementPage: React.FC = () => {
             color={method === 'face' ? 'green' : 'blue'}
             text={
               method === 'face' ? 'Face ID' :
-              method === 'manual' ? 'Manual' : 
-              method === 'qr' ? 'QR Code' : 'Unknown'
+                method === 'manual' ? 'Manual' :
+                  method === 'qr' ? 'QR Code' : 'Unknown'
             }
           />
         </Tooltip>
@@ -573,7 +573,7 @@ const AttendanceManagementPage: React.FC = () => {
               placeholder="Search by name, staff ID, or email..."
               prefix={<SearchOutlined />}
               value={filters.search}
-              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               size="middle"
               allowClear
             />
@@ -583,7 +583,7 @@ const AttendanceManagementPage: React.FC = () => {
               placeholder="Branch"
               style={{ width: '100%' }}
               value={filters.branch || undefined}
-              onChange={(value) => setFilters({...filters, branch: value})}
+              onChange={(value) => setFilters({ ...filters, branch: value })}
               size="middle"
               allowClear
             >
@@ -599,7 +599,7 @@ const AttendanceManagementPage: React.FC = () => {
               placeholder="Department"
               style={{ width: '100%' }}
               value={filters.department || undefined}
-              onChange={(value) => setFilters({...filters, department: value})}
+              onChange={(value) => setFilters({ ...filters, department: value })}
               size="middle"
               allowClear
             >
@@ -615,7 +615,7 @@ const AttendanceManagementPage: React.FC = () => {
               placeholder="User"
               style={{ width: '100%' }}
               value={filters.user || undefined}
-              onChange={(value) => setFilters({...filters, user: value})}
+              onChange={(value) => setFilters({ ...filters, user: value })}
               size="middle"
               allowClear
             >
@@ -631,7 +631,7 @@ const AttendanceManagementPage: React.FC = () => {
               placeholder="Status"
               style={{ width: '100%' }}
               value={filters.status || undefined}
-              onChange={(value) => setFilters({...filters, status: value})}
+              onChange={(value) => setFilters({ ...filters, status: value })}
               size="middle"
               allowClear
             >
@@ -645,7 +645,7 @@ const AttendanceManagementPage: React.FC = () => {
               placeholder="Method"
               style={{ width: '100%' }}
               value={filters.method || undefined}
-              onChange={(value) => setFilters({...filters, method: value})}
+              onChange={(value) => setFilters({ ...filters, method: value })}
               size="middle"
               allowClear
             >
@@ -659,7 +659,7 @@ const AttendanceManagementPage: React.FC = () => {
               style={{ width: '100%' }}
               placeholder={['Start Date', 'End Date']}
               value={filters.dateRange}
-              onChange={(dates) => setFilters({...filters, dateRange: dates as [Dayjs, Dayjs]})}
+              onChange={(dates) => setFilters({ ...filters, dateRange: dates as [Dayjs, Dayjs] })}
               size="middle"
               allowClear
             />
@@ -827,8 +827,8 @@ const AttendanceManagementPage: React.FC = () => {
                       style={{
                         width: `${selectedRecord.confidence_score * 100}%`,
                         height: 8,
-                        backgroundColor: selectedRecord.confidence_score > 0.8 ? '#52c41a' : 
-                                       selectedRecord.confidence_score > 0.6 ? '#faad14' : '#ff4d4f',
+                        backgroundColor: selectedRecord.confidence_score > 0.8 ? '#52c41a' :
+                          selectedRecord.confidence_score > 0.6 ? '#faad14' : '#ff4d4f',
                         borderRadius: 4
                       }}
                     />
