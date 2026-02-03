@@ -659,6 +659,7 @@ const AttendancePage: React.FC = () => {
     }
   }, [
     processing,
+    autoScan,
     deviceInfo?.organization_id,
     determineAttendanceAction,
     recordAttendance,
