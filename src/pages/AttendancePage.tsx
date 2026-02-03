@@ -791,28 +791,29 @@ const AttendancePage: React.FC = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f0f2f5' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--gray-50)' }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        padding: '24px',
-        color: '#fff',
-        borderRadius: '0 0 16px 16px'
+        background: 'white',
+        padding: '16px 24px',
+        borderBottom: '1px solid var(--gray-200)',
+        boxShadow: 'var(--shadow-sm)',
+        marginBottom: 32
       }}>
         <Row align="middle" justify="space-between">
           <Col>
-            <Space>
+            <Space size={16}>
               <Button
                 type="text"
                 icon={<Home size={20} />}
                 onClick={() => navigate('/')}
-                style={{ color: '#fff' }}
+                style={{ color: 'var(--gray-600)' }}
               />
               <div>
-                <Title level={3} style={{ color: '#fff', margin: 0 }}>
+                <Title level={4} style={{ color: 'var(--gray-900)', margin: 0, fontWeight: 700 }}>
                   {deviceInfo.organization?.type === 'school' ? 'Take Attendance' : 'Clock In/Out'}
                 </Title>
-                <Text style={{ color: 'rgba(255,255,255,0.9)' }}>
+                <Text style={{ color: 'var(--gray-500)', fontSize: '0.9rem' }}>
                   {deviceInfo.branch?.name} • {deviceInfo.device_name}
                 </Text>
               </div>
@@ -823,20 +824,21 @@ const AttendancePage: React.FC = () => {
             <Space>
               <Tooltip title={connectionStatus === 'online' ? 'Online' : 'Offline'}>
                 <Tag
-                  color={connectionStatus === 'online' ? 'green' : 'red'}
+                  color={connectionStatus === 'online' ? 'success' : 'error'}
+                  style={{ borderRadius: 20, border: 'none', padding: '2px 10px' }}
                   icon={connectionStatus === 'online' ? <Wifi size={12} /> : <WifiOff size={12} />}
                 >
                   {connectionStatus.toUpperCase()}
                 </Tag>
               </Tooltip>
-              <Tag color={attendanceMode === 'toggle' ? 'blue' :
-                attendanceMode === 'explicit' ? 'purple' : 'orange'}>
+              <Tag
+                color="blue"
+                style={{ borderRadius: 20, border: 'none', padding: '2px 10px' }}
+              >
                 {attendanceMode === 'toggle' ? 'Auto Mode' :
                   attendanceMode === 'explicit' ? 'Button Mode' : 'Event Mode'}
               </Tag>
               <Button
-                type="primary"
-                ghost
                 icon={<Settings size={16} />}
                 onClick={() => navigate('/device-setup')}
               >

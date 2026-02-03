@@ -822,40 +822,74 @@ const EnrollmentPage: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: 800, margin: '0 auto' }}>
-      <Card style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <IdCard size={32} color="#1890ff" />
-            <Title level={3} style={{ margin: 0 }}>
-              {getTitle()}
-            </Title>
+    <div style={{
+      minHeight: '100vh',
+      padding: '40px 24px',
+      background: 'var(--gray-50)' // Using design token
+    }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 64,
+            height: 64,
+            borderRadius: '50%',
+            background: 'white',
+            boxShadow: 'var(--shadow-md)',
+            marginBottom: 24
+          }}>
+            <IdCard size={32} color="var(--primary-600)" />
           </div>
-          <Text type="secondary">
+          <Title level={2} style={{ margin: '0 0 16px', color: 'var(--gray-900)' }}>
+            {getTitle()}
+          </Title>
+          <Text style={{ fontSize: '1.1rem', color: 'var(--gray-500)' }}>
             {deviceInfo?.organization?.name || 'FaceAuthAttendance System'}
           </Text>
-          <div style={{ marginTop: 8 }}>
-            <Tag icon={<Zap size={12} />} color="purple">
+          <div style={{ marginTop: 16 }}>
+            <Tag
+              icon={<Zap size={12} />}
+              color="blue"
+              style={{
+                padding: '4px 12px',
+                borderRadius: 20,
+                border: 'none',
+                background: 'var(--primary-50)',
+                color: 'var(--primary-700)'
+              }}
+            >
               Biometric Authentication Enabled
             </Tag>
           </div>
         </div>
 
-        {/* FIXED: Using items prop instead of children */}
-        <Steps
-          current={currentStep}
-          style={{ marginBottom: 32 }}
-          items={steps.map((step, index) => ({
-            title: step.title,
-            icon: step.icon,
-            description: index === currentStep ? 'Current' : index < currentStep ? 'Completed' : 'Pending'
-          }))}
-        />
+        <Card
+          bordered={false}
+          style={{
+            borderRadius: 24,
+            boxShadow: 'var(--shadow-xl)',
+            overflow: 'hidden'
+          }}
+          bodyStyle={{ padding: 48 }}
+        >
+          {/* FIXED: Using items prop instead of children */}
+          <Steps
+            current={currentStep}
+            style={{ marginBottom: 48 }}
+            items={steps.map((step, index) => ({
+              title: step.title,
+              icon: step.icon,
+              description: index === currentStep ? 'In Progress' : index < currentStep ? 'Completed' : 'Pending'
+            }))}
+          />
 
-        <div style={{ minHeight: 400 }}>
-          {steps[currentStep].content}
-        </div>
-      </Card>
+          <div style={{ minHeight: 400 }}>
+            {steps[currentStep].content}
+          </div>
+        </Card>
+      </div>
 
       <Modal
         title="Face Quality Analysis"

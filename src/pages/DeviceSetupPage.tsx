@@ -262,26 +262,26 @@ const DeviceSetupPage: React.FC = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      padding: 24
+      padding: 24,
+      background: 'var(--gray-50)'
     }}>
       <Card
         style={{
-          maxWidth: 800,
+          maxWidth: 900,
           width: '100%',
-          borderRadius: 16,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          border: 'none',
+          boxShadow: 'var(--shadow-xl)'
         }}
-        bodyStyle={{ padding: 40 }}
+        bodyStyle={{ padding: '48px 40px' }}
       >
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <Title level={2} style={{ color: '#667eea' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <Title level={2} style={{ color: 'var(--primary-700)', marginBottom: 8 }}>
             Device Setup
           </Title>
-          <Paragraph type="secondary">
+          <Paragraph type="secondary" style={{ fontSize: '1.1rem' }}>
             Register your device with the FaceAuthAttendance platform
           </Paragraph>
         </div>
