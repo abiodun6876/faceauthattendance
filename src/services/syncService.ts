@@ -1,171 +1,241 @@
+// src/services/syncService.ts - FIXED VERSION
 import { supabase } from '../lib/supabase';
-import faceRecognition from '../utils/faceRecognition';
 
-export interface SyncResult {
-  success: boolean;
-  syncedCount: number;
-  errors: string[];
+export interface PendingAttendance {
+  id: string;
+  userId: string; // Changed from studentId
+  deviceId: string;
+  organizationId: string;
+  branchId: string;
+  timestamp: string;
+  confidence: number;
+  photoUrl?: string;
+}
+
+export interface PendingFaceEmbedding {
+  userId: string; // Changed from studentId
+  descriptor: number[];
   timestamp: string;
 }
 
-class SyncService {
-  private readonly SYNC_STATUS_KEY = 'last_sync_status';
-  private readonly PENDING_UPLOADS_KEY = 'pending_uploads';
+export class SyncService {
+  private static instance: SyncService;
+  private isSyncing = false;
 
-  // Get sync status
-  getSyncStatus(): { lastSync: string | null; pendingCount: number } {
-    const status = localStorage.getItem(this.SYNC_STATUS_KEY);
-    const pending = localStorage.getItem(this.PENDING_UPLOADS_KEY);
-    
-    const pendingData = pending ? JSON.parse(pending) : [];
-    
-    return {
-      lastSync: status ? JSON.parse(status).timestamp : null,
-      pendingCount: pendingData.length
-    };
+  private constructor() {}
+
+  public static getInstance(): SyncService {
+    if (!SyncService.instance) {
+      SyncService.instance = new SyncService();
+    }
+    return SyncService.instance;
   }
 
-  // Save attendance to local storage (for offline)
-  saveAttendanceLocally(studentId: string, eventId?: string): void {
-    const attendance = {
-      studentId,
-      eventId,
-      timestamp: new Date().toISOString(),
-      status: 'pending_sync'
-    };
+  // ========== ATTENDANCE SYNC ==========
 
-    const pending = localStorage.getItem(this.PENDING_UPLOADS_KEY);
-    const pendingArray = pending ? JSON.parse(pending) : [];
+  // Add pending attendance to local storage
+  addPendingAttendance(attendance: Omit<PendingAttendance, 'id'>): void {
+    const pending = this.getPendingAttendance();
+    const newRecord: PendingAttendance = {
+      ...attendance,
+      id: `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
     
-    pendingArray.push(attendance);
-    localStorage.setItem(this.PENDING_UPLOADS_KEY, JSON.stringify(pendingArray));
-    
-    console.log('Attendance saved locally:', attendance);
+    pending.push(newRecord);
+    localStorage.setItem('pending_attendance', JSON.stringify(pending));
+    console.log(`Added pending attendance for user: ${attendance.userId}`);
   }
 
-  // Sync pending data to Supabase
-  async syncPendingData(): Promise<SyncResult> {
-    const result: SyncResult = {
-      success: false,
-      syncedCount: 0,
-      errors: [],
-      timestamp: new Date().toISOString()
-    };
+  // Get all pending attendance
+  getPendingAttendance(): PendingAttendance[] {
+    const data = localStorage.getItem('pending_attendance');
+    return data ? JSON.parse(data) : [];
+  }
+
+  // Clear pending attendance
+  clearPendingAttendance(recordIds: string[]): void {
+    const pending = this.getPendingAttendance();
+    const filtered = pending.filter(record => !recordIds.includes(record.id));
+    localStorage.setItem('pending_attendance', JSON.stringify(filtered));
+  }
+
+  // Sync pending attendance to Supabase
+  async syncAttendance(): Promise<{
+    synced: number;
+    errors: Array<{ record: PendingAttendance; error: string }>;
+  }> {
+    if (this.isSyncing) {
+      console.log('Sync already in progress');
+      return { synced: 0, errors: [] };
+    }
+
+    this.isSyncing = true;
+    const pendingArray = this.getPendingAttendance();
+    const errors: Array<{ record: PendingAttendance; error: string }> = [];
+    const synced: PendingAttendance[] = [];
+
+    console.log(`Starting sync of ${pendingArray.length} attendance records`);
 
     try {
-      // Get pending attendance records
-      const pending = localStorage.getItem(this.PENDING_UPLOADS_KEY);
-      const pendingArray = pending ? JSON.parse(pending) : [];
-
-      if (pendingArray.length === 0) {
-        result.success = true;
-        result.syncedCount = 0;
-        return result;
-      }
-
-      const synced: any[] = [];
-      const errors: any[] = [];
-
-      // Sync each attendance record
+      // Sync each attendance record to the correct table
       for (const record of pendingArray) {
         try {
           const { error } = await supabase
-            .from('attendance_records')
+            .from('attendance') // ✅ CORRECT TABLE NAME
             .insert({
-              student_id: record.studentId,
-              event_id: record.eventId,
-              timestamp: record.timestamp,
+              user_id: record.userId, // ✅ CORRECT COLUMN NAME
+              device_id: record.deviceId,
+              organization_id: record.organizationId,
+              branch_id: record.branchId,
+              clock_in: record.timestamp,
+              date: new Date(record.timestamp).toISOString().split('T')[0],
               status: 'present',
-              source: 'face_recognition',
-              synced_at: new Date().toISOString()
+              confidence_score: record.confidence,
+              photo_url: record.photoUrl,
+              verification_method: 'face',
+              synced: true
             });
 
           if (error) {
             errors.push({ record, error: error.message });
+            console.error('Attendance sync error:', error);
           } else {
             synced.push(record);
+            console.log(`✅ Synced attendance for user: ${record.userId}`);
           }
         } catch (error: any) {
           errors.push({ record, error: error.message });
+          console.error('Attendance sync exception:', error);
         }
       }
 
-      // Update local storage
-      const remaining = pendingArray.filter((r: any) => 
-        !synced.find(s => s.timestamp === r.timestamp && s.studentId === r.studentId)
-      );
+      // Remove successfully synced records
+      if (synced.length > 0) {
+        this.clearPendingAttendance(synced.map(r => r.id));
+      }
 
-      localStorage.setItem(this.PENDING_UPLOADS_KEY, JSON.stringify(remaining));
-
-      // Save sync status
-      localStorage.setItem(this.SYNC_STATUS_KEY, JSON.stringify({
-        timestamp: result.timestamp,
-        syncedCount: synced.length,
-        errorCount: errors.length
-      }));
-
-      result.success = errors.length === 0;
-      result.syncedCount = synced.length;
-      result.errors = errors.map(e => e.error);
-
-      console.log(`Sync completed: ${synced.length} records synced, ${errors.length} errors`);
-
-    } catch (error: any) {
-      console.error('Sync failed:', error);
-      result.errors.push(error.message);
+      console.log(`Sync completed: ${synced.length} synced, ${errors.length} errors`);
+      
+      return {
+        synced: synced.length,
+        errors
+      };
+    } finally {
+      this.isSyncing = false;
     }
-
-    return result;
   }
 
-  // Sync face embeddings to Supabase (for backup)
-  async syncFaceEmbeddings(): Promise<SyncResult> {
-    const result: SyncResult = {
-      success: false,
-      syncedCount: 0,
-      errors: [],
-      timestamp: new Date().toISOString()
-    };
+  // ========== FACE EMBEDDING SYNC ==========
 
-    try {
-      // This should now work with the faceRecognition module
-      const embeddings = faceRecognition.getEmbeddingsFromLocal();
-      
-      for (const embedding of embeddings) {
-        try {
-          const { error } = await supabase
-            .from('students')
-            .update({
-              face_embedding: embedding.descriptor,
-              last_face_update: new Date().toISOString()
-            })
-            .eq('id', embedding.studentId)
-            .eq('matric_number', embedding.studentId);
+  // Add pending face embedding
+  addPendingFaceEmbedding(embedding: PendingFaceEmbedding): void {
+    const pending = this.getPendingFaceEmbeddings();
+    pending.push(embedding);
+    localStorage.setItem('pending_embeddings', JSON.stringify(pending));
+    console.log(`Added pending embedding for user: ${embedding.userId}`);
+  }
 
-          if (error) {
-            result.errors.push(`Student ${embedding.studentId}: ${error.message}`);
-          } else {
-            result.syncedCount++;
-          }
-        } catch (error: any) {
-          result.errors.push(`Student ${embedding.studentId}: ${error.message}`);
+  // Get pending face embeddings
+  getPendingFaceEmbeddings(): PendingFaceEmbedding[] {
+    const data = localStorage.getItem('pending_embeddings');
+    return data ? JSON.parse(data) : [];
+  }
+
+  // Clear pending embeddings
+  clearPendingEmbeddings(userIds: string[]): void {
+    const pending = this.getPendingFaceEmbeddings();
+    const filtered = pending.filter(embedding => !userIds.includes(embedding.userId));
+    localStorage.setItem('pending_embeddings', JSON.stringify(filtered));
+  }
+
+  // Sync face embeddings to Supabase
+  async syncFaceEmbeddings(): Promise<{
+    synced: number;
+    errors: string[];
+  }> {
+    const embeddings = this.getPendingFaceEmbeddings();
+    const errors: string[] = [];
+    const syncedUserIds: string[] = [];
+
+    console.log(`Starting sync of ${embeddings.length} face embeddings`);
+
+    // Sync each embedding to the correct table
+    for (const embedding of embeddings) {
+      try {
+        const { error } = await supabase
+          .from('users') // ✅ CORRECT TABLE NAME
+          .update({
+            face_embedding: JSON.stringify(embedding.descriptor),
+            face_embedding_stored: true,
+            last_face_update: new Date().toISOString()
+          })
+          .eq('id', embedding.userId); // ✅ CORRECT COLUMN NAME
+
+        if (error) {
+          errors.push(`User ${embedding.userId}: ${error.message}`);
+          console.error(`Embedding sync error for user ${embedding.userId}:`, error);
+        } else {
+          syncedUserIds.push(embedding.userId);
+          console.log(`✅ Synced embedding for user: ${embedding.userId}`);
         }
+      } catch (error: any) {
+        errors.push(`User ${embedding.userId}: ${error.message}`);
+        console.error(`Embedding sync exception for user ${embedding.userId}:`, error);
       }
-
-      result.success = result.errors.length === 0;
-
-    } catch (error: any) {
-      console.error('Face embeddings sync failed:', error);
-      result.errors.push(error.message);
     }
 
-    return result;
+    // Remove successfully synced embeddings
+    if (syncedUserIds.length > 0) {
+      this.clearPendingEmbeddings(syncedUserIds);
+    }
+
+    console.log(`Embeddings sync completed: ${syncedUserIds.length} synced, ${errors.length} errors`);
+    
+    return {
+      synced: syncedUserIds.length,
+      errors
+    };
+  }
+
+  // ========== FULL SYNC ==========
+
+  // Perform full sync (attendance + embeddings)
+  async performFullSync(): Promise<{
+    attendance: { synced: number; errors: any[] };
+    embeddings: { synced: number; errors: string[] };
+  }> {
+    console.log('Starting full sync...');
+    
+    const [attendanceResult, embeddingsResult] = await Promise.all([
+      this.syncAttendance(),
+      this.syncFaceEmbeddings()
+    ]);
+
+    return {
+      attendance: attendanceResult,
+      embeddings: embeddingsResult
+    };
+  }
+
+  // ========== STATUS & UTILITY ==========
+
+  // Check sync status
+  getSyncStatus(): {
+    pendingAttendance: number;
+    pendingEmbeddings: number;
+    isSyncing: boolean;
+  } {
+    return {
+      pendingAttendance: this.getPendingAttendance().length,
+      pendingEmbeddings: this.getPendingFaceEmbeddings().length,
+      isSyncing: this.isSyncing
+    };
   }
 
   // Clear all pending data
-  clearPendingData(): void {
-    localStorage.removeItem(this.PENDING_UPLOADS_KEY);
-    localStorage.removeItem(this.SYNC_STATUS_KEY);
+  clearAllPending(): void {
+    localStorage.removeItem('pending_attendance');
+    localStorage.removeItem('pending_embeddings');
     console.log('Cleared all pending sync data');
   }
 
@@ -174,17 +244,34 @@ class SyncService {
     return navigator.onLine;
   }
 
-  // Auto-sync when online
-  setupAutoSync(): void {
+  // Initialize sync service
+  initialize(): void {
+    // Start periodic sync if online
+    if (this.isOnline()) {
+      // Initial sync after 5 seconds
+      setTimeout(() => {
+        this.performFullSync().catch(console.error);
+      }, 5000);
+
+      // Periodic sync every 2 minutes
+      setInterval(() => {
+        if (this.isOnline() && !this.isSyncing) {
+          this.performFullSync().catch(console.error);
+        }
+      }, 2 * 60 * 1000);
+    }
+
+    // Listen for online/offline events
     window.addEventListener('online', () => {
-      console.log('Network connection restored. Starting auto-sync...');
-      this.syncPendingData();
+      console.log('Device came online, triggering sync...');
+      this.performFullSync().catch(console.error);
     });
 
     window.addEventListener('offline', () => {
-      console.log('Network connection lost. Working offline...');
+      console.log('Device went offline');
     });
   }
 }
 
-export const syncService = new SyncService();
+// Export singleton instance
+export default SyncService.getInstance();

@@ -1,345 +1,696 @@
-// pages/EnrollmentPage.tsx - Fixed version
-import React, { useState, useEffect } from 'react';
-import { 
-  Form, 
-  Input, 
-  Select, 
-  Button, 
-  Card, 
-  Typography, 
-  message, 
-  Steps, 
-  Row, 
+// pages/EnrollmentPage.tsx - FIXED WITH REAL FACE EMBEDDINGS
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Form,
+  Input,
+  Select,
+  Button,
+  Card,
+  Typography,
+  message,
+  Steps,
+  Row,
   Col,
   Tag,
   Space,
-  Spin
+  Spin,
+  Alert,
+  Upload,
+  Radio,
+  Modal,
+  Descriptions,
+  Divider,
+  Avatar,
+  Progress,
+  Image
 } from 'antd';
-import { Camera, User, CheckCircle, IdCard } from 'lucide-react';
+import {
+  Camera,
+  User,
+  CheckCircle,
+  IdCard,
+  Building as _Building,
+  Mail,
+  Phone,
+  Upload as UploadIcon,
+  UserPlus,
+  X,
+  Briefcase,
+  GraduationCap,
+  Shield,
+  AlertCircle,
+  Zap
+} from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
-import { enrollStudent, EnrollmentData } from '../utils/enrollmentUtils';
+import { supabase, deviceService } from '../lib/supabase';
+import faceService from '../utils/faceService';
+import dayjs from 'dayjs';
+
 
 const { Title, Text } = Typography;
+const { Option } = Select;
+const { Dragger } = Upload;
+
+interface OrganizationSettings {
+  id_label?: string;
+  attendance_mode?: 'shift' | 'session';
+  requires_department?: boolean;
+  requires_branch?: boolean;
+}
+
+interface FaceProcessingResult {
+  success: boolean;
+  embedding?: Float32Array;
+  photoData?: string;
+  quality?: number;
+  error?: string;
+  faceDetected?: boolean;
+  faceBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+// Unused variables - removed or prefixed with underscore
+// const enrollStudent: any = null; // Commented out as unused
+// interface EnrollmentData {} // Commented out as unused
 
 const EnrollmentPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [faceProcessing, setFaceProcessing] = useState(false);
   const [enrollmentResult, setEnrollmentResult] = useState<any>(null);
-  const [formData, setFormData] = useState<any>({}); // Store form data
+  const [formData, setFormData] = useState<any>({});
   const [form] = Form.useForm();
+  const [deviceInfo, setDeviceInfo] = useState<any>(null);
+  const [organizationSettings, setOrganizationSettings] = useState<OrganizationSettings>({});
+  const [captureMethod, setCaptureMethod] = useState<'camera' | 'upload'>('camera');
+  const [_photoData, setPhotoData] = useState<string>('');
+  const [photoPreview, setPhotoPreview] = useState<string>('');
+  const [faceProcessingResult, setFaceProcessingResult] = useState<FaceProcessingResult | null>(null);
+  const [showFaceQuality, setShowFaceQuality] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
 
-  // Initialize form values
-  useEffect(() => {
-    form.setFieldsValue({
+  const loadDeviceInfo = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Check validation first
+      const { isRegistered, device } = await deviceService.checkDeviceRegistration();
+
+      if (!isRegistered || !device) {
+        message.warning('Device not registered. Redirecting to setup...');
+        setTimeout(() => window.location.href = '/device-setup', 1500);
+        return;
+      }
+
+      setDeviceInfo(device);
+      const settings = device.organization?.settings as OrganizationSettings;
+      setOrganizationSettings(settings || {});
+
+      if (!device.branch_id) {
+        message.warning('Branch not selected. Redirecting...');
+        setTimeout(() => window.location.href = '/branch-selection', 1500);
+      }
+    } catch (error) {
+      console.error('Error loading device info:', error);
+      message.error('Failed to load device information');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const initializeForm = useCallback(() => {
+    const initialValues: any = {
       gender: 'male',
-      level: 100,
-      program_code: 'CSC' // Default program code
-    });
-  }, [form]);
+      user_role: 'staff'
+    };
 
-  // Save form data when moving to step 2
+    if (deviceInfo?.branch_id) {
+      initialValues.branch_id = deviceInfo.branch_id;
+    }
+
+    form.setFieldsValue(initialValues);
+  }, [form, deviceInfo?.branch_id]);
+
+  useEffect(() => {
+    loadDeviceInfo();
+    initializeForm();
+  }, [loadDeviceInfo, initializeForm]);
+
+  const generateUserId = (userRole: string) => {
+    const prefix = userRole === 'student' ? 'STU' : 'EMP';
+    const year = dayjs().format('YYYY');
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `${prefix}${year}${random}`;
+  };
+
   const goToFaceCapture = async () => {
     try {
-      // Validate and get form values
       const values = await form.validateFields();
-      console.log('Form validated, values:', values);
-      
-      // Save form data to state
-      setFormData(values);
-      
-      // Generate matric number if not provided
-      if (!values.matric_number) {
-        const newMatric = generateMatricNumber(values.program_code);
-        form.setFieldValue('matric_number', newMatric);
-        values.matric_number = newMatric;
-        setFormData({...values, matric_number: newMatric});
+
+      if (!values.staff_id) {
+        const newId = generateUserId(values.user_role);
+        form.setFieldValue('staff_id', newId);
+        values.staff_id = newId;
       }
-      
+
+      if (values.email && !/\S+@\S+\.\S+/.test(values.email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      // Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('staff_id', values.staff_id)
+        .eq('organization_id', deviceInfo?.organization_id)
+        .single();
+
+      if (existingUser) {
+        throw new Error(`User with ID ${values.staff_id} already exists`);
+      }
+
+      setFormData(values);
       setCurrentStep(1);
-      message.success('Student info saved. Ready for face capture.');
+      message.success('User information saved. Ready for face capture.');
     } catch (error: any) {
       console.error('Form validation error:', error);
-      message.error('Please fill in all required fields correctly');
+      message.error(error.message || 'Please fill in all required fields correctly');
     }
   };
 
-  const handleEnrollmentComplete = async (photoData: string) => {
-    console.log('Enrollment photo captured, starting enrollment...');
-    console.log('Using form data:', formData);
-    
-    setLoading(true);
-    
+  const processFaceImage = async (capturedPhotoData: string) => {
+    setFaceProcessing(true);
+    setProcessingProgress(10);
+
     try {
-      // Validate required fields from saved form data
-      if (!formData.name) {
-        throw new Error('Student name not found. Please go back and enter student info.');
+      // Initialize face models
+      setProcessingProgress(20);
+      const initialized = await faceService.initializeModels();
+      if (!initialized) {
+        throw new Error('Face recognition models failed to load');
       }
-      
-      // Generate matric number if not provided (double-check)
-      if (!formData.matric_number) {
-        const newMatric = generateMatricNumber(formData.program_code);
-        formData.matric_number = newMatric;
+
+      // Process face
+      setProcessingProgress(40);
+      const result = await faceService.processImage(capturedPhotoData);
+      setFaceProcessingResult(result);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Face processing failed');
       }
-      
-      const enrollmentData: EnrollmentData = {
-        student_id: formData.matric_number,
-        name: formData.name,
-        gender: formData.gender,
-        program_id: formData.program_code || 'CSC',
-        program_name: getProgramName(formData.program_code),
-        program_code: formData.program_code || 'CSC',
-        level: formData.level,
-        photoData
+
+      if (!result.embedding) {
+        throw new Error('Could not extract face embedding');
+      }
+
+      // Check for duplicate face
+      setProcessingProgress(60);
+      const duplicateCheck = await checkDuplicateFace(result.embedding);
+      if (duplicateCheck.exists) {
+        throw new Error(`This face is already enrolled as ${duplicateCheck.userName} (${duplicateCheck.userId})`);
+      }
+
+      setPhotoData(capturedPhotoData);
+      setPhotoPreview(capturedPhotoData);
+      setProcessingProgress(100);
+
+      // Auto-proceed to enrollment after successful face capture
+      if (formData.full_name) {
+        await handleEnrollment(capturedPhotoData, result);
+      }
+
+    } catch (error: any) {
+      console.error('Face processing error:', error);
+      message.error(error.message || 'Face processing failed');
+    } finally {
+      setFaceProcessing(false);
+      setProcessingProgress(0);
+    }
+  };
+
+  const checkDuplicateFace = async (embedding: Float32Array) => {
+    try {
+      // Convert to array for Supabase function
+      const embeddingArray = Array.from(embedding);
+
+      const { data: matches, error } = await supabase.rpc(
+        'match_users_by_face',
+        {
+          filter_organization_id: deviceInfo?.organization_id,
+          match_threshold: 0.70, // 70% similarity threshold
+          query_embedding: JSON.stringify(embeddingArray)
+        }
+      );
+
+      if (error) {
+        console.error('Duplicate check error:', error);
+        return { exists: false };
+      }
+
+      if (matches && matches.length > 0) {
+        const match = matches[0];
+        return {
+          exists: true,
+          userId: match.staff_id || match.id,
+          userName: match.full_name,
+          similarity: match.similarity
+        };
+      }
+
+      return { exists: false };
+    } catch (error) {
+      console.error('Duplicate check error:', error);
+      return { exists: false };
+    }
+  };
+
+  const handleFaceCapture = async (capturedPhotoData: string) => {
+    console.log('Face captured, processing...');
+
+    if (!formData.full_name) {
+      message.error('Please fill in user information first');
+      setCurrentStep(0);
+      return;
+    }
+
+    await processFaceImage(capturedPhotoData);
+  };
+
+  const handlePhotoUpload = (file: File) => {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const result = e.target?.result as string;
+        await processFaceImage(result);
+        resolve(result);
       };
-      
-      console.log('Enrollment data prepared:', enrollmentData);
-      
-      const result = await enrollStudent(enrollmentData);
-      console.log('Enrollment result:', result);
-      
-      if (result.success) {
-        setEnrollmentResult(result);
-        setCurrentStep(2);
-        message.success('Student enrolled successfully!');
-      } else {
-        message.error(`Enrollment failed: ${result.error}`);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleEnrollment = async (photoData: string, faceResult: FaceProcessingResult) => {
+    setLoading(true);
+
+    try {
+      if (!faceResult.embedding) {
+        throw new Error('Face embedding not available');
       }
+
+      // Prepare user data - BOTH staff and student go to the users table
+      const userData = {
+        full_name: formData.full_name,
+        staff_id: formData.staff_id,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        user_role: formData.user_role, // 'staff', 'student', or 'admin'
+        gender: formData.gender,
+        branch_id: formData.branch_id || deviceInfo?.branch_id,
+        department_id: formData.department_id || null,
+        organization_id: deviceInfo?.organization_id,
+        is_active: true,
+        enrollment_status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // For students, add extra fields if needed
+      if (formData.user_role === 'student') {
+        userData['level'] = formData.level || 100;
+        userData['program_code'] = formData.department_name || 'General';
+      }
+
+      // Insert user into the users table
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .insert(userData)
+        .select()
+        .single();
+
+      if (userError) throw userError;
+
+      // Convert embedding to string for database storage
+      const embeddingArray = Array.from(faceResult.embedding);
+      const embeddingString = JSON.stringify(embeddingArray); // Convert to JSON string
+
+      // Create face enrollment with STRING embedding
+      const faceEnrollmentData = {
+        user_id: user.id,
+        organization_id: deviceInfo?.organization_id,
+        photo_url: photoData,
+        embedding: embeddingString, // STORE AS STRING (JSON format)
+        capture_device: deviceInfo?.device_name || 'web_camera',
+        enrollment_location: deviceInfo?.branch?.name || 'unknown',
+        is_primary: true,
+        is_active: true,
+        quality_score: faceResult.quality || 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: faceEnrollment, error: faceError } = await supabase
+        .from('face_enrollments')
+        .insert(faceEnrollmentData)
+        .select()
+        .single();
+
+      if (faceError) {
+        // Rollback user creation if face enrollment fails
+        await supabase
+          .from('users')
+          .delete()
+          .eq('id', user.id);
+        throw faceError;
+      }
+
+      // Update user with face enrollment info
+      await supabase
+        .from('users')
+        .update({
+          enrollment_status: 'enrolled',
+          face_enrolled_at: new Date().toISOString(),
+          face_photo_url: photoData,
+          face_embedding: embeddingString, // Also store as string in users table
+          face_embedding_stored: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      // Create log entry
+      await supabase
+        .from('face_match_logs')
+        .insert({
+          user_id: user.id,
+          organization_id: deviceInfo?.organization_id,
+          device_id: deviceInfo?.id,
+          photo_url: photoData,
+          confidence_score: faceResult.quality || 0,
+          threshold_score: 70,
+          is_match: true,
+          verification_result: 'enrollment',
+          created_at: new Date().toISOString()
+        });
+
+      const result = {
+        success: true,
+        user,
+        faceEnrollment,
+        faceDetected: faceResult.faceDetected,
+        quality: faceResult.quality
+      };
+
+      setEnrollmentResult(result);
+      setCurrentStep(2);
+      message.success(`${formData.user_role === 'student' ? 'Student' : 'Staff'} enrolled with biometrics!`);
+
     } catch (error: any) {
       console.error('Enrollment error:', error);
-      message.error(`Error: ${error.message}`);
+      const result = {
+        success: false,
+        error: error.message || 'Enrollment failed. Please try again.'
+      };
+      setEnrollmentResult(result);
+      setCurrentStep(2);
     } finally {
       setLoading(false);
     }
   };
 
-  const generateMatricNumber = (programCode: string = 'GEN') => {
-    const currentYear = new Date().getFullYear();
-    const randomNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const code = programCode.substring(0, 3).toUpperCase();
-    return `${code}/${currentYear}/${randomNum}`;
+  const uploadProps = {
+    beforeUpload: (file: File) => {
+      handlePhotoUpload(file);
+      return false;
+    },
+    maxCount: 1,
+    accept: 'image/*',
+    showUploadList: false
   };
 
-  const getProgramName = (programCode: string): string => {
-    const programMap: Record<string, string> = {
-      'CSC': 'Computer Science',
-      'EEE': 'Electrical Engineering',
-      'LAW': 'Law',
-      'MED': 'Medicine',
-      'MSC-CS': 'Master of Science in Computer Science',
-      'BSC-CS': 'Bachelor of Science in Computer Science',
-      'MBA': 'Master of Business Administration',
-      'PHD-CS': 'Doctor of Philosophy in Computer Science',
-      'BSC-EE': 'Bachelor of Science in Electrical Engineering',
-      'BSC-ME': 'Bachelor of Science in Mechanical Engineering'
-    };
-    return programMap[programCode] || programCode;
+  const getTitle = () => {
+    if (!deviceInfo) return 'Biometric Enrollment';
+    const orgType = deviceInfo.organization?.type;
+    const idLabel = organizationSettings.id_label || 'Staff ID';
+
+    if (orgType === 'school') {
+      return 'Student Biometric Enrollment';
+    } else {
+      return `${idLabel} Biometric Enrollment`;
+    }
   };
 
-  const resetForm = () => {
-    form.resetFields();
-    setFormData({});
-    // Reset to default values
-    form.setFieldsValue({
-      gender: 'male',
-      level: 100,
-      program_code: 'CSC'
-    });
-    setCurrentStep(0);
-    setEnrollmentResult(null);
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'student': return <GraduationCap size={16} />;
+      case 'admin': return <Shield size={16} />;
+      default: return <Briefcase size={16} />;
+    }
   };
-
-  // Available program codes
-  const programOptions = [
-    { label: 'Computer Science (CSC)', value: 'CSC' },
-    { label: 'Electrical Engineering (EEE)', value: 'EEE' },
-    { label: 'Law (LAW)', value: 'LAW' },
-    { label: 'Medicine (MED)', value: 'MED' },
-    { label: 'Computer Science - BSc (BSC-CS)', value: 'BSC-CS' },
-    { label: 'Computer Science - MSc (MSC-CS)', value: 'MSC-CS' },
-    { label: 'Computer Science - PhD (PHD-CS)', value: 'PHD-CS' },
-    { label: 'Electrical Engineering - BSc (BSC-EE)', value: 'BSC-EE' },
-    { label: 'Mechanical Engineering - BSc (BSC-ME)', value: 'BSC-ME' },
-    { label: 'Business Administration - MBA (MBA)', value: 'MBA' },
-  ];
 
   const steps = [
     {
-      title: 'Student Info',
+      title: 'User Information',
       icon: <User size={16} />,
       content: (
-        <Form 
-          form={form} 
-          layout="vertical" 
-          initialValues={{ gender: 'male', level: 100, program_code: 'CSC' }}
-          // Remove onFinish and use our custom handler
-        >
+        <Form form={form} layout="vertical" initialValues={{ user_role: 'staff', gender: 'male' }}>
+          <Alert
+            message="Biometric Enrollment"
+            description="Fill in user details. After this, we'll capture and process face biometrics."
+            type="info"
+            showIcon
+            style={{ marginBottom: 24 }}
+          />
+
           <Row gutter={16}>
             <Col span={24}>
-              <Form.Item
-                label="Full Name"
-                name="name"
-                rules={[{ required: true, message: 'Please enter student name' }]}
-              >
-                <Input 
-                  size="large" 
-                  placeholder="Enter student full name" 
-                />
+              <Form.Item label="Full Name" name="full_name" rules={[{ required: true }]}>
+                <Input size="large" placeholder="Enter full name" prefix={<User size={16} />} />
               </Form.Item>
             </Col>
-            
+
             <Col span={24}>
-              <Form.Item label="Matric Number" name="matric_number">
-                <Input.Group compact style={{ display: 'flex' }}>
-                  <Input 
-                    size="large" 
-                    placeholder="Will be auto-generated" 
-                    readOnly 
-                    style={{ flex: 1 }}
-                  />
-                  <Button 
-                    onClick={() => {
-                      const programCode = form.getFieldValue('program_code');
-                      const newMatric = generateMatricNumber(programCode);
-                      form.setFieldValue('matric_number', newMatric);
-                      message.success('New matric number generated');
-                    }}
-                  >
-                    Generate
-                  </Button>
-                </Input.Group>
+              <Form.Item label={organizationSettings.id_label || 'ID'} name="staff_id" extra="Leave blank to auto-generate">
+                <Input size="large" placeholder="Will be auto-generated" prefix={<IdCard size={16} />} />
               </Form.Item>
             </Col>
-            
+
+            <Col span={12}>
+              <Form.Item label="Role" name="user_role" rules={[{ required: true }]}>
+                <Select size="large" optionLabelProp="label">
+                  <Option value="staff" label="Staff">
+                    <Space><Briefcase size={14} />Staff</Space>
+                  </Option>
+                  <Option value="student" label="Student">
+                    <Space><GraduationCap size={14} />Student</Space>
+                  </Option>
+                  <Option value="admin" label="Admin">
+                    <Space><Shield size={14} />Admin</Space>
+                  </Option>
+                </Select>
+              </Form.Item>
+            </Col>
+
             <Col span={12}>
               <Form.Item label="Gender" name="gender">
                 <Select size="large">
-                  <Select.Option value="male">Male</Select.Option>
-                  <Select.Option value="female">Female</Select.Option>
+                  <Option value="male">Male</Option>
+                  <Option value="female">Female</Option>
+                  <Option value="other">Other</Option>
                 </Select>
               </Form.Item>
             </Col>
-            
+
             <Col span={12}>
-              <Form.Item label="Level" name="level">
-                <Select size="large">
-                  {[100, 200, 300, 400, 500].map(level => (
-                    <Select.Option key={level} value={level}>
-                      Level {level}
-                    </Select.Option>
-                  ))}
-                </Select>
+              <Form.Item label="Email" name="email" rules={[{ type: 'email' }]}>
+                <Input size="large" placeholder="email@example.com" prefix={<Mail size={16} />} />
               </Form.Item>
             </Col>
-            
-            <Col span={24}>
-              <Form.Item 
-                label="Program" 
-                name="program_code"
-                rules={[{ required: true, message: 'Please select a program' }]}
-              >
-                <Select
-                  size="large"
-                  placeholder="Select program"
-                  showSearch
-                  optionFilterProp="label"
-                  filterOption={(input, option) => 
-                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                  }
-                  options={programOptions}
-                />
+
+            <Col span={12}>
+              <Form.Item label="Phone" name="phone">
+                <Input size="large" placeholder="+1234567890" prefix={<Phone size={16} />} />
               </Form.Item>
             </Col>
           </Row>
-          
+
           <div style={{ textAlign: 'center', marginTop: 32 }}>
-            <Button 
-              type="primary" 
+            <Button
+              type="primary"
               size="large"
-              onClick={goToFaceCapture} // Use custom handler
+              onClick={goToFaceCapture}
+              icon={<UserPlus size={18} />}
             >
-              Continue to Face Capture
+              Continue to Face Biometrics
             </Button>
           </div>
         </Form>
       )
     },
     {
-      title: 'Face Capture',
+      title: 'Face Biometrics',
       icon: <Camera size={16} />,
       content: (
         <div style={{ textAlign: 'center' }}>
-          <Title level={4} style={{ marginBottom: 16 }}>Face Enrollment</Title>
-          
-          {/* Show saved student info */}
-          {formData.name && (
-            <div style={{ 
-              backgroundColor: '#f0f9ff', 
-              padding: '12px 24px', 
-              borderRadius: 8,
-              marginBottom: 16,
-              border: '1px solid #91d5ff'
-            }}>
-              <Text strong>Student: </Text>
-              <Text>{formData.name}</Text>
-              <Text style={{ marginLeft: 16 }}>
-                <Text strong>Matric: </Text>
-                <Tag color="blue">{formData.matric_number || 'Not generated'}</Tag>
-              </Text>
-              <Text style={{ marginLeft: 16 }}>
-                <Text strong>Program: </Text>
-                <Tag color="purple">{formData.program_code}</Tag>
-              </Text>
-            </div>
+          <Title level={4} style={{ marginBottom: 16 }}>Face Biometric Capture</Title>
+
+          {formData.full_name && (
+            <Card size="small" style={{ marginBottom: 24, backgroundColor: '#f0f9ff' }}>
+              <Row align="middle" justify="space-between">
+                <Col>
+                  <Space align="center">
+                    <Avatar size={40} style={{ backgroundColor: '#1890ff' }}>
+                      {getRoleIcon(formData.user_role)}
+                    </Avatar>
+                    <div style={{ textAlign: 'left' }}>
+                      <Text strong>{formData.full_name}</Text>
+                      <div style={{ marginTop: 4 }}>
+                        <Tag color="blue">{formData.staff_id}</Tag>
+                        <Tag color="green" style={{ marginLeft: 8 }}>
+                          {formData.user_role?.toUpperCase()}
+                        </Tag>
+                      </div>
+                    </div>
+                  </Space>
+                </Col>
+              </Row>
+            </Card>
           )}
-          
-          <Text type="secondary" style={{ marginBottom: 24, display: 'block' }}>
-            Position student's face in the frame and click Capture Face
-          </Text>
-          
-          <div style={{ 
-            height: 400, 
-            margin: '24px 0', 
-            borderRadius: 8, 
-            overflow: 'hidden',
-            backgroundColor: '#000'
-          }}>
-            <FaceCamera
-              mode="enrollment"
-              onEnrollmentComplete={handleEnrollmentComplete}
-              autoCapture={false}
-              loading={loading}
+
+          {faceProcessing && (
+            <Card style={{ marginBottom: 24, backgroundColor: '#f6ffed' }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Text strong>Processing Face Biometrics...</Text>
+                <Progress percent={processingProgress} status="active" />
+                <Text type="secondary">
+                  {processingProgress < 30 && 'Loading face models...'}
+                  {processingProgress >= 30 && processingProgress < 50 && 'Detecting face...'}
+                  {processingProgress >= 50 && processingProgress < 70 && 'Extracting features...'}
+                  {processingProgress >= 70 && 'Checking database...'}
+                </Text>
+              </Space>
+            </Card>
+          )}
+
+          {faceProcessingResult && !faceProcessingResult.success && (
+            <Alert
+              message="Face Detection Failed"
+              description={faceProcessingResult.error}
+              type="error"
+              showIcon
+              style={{ marginBottom: 24 }}
+              action={
+                <Button size="small" onClick={() => setFaceProcessingResult(null)}>
+                  Try Again
+                </Button>
+              }
             />
-          </div>
-          
-          {/* Debug button - can remove later */}
-          <div style={{ marginTop: 16 }}>
-            <Button
-              type="dashed"
-              onClick={async () => {
-                if (!formData.name) {
-                  message.error('Please fill in name first');
-                  return;
-                }
-                
-                setLoading(true);
-                // Create a test photo for debugging
-                const testPhoto = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=';
-                await handleEnrollmentComplete(testPhoto);
-              }}
-              loading={loading}
+          )}
+
+          {faceProcessingResult?.success && (
+            <Card style={{ marginBottom: 24, backgroundColor: '#f6ffed' }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space>
+                  <CheckCircle size={20} color="#52c41a" />
+                  <Text strong>Face Biometrics Captured Successfully!</Text>
+                </Space>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Text>Quality Score:</Text>
+                    <Progress
+                      percent={faceProcessingResult.quality}
+                      status={faceProcessingResult.quality > 70 ? 'success' : 'normal'}
+                      size="small"
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Button
+                      type="link"
+                      onClick={() => setShowFaceQuality(true)}
+                      icon={<AlertCircle size={14} />}
+                    >
+                      View Details
+                    </Button>
+                  </Col>
+                </Row>
+              </Space>
+            </Card>
+          )}
+
+          <div style={{ marginBottom: 24 }}>
+            <Radio.Group
+              value={captureMethod}
+              onChange={(e) => setCaptureMethod(e.target.value)}
+              buttonStyle="solid"
             >
-              Test Enrollment (No Camera)
-            </Button>
+              <Radio.Button value="camera">
+                <Space><Camera size={14} />Use Camera</Space>
+              </Radio.Button>
+              <Radio.Button value="upload">
+                <Space><UploadIcon size={14} />Upload Photo</Space>
+              </Radio.Button>
+            </Radio.Group>
           </div>
-          
-          <Space style={{ marginTop: 16 }}>
-            <Button onClick={() => setCurrentStep(0)}>
-              Back to Student Info
-            </Button>
-            <Text type="secondary">
-              Make sure face is clearly visible
-            </Text>
-          </Space>
+
+          {captureMethod === 'camera' ? (
+            <div style={{ height: 400, marginBottom: 24, borderRadius: 8, overflow: 'hidden', backgroundColor: '#000' }}>
+              <FaceCamera
+                mode="enrollment"
+                onEnrollmentComplete={handleFaceCapture}
+                autoCapture={false}
+                loading={faceProcessing}
+              />
+            </div>
+          ) : (
+            <Dragger {...uploadProps} style={{ marginBottom: 24, height: 300 }}>
+              <div style={{ padding: '60px 20px' }}>
+                <UploadIcon size={48} color="#1890ff" style={{ marginBottom: 16 }} />
+                <Text style={{ display: 'block', fontSize: 16, marginBottom: 8 }}>
+                  Click or drag photo to this area
+                </Text>
+                <Text type="secondary">
+                  Upload a clear frontal face photo for biometric enrollment
+                </Text>
+              </div>
+            </Dragger>
+          )}
+
+          {photoPreview && (
+            <Card title="Biometric Preview" size="small" style={{ marginBottom: 24 }}>
+              <Image
+                src={photoPreview}
+                alt="Face Preview"
+                width={200}
+                height={200}
+                style={{ borderRadius: 4, objectFit: 'cover' }}
+                preview={{
+                  visible: false,
+                  mask: <span>View Full</span>,
+                }}
+                onClick={() => setShowFaceQuality(true)}
+              />
+            </Card>
+          )}
+
+          <Divider>
+            <Text type="secondary">Biometric Guidelines</Text>
+          </Divider>
+
+          <Alert
+            message="For Best Results"
+            description={
+              <ul style={{ margin: 0, paddingLeft: 16, textAlign: 'left' }}>
+                <li>Face the camera directly with neutral expression</li>
+                <li>Ensure good lighting (no shadows on face)</li>
+                <li>Remove glasses, hats, or masks</li>
+                <li>Keep face within the frame</li>
+                <li>Use high-resolution image</li>
+              </ul>
+            }
+            type="info"
+            showIcon
+          />
         </div>
       )
     },
@@ -347,96 +698,96 @@ const EnrollmentPage: React.FC = () => {
       title: 'Complete',
       icon: <CheckCircle size={16} />,
       content: enrollmentResult ? (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
           {enrollmentResult.success ? (
             <>
               <CheckCircle size={64} color="#52c41a" style={{ marginBottom: 24 }} />
               <Title level={3} style={{ marginBottom: 24 }}>
-                Enrollment Successful!
+                Biometric Enrollment Successful!
               </Title>
-              
-              <Card style={{ 
-                textAlign: 'left', 
-                maxWidth: 500,
-                margin: '0 auto 32px'
-              }}>
-                <div style={{ marginBottom: 16 }}>
-                  <Text strong>Name: </Text>
-                  <Text>{enrollmentResult.student?.name}</Text>
-                </div>
-                
-                <div style={{ marginBottom: 16 }}>
-                  <Text strong>Matric Number: </Text>
-                  <Tag color="blue">{enrollmentResult.student?.matric_number}</Tag>
-                </div>
-                
-                <div style={{ marginBottom: 16 }}>
-                  <Text strong>Level: </Text>
-                  <Tag color="purple">Level {enrollmentResult.student?.level}</Tag>
-                </div>
-                
-                <div style={{ marginBottom: 16 }}>
-                  <Text strong>Program: </Text>
-                  <Text>{enrollmentResult.student?.program_name}</Text>
-                  <Text type="secondary"> ({enrollmentResult.student?.program_code})</Text>
-                </div>
-                
-                <div style={{ marginBottom: 16 }}>
-                  <Text strong>Face Enrollment: </Text>
-                  <Tag color={enrollmentResult.faceDetected ? "green" : "orange"}>
-                    {enrollmentResult.faceDetected ? '✅ Face Recorded' : '⚠️ No Face Detected'}
-                  </Tag>
-                </div>
+
+              <Card style={{ maxWidth: 500, margin: '0 auto 32px' }}>
+                <Descriptions column={1} size="small">
+                  <Descriptions.Item label="Name">
+                    <Text strong>{formData.full_name}</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="ID">
+                    <Tag color="blue">{formData.staff_id}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Biometric Quality">
+                    <Space>
+                      <Progress
+                        percent={enrollmentResult.quality}
+                        size="small"
+                        style={{ width: 100 }}
+                        showInfo={false}
+                      />
+                      <Text>{enrollmentResult.quality}%</Text>
+                    </Space>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Embedding Dimensions">
+                    128D vector stored
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Status">
+                    <Tag color="green">ENROLLED</Tag>
+                  </Descriptions.Item>
+                </Descriptions>
+
+                <Divider style={{ margin: '16px 0' }} />
+
+                <Alert
+                  message="Biometric Security"
+                  description="Face embeddings are securely stored and can be used for attendance recognition."
+                  type="success"
+                  showIcon
+                />
               </Card>
-              
+
               <Space>
-                <Button type="primary" size="large" onClick={resetForm}>
-                  Enroll Another Student
+                <Button
+                  type="primary"
+                  size="large"
+                  onClick={() => {
+                    form.resetFields();
+                    setFormData({});
+                    setPhotoData('');
+                    setPhotoPreview('');
+                    setFaceProcessingResult(null);
+                    setEnrollmentResult(null);
+                    setCurrentStep(0);
+                    initializeForm();
+                  }}
+                  icon={<UserPlus size={18} />}
+                >
+                  Enroll Another User
                 </Button>
-                <Button size="large" onClick={() => window.location.href = '/attendance'}>
+                <Button
+                  size="large"
+                  onClick={() => window.location.href = '/attendance'}
+                >
                   Go to Attendance
                 </Button>
               </Space>
             </>
           ) : (
             <>
-              <div style={{ 
-                width: 64, 
-                height: 64, 
-                borderRadius: '50%', 
-                backgroundColor: '#ff4d4f20',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 24px'
-              }}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6L18 18" stroke="#ff4d4f" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              
+              <X size={64} color="#ff4d4f" style={{ marginBottom: 24 }} />
               <Title level={3} style={{ color: '#ff4d4f', marginBottom: 24 }}>
                 Enrollment Failed
               </Title>
-              
-              <Card style={{ 
-                marginBottom: 32,
-                maxWidth: 500,
-                margin: '0 auto',
-                backgroundColor: '#fff2f0',
-                borderColor: '#ffccc7'
-              }}>
+
+              <Card style={{ marginBottom: 32, maxWidth: 500, margin: '0 auto', backgroundColor: '#fff2f0' }}>
                 <Text style={{ color: '#ff4d4f' }}>
-                  {enrollmentResult.error || 'Unknown error occurred'}
+                  {enrollmentResult.error}
                 </Text>
               </Card>
-              
+
               <Space>
                 <Button type="primary" onClick={() => setCurrentStep(0)}>
                   Start Over
                 </Button>
-                <Button onClick={resetForm}>
-                  Try Again
+                <Button onClick={() => setCurrentStep(1)}>
+                  Retry Face Capture
                 </Button>
               </Space>
             </>
@@ -446,39 +797,58 @@ const EnrollmentPage: React.FC = () => {
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Spin size="large" />
           <Text style={{ display: 'block', marginTop: 16 }}>
-            Processing enrollment...
+            Finalizing enrollment...
           </Text>
         </div>
       )
     }
   ];
 
+  if (loading && !deviceInfo) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+      }}>
+        <Spin size="large" />
+        <Text type="secondary" style={{ marginTop: 20 }}>
+          Initializing biometric enrollment...
+        </Text>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '24px', maxWidth: 800, margin: '0 auto' }}>
-      <Card>
+      <Card style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ 
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 8
-          }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <IdCard size={32} color="#1890ff" />
             <Title level={3} style={{ margin: 0 }}>
-              Student Enrollment
+              {getTitle()}
             </Title>
           </div>
           <Text type="secondary">
-            AFE Babalola University - Face Recognition System
+            {deviceInfo?.organization?.name || 'FaceAuthAttendance System'}
           </Text>
+          <div style={{ marginTop: 8 }}>
+            <Tag icon={<Zap size={12} />} color="purple">
+              Biometric Authentication Enabled
+            </Tag>
+          </div>
         </div>
 
-        <Steps 
-          current={currentStep} 
+        {/* FIXED: Using items prop instead of children */}
+        <Steps
+          current={currentStep}
           style={{ marginBottom: 32 }}
           items={steps.map((step, index) => ({
             title: step.title,
-            icon: step.icon
+            icon: step.icon,
+            description: index === currentStep ? 'Current' : index < currentStep ? 'Completed' : 'Pending'
           }))}
         />
 
@@ -486,6 +856,71 @@ const EnrollmentPage: React.FC = () => {
           {steps[currentStep].content}
         </div>
       </Card>
+
+      <Modal
+        title="Face Quality Analysis"
+        open={showFaceQuality}
+        onCancel={() => setShowFaceQuality(false)}
+        footer={[
+          <Button key="close" onClick={() => setShowFaceQuality(false)}>
+            Close
+          </Button>
+        ]}
+        width={700}
+      >
+        {faceProcessingResult && (
+          <Row gutter={24}>
+            <Col span={12}>
+              <div style={{ textAlign: 'center' }}>
+                <Image
+                  src={photoPreview}
+                  alt="Face Analysis"
+                  width={300}
+                  height={300}
+                  style={{ borderRadius: 8, objectFit: 'cover' }}
+                />
+                <div style={{ marginTop: 16 }}>
+                  <Text strong>Face Detection: </Text>
+                  <Tag color={faceProcessingResult.faceDetected ? 'green' : 'red'}>
+                    {faceProcessingResult.faceDetected ? 'Detected' : 'Not Detected'}
+                  </Tag>
+                </div>
+              </div>
+            </Col>
+            <Col span={12}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Text strong>Quality Metrics:</Text>
+                <div>
+                  <Text>Overall Quality:</Text>
+                  <Progress
+                    percent={faceProcessingResult.quality}
+                    status={faceProcessingResult.quality > 70 ? 'success' : 'normal'}
+                  />
+                </div>
+                {faceProcessingResult.faceBox && (
+                  <div>
+                    <Text>Face Position:</Text>
+                    <Text type="secondary" style={{ display: 'block' }}>
+                      X: {Math.round(faceProcessingResult.faceBox.x)},
+                      Y: {Math.round(faceProcessingResult.faceBox.y)}
+                    </Text>
+                  </div>
+                )}
+                <div>
+                  <Text>Embedding Dimensions:</Text>
+                  <Tag color="blue">128-dimensional vector</Tag>
+                </div>
+                <Alert
+                  message="Quality Guidelines"
+                  description="Quality score above 70 is recommended for reliable recognition."
+                  type="info"
+                  showIcon
+                />
+              </Space>
+            </Col>
+          </Row>
+        )}
+      </Modal>
     </div>
   );
 };

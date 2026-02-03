@@ -1,32 +1,46 @@
-// utils/enrollmentUtils.ts - COMPLETE FIXED VERSION
+// utils/enrollmentUtils.ts - Fixed for Multi-tenant WITHOUT gender/level fields
 import { supabase } from '../lib/supabase';
 import faceRecognition from './faceRecognition';
 
 export interface EnrollmentData {
-  student_id: string;
-  name: string;
-  gender: string;
-  program_id?: string;
-  program_name: string;
-  program_code: string;
-  level: number;
+  staff_id: string; // Changed from student_id to staff_id
+  full_name: string; // Changed from name to full_name
+  email?: string;
+  phone?: string;
+  user_role?: string; // 'staff', 'student', 'admin'
+  branch_id?: string;
+  department_id?: string;
+  organization_id?: string;
   photoData: string;
+  // Additional metadata for students (store in separate field if needed)
+  student_data?: {
+    level?: number;
+    program_name?: string;
+    gender?: string;
+  };
 }
 
 export interface EnrollmentResult {
   success: boolean;
-  student?: {
+  user?: {
     id: string;
-    student_id: string;
-    name: string;
-    matric_number: string;
-    gender: string;
-    program_name: string;
-    program_code: string;
-    level: number;
+    staff_id: string;
+    full_name: string;
+    email?: string | null;
+    phone?: string | null;
+    user_role?: string | null;
     enrollment_status: string;
-    enrollment_date: string;
+    face_enrolled_at: string;
+    organization_id?: string;
+    branch_id?: string;
+    department_id?: string;
     has_face_embedding?: boolean;
+    // Student specific data (if applicable)
+    student_data?: {
+      level?: number;
+      program_name?: string;
+      gender?: string;
+    };
   };
   error?: string;
   faceDetected?: boolean;
@@ -34,11 +48,13 @@ export interface EnrollmentResult {
   message?: string;
 }
 
-export const enrollStudent = async (enrollmentData: EnrollmentData): Promise<EnrollmentResult> => {
+export const enrollUser = async (enrollmentData: EnrollmentData): Promise<EnrollmentResult> => {
   try {
-    console.log('=== STARTING ENROLLMENT ===');
-    console.log('Student:', enrollmentData.name);
-    console.log('Student ID:', enrollmentData.student_id);
+    console.log('=== STARTING MULTI-TENANT ENROLLMENT ===');
+    console.log('User:', enrollmentData.full_name);
+    console.log('Staff ID:', enrollmentData.staff_id);
+    console.log('Organization ID:', enrollmentData.organization_id);
+    console.log('User Role:', enrollmentData.user_role || 'staff');
     
     // Ensure models are loaded
     try {
@@ -52,41 +68,39 @@ export const enrollStudent = async (enrollmentData: EnrollmentData): Promise<Enr
       };
     }
 
-    // Check if student already exists
-    console.log('Checking for existing student...');
-    const { data: existingStudent } = await supabase
-      .from('students')
+    // Check if user already exists
+    console.log('Checking for existing user...');
+    const { data: existingUser } = await supabase
+      .from('users')
       .select('*')
-      .or(`matric_number.eq.${enrollmentData.student_id},student_id.eq.${enrollmentData.student_id}`)
+      .eq('staff_id', enrollmentData.staff_id)
+      .eq('organization_id', enrollmentData.organization_id)
       .maybeSingle();
 
-    if (existingStudent) {
-      console.log('Student already exists:', existingStudent.name);
+    if (existingUser) {
+      console.log('User already exists:', existingUser.full_name);
       return {
         success: false,
-        error: 'Student with this matric number or student ID already exists.'
+        error: 'User with this ID already exists in this organization.'
       };
     }
 
-    // IMPORTANT: Extract face embeddings BEFORE inserting to database
+    // Extract face embeddings
     console.log('Extracting face embeddings from photo...');
     let faceEmbedding: number[] | null = null;
     let embeddingDimensions = 0;
     let faceDetected = false;
     
     try {
-      // Clean the photo data (remove data URL prefix if present)
+      // Clean the photo data
       let cleanPhotoData = enrollmentData.photoData;
       if (cleanPhotoData.startsWith('data:image')) {
-        // Keep it as data URL for face-api.js
         console.log('Photo is already a data URL');
       } else {
-        // Add data URL prefix
         cleanPhotoData = `data:image/jpeg;base64,${cleanPhotoData}`;
         console.log('Added data URL prefix to photo');
       }
       
-      // Extract face descriptor
       const descriptor = await faceRecognition.extractFaceDescriptor(cleanPhotoData);
       
       if (descriptor) {
@@ -94,96 +108,131 @@ export const enrollStudent = async (enrollmentData: EnrollmentData): Promise<Enr
         embeddingDimensions = faceEmbedding.length;
         faceDetected = true;
         console.log(`✅ Face embeddings generated: ${embeddingDimensions} dimensions`);
-        console.log('Sample of embedding (first 5 values):', faceEmbedding.slice(0, 5));
       } else {
         console.log('❌ No face detected in enrollment photo');
         faceDetected = false;
       }
     } catch (embeddingError: any) {
       console.error('❌ Error generating embeddings:', embeddingError);
-      console.error('Error stack:', embeddingError.stack);
       faceDetected = false;
     }
 
-    // Insert student into database WITH embeddings
-    console.log('Inserting student into database...');
-    const { data: student, error: insertError } = await supabase
-      .from('students')
-      .insert([
-        {
-          student_id: enrollmentData.student_id,
-          matric_number: enrollmentData.student_id,
-          name: enrollmentData.name,
-          gender: enrollmentData.gender,
-          program: enrollmentData.program_code,
-          program_name: enrollmentData.program_name,
-          level: enrollmentData.level,
-          photo_url: enrollmentData.photoData,
-          face_embedding: faceEmbedding, // This is the key field!
-          face_embedding_vector: faceEmbedding,
-          face_detected: faceDetected,
-          face_enrolled_at: new Date().toISOString(),
-          enrollment_status: 'enrolled',
-          enrollment_date: new Date().toISOString().split('T')[0],
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ])
+    // Create user record with actual database schema
+    console.log('Creating user in users table...');
+    const userData: any = {
+      full_name: enrollmentData.full_name,
+      staff_id: enrollmentData.staff_id,
+      email: enrollmentData.email || null,
+      phone: enrollmentData.phone || null,
+      user_role: enrollmentData.user_role || 'staff',
+      branch_id: enrollmentData.branch_id || null,
+      department_id: enrollmentData.department_id || null,
+      organization_id: enrollmentData.organization_id,
+      is_active: true,
+      enrollment_status: 'enrolled',
+      face_photo_url: enrollmentData.photoData,
+      face_embedding: faceEmbedding ? JSON.stringify(faceEmbedding) : null,
+      face_embedding_stored: faceDetected,
+      face_enrolled_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // For student role, you might want to store additional metadata
+    // Since there's no gender/level fields in schema, we could:
+    // 1. Store as JSON in a custom field (but no custom field exists)
+    // 2. Create a separate students table (not in current schema)
+    // 3. Use department_id for program and add metadata column later
+    
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .insert([userData])
       .select()
       .single();
 
-    if (insertError) {
-      console.error('❌ Database insert error:', insertError);
+    if (userError) {
+      console.error('❌ Database insert error:', userError);
       
-      if (insertError.code === '23505') {
+      if (userError.code === '23505') {
         return {
           success: false,
-          error: 'Student ID or matric number already exists. Please generate a new one.'
+          error: 'Staff/Student ID already exists. Please generate a new one.'
         };
       }
       
       return {
         success: false,
-        error: `Database error: ${insertError.message}`
+        error: `Database error: ${userError.message}`
       };
     }
 
-    if (!student) {
-      console.error('❌ Student record was not created');
+    if (!user) {
+      console.error('❌ User record was not created');
       return {
         success: false,
-        error: 'Student record was not created.'
+        error: 'User record was not created.'
       };
+    }
+
+    // Create face enrollment record
+    if (faceDetected && faceEmbedding) {
+      console.log('Creating face enrollment record...');
+      const { error: faceEnrollmentError } = await supabase
+        .from('face_enrollments')
+        .insert([
+          {
+            user_id: user.id,
+            organization_id: enrollmentData.organization_id,
+            photo_url: enrollmentData.photoData,
+            embedding: JSON.stringify(faceEmbedding),
+            capture_device: 'web_camera',
+            enrollment_location: 'enrollment_station',
+            is_primary: true,
+            is_active: true,
+            quality_score: 95,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ]);
+
+      if (faceEnrollmentError) {
+        console.error('❌ Face enrollment error:', faceEnrollmentError);
+      }
     }
 
     // Save to localStorage for offline use
     if (faceDetected && faceEmbedding) {
       console.log('Saving embeddings to localStorage...');
-      faceRecognition.saveEmbeddingToLocal(enrollmentData.student_id, new Float32Array(faceEmbedding));
+      faceRecognition.saveEmbeddingToLocal(enrollmentData.staff_id, new Float32Array(faceEmbedding));
     }
 
-    console.log('✅ Student enrolled successfully:', student.name);
+    console.log('✅ User enrolled successfully:', user.full_name);
     console.log('=== ENROLLMENT COMPLETE ===');
+
+    // Prepare result with proper typing
+    const resultUser = {
+      id: user.id,
+      staff_id: user.staff_id,
+      full_name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      user_role: user.user_role,
+      enrollment_status: user.enrollment_status,
+      face_enrolled_at: user.face_enrolled_at,
+      organization_id: user.organization_id,
+      branch_id: user.branch_id,
+      department_id: user.department_id,
+      has_face_embedding: faceDetected,
+      // Include student data if provided
+      student_data: enrollmentData.student_data
+    };
 
     return {
       success: true,
-      student: {
-        id: student.id,
-        student_id: student.student_id,
-        name: student.name,
-        matric_number: student.matric_number,
-        gender: student.gender,
-        program_name: student.program_name,
-        program_code: student.program,
-        level: student.level,
-        enrollment_status: student.enrollment_status,
-        enrollment_date: student.enrollment_date,
-        has_face_embedding: faceDetected
-      },
+      user: resultUser,
       faceDetected,
       embeddingDimensions,
-      message: 'Student enrolled successfully'
+      message: `${enrollmentData.user_role === 'student' ? 'Student' : 'User'} enrolled successfully`
     };
     
   } catch (error: any) {
@@ -196,6 +245,9 @@ export const enrollStudent = async (enrollmentData: EnrollmentData): Promise<Enr
     };
   }
 };
+
+// Alias for backward compatibility
+export const enrollStudent = enrollUser;
 
 // Test function
 export const testFaceRecognition = async () => {

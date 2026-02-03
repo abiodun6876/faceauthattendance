@@ -1,61 +1,61 @@
 {
-  "short_name": "ABUAD Face",
-  "name": "ABUAD Face Attendance System",
-  "description": "Student attendance management using face authentication technology",
+  "short_name": "FaceAuth",
+  "name": "FaceAuthAttendance Platform",
+  "description": "Multi-tenant face recognition attendance system for organizations and businesses",
   "id": "/?source=pwa",
   "start_url": "/",
-  "background_color": "#f0f2f5",
+  "background_color": "#667eea",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
   "scope": "/",
-  "theme_color": "#1890ff",
+  "theme_color": "#667eea",
   "orientation": "portrait-primary",
-  "categories": ["education", "productivity", "utilities"],
+  "categories": ["business", "productivity", "education", "security"],
   "icons": [
     {
-      "src": "/icons/abuad.png",
+      "src": "/icons/icon-72x72.png",
       "sizes": "72x72",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/abuad.png",
+      "src": "/icons/icon-96x96.png",
       "sizes": "96x96",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/abuad.png",
+      "src": "/icons/icon-128x128.png",
       "sizes": "128x128",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/abuad.png",
+      "src": "/icons/icon-144x144.png",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/abuad.png",
+      "src": "/icons/icon-152x152.png",
       "sizes": "152x152",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/abuad.png",
+      "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/abuad.png",
+      "src": "/icons/icon-384x384.png",
       "sizes": "384x384",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/abuad.png",
+      "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -65,32 +65,120 @@
     {
       "name": "Take Attendance",
       "short_name": "Attendance",
-      "description": "Start a new attendance session",
+      "description": "Clock in/out with face recognition",
       "url": "/attendance",
-      "icons": [{ "src": "/icons/abuad.png", "sizes": "96x96" }]
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
-      "name": "Enroll Student",
+      "name": "Enroll User",
       "short_name": "Enroll",
-      "description": "Register new student with face",
+      "description": "Register new staff/student with face biometrics",
       "url": "/enroll",
-      "icons": [{ "src": "/icons/abuad.png", "sizes": "96x96" }]
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "View Reports",
+      "short_name": "Reports",
+      "description": "Attendance analytics and reports",
+      "url": "/attendance-management",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Device Setup",
+      "short_name": "Setup",
+      "description": "Configure device and branch settings",
+      "url": "/device-setup",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     }
   ],
   "screenshots": [
     {
-      "src": "/icons/abuad.png",
+      "src": "/screenshots/dashboard-mobile.png",
       "type": "image/png",
       "sizes": "1080x1920",
       "form_factor": "narrow",
-      "label": "Mobile Dashboard"
+      "label": "Dashboard - Mobile View"
     },
     {
-      "src": "/icons/abuad.png",
+      "src": "/screenshots/attendance-mobile.png",
       "type": "image/png",
       "sizes": "1080x1920",
       "form_factor": "narrow",
-      "label": "Face Attendance"
+      "label": "Face Attendance - Mobile"
+    },
+    {
+      "src": "/screenshots/enrollment-mobile.png",
+      "type": "image/png",
+      "sizes": "1080x1920",
+      "form_factor": "narrow",
+      "label": "Biometric Enrollment"
+    },
+    {
+      "src": "/screenshots/dashboard-desktop.png",
+      "type": "image/png",
+      "sizes": "1920x1080",
+      "form_factor": "wide",
+      "label": "Dashboard - Desktop View"
+    },
+    {
+      "src": "/screenshots/attendance-desktop.png",
+      "type": "image/png",
+      "sizes": "1920x1080",
+      "form_factor": "wide",
+      "label": "Attendance Management"
     }
-  ]
+  ],
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "protocol_handlers": [],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "handle_links": "preferred",
+  "scope_extensions": [],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "attendance_export",
+          "accept": ["text/csv", "application/pdf"]
+        }
+      ]
+    }
+  },
+  "capture_links": "new-client",
+  "file_handlers": [
+    {
+      "action": "/import",
+      "accept": {
+        "text/csv": [".csv"],
+        "application/json": [".json"]
+      },
+      "name": "Import Attendance Data"
+    }
+  ],
+  "permissions": [
+    "camera",
+    "geolocation",
+    "notifications",
+    "clipboard-write",
+    "clipboard-read",
+    "storage"
+  ],
+  "serviceworker": {
+    "src": "/service-worker.js",
+    "scope": "/",
+    "type": "module"
+  }
 }

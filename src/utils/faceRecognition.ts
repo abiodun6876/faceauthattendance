@@ -101,87 +101,85 @@ class FaceRecognition {
   
   // ========== FACE EXTRACTION METHODS ==========
   
-  // In faceRecognition.ts - FIXED extractFaceDescriptor
-async extractFaceDescriptor(imageData: string): Promise<Float32Array | null> {
-  try {
-    if (!this.modelsLoaded) {
-      await this.loadModels();
-    }
-    
-    console.log('Extracting descriptor from image data...');
-    
-    // IMPORTANT: Handle base64 data URL
-    let cleanBase64 = imageData;
-    if (!imageData.startsWith('data:')) {
-      // If it's pure base64 without data URL, add it
-      cleanBase64 = `data:image/jpeg;base64,${imageData}`;
-    } else if (!imageData.includes('base64')) {
-      // If it's a data URL but not base64, convert
-      cleanBase64 = `data:image/jpeg;base64,${imageData.split(',')[1]}`;
-    }
-    
-    // Create image element
-    const img = await this.createImageElement(cleanBase64);
-    
-    if (!img.width || !img.height) {
-      console.error('Invalid image dimensions');
+  async extractFaceDescriptor(imageData: string): Promise<Float32Array | null> {
+    try {
+      if (!this.modelsLoaded) {
+        await this.loadModels();
+      }
+      
+      console.log('Extracting descriptor from image data...');
+      
+      // IMPORTANT: Handle base64 data URL
+      let cleanBase64 = imageData;
+      if (!imageData.startsWith('data:')) {
+        // If it's pure base64 without data URL, add it
+        cleanBase64 = `data:image/jpeg;base64,${imageData}`;
+      } else if (!imageData.includes('base64')) {
+        // If it's a data URL but not base64, convert
+        cleanBase64 = `data:image/jpeg;base64,${imageData.split(',')[1]}`;
+      }
+      
+      // Create image element
+      const img = await this.createImageElement(cleanBase64);
+      
+      if (!img.width || !img.height) {
+        console.error('Invalid image dimensions');
+        return null;
+      }
+      
+      // Detect face
+      console.log('Detecting face...');
+      let detection;
+      
+      if (this.useTinyModel) {
+        detection = await faceapi
+          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({
+            inputSize: 160,
+            scoreThreshold: 0.3 // Lower threshold for better detection
+          }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+      } else {
+        detection = await faceapi
+          .detectSingleFace(img)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+      }
+      
+      if (!detection) {
+        console.log('No face detected');
+        return null;
+      }
+      
+      console.log('Face detected, descriptor length:', detection.descriptor.length);
+      return detection.descriptor;
+      
+    } catch (error) {
+      console.error('Error extracting face descriptor:', error);
       return null;
     }
-    
-    // Detect face
-    console.log('Detecting face...');
-    let detection;
-    
-    if (this.useTinyModel) {
-      detection = await faceapi
-        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({
-          inputSize: 160,
-          scoreThreshold: 0.3 // Lower threshold for better detection
-        }))
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-    } else {
-      detection = await faceapi
-        .detectSingleFace(img)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-    }
-    
-    if (!detection) {
-      console.log('No face detected');
-      return null;
-    }
-    
-    console.log('Face detected, descriptor length:', detection.descriptor.length);
-    return detection.descriptor;
-    
-  } catch (error) {
-    console.error('Error extracting face descriptor:', error);
-    return null;
   }
-}
 
-// Helper method for creating image
-private createImageElement(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    
-    img.onload = () => {
-      console.log('Image loaded successfully, dimensions:', img.width, 'x', img.height);
-      resolve(img);
-    };
-    
-    img.onerror = (err) => {
-      console.error('Failed to load image:', err);
-      reject(new Error('Failed to load image'));
-    };
-    
-    img.src = src;
-    img.crossOrigin = 'anonymous';
-  });
-}
+  // Helper method for creating image
+  private createImageElement(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      
+      img.onload = () => {
+        console.log('Image loaded successfully, dimensions:', img.width, 'x', img.height);
+        resolve(img);
+      };
+      
+      img.onerror = (err) => {
+        console.error('Failed to load image:', err);
+        reject(new Error('Failed to load image'));
+      };
+      
+      img.src = src;
+      img.crossOrigin = 'anonymous';
+    });
+  }
   
- 
   // ========== FACE COMPARISON METHODS ==========
   
   // Compare two face descriptors
@@ -202,9 +200,9 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
   // Find best match from database
   async findBestMatch(
     capturedDescriptor: Float32Array, 
-    storedDescriptors: Array<{studentId: string, descriptor: Float32Array}>
-  ): Promise<{studentId: string | null, confidence: number}> {
-    let bestMatch = { studentId: null as string | null, confidence: 0 };
+    storedDescriptors: Array<{userId: string, descriptor: Float32Array}> // Changed from studentId to userId
+  ): Promise<{userId: string | null, confidence: number}> { // Changed from studentId to userId
+    let bestMatch = { userId: null as string | null, confidence: 0 }; // Changed from studentId to userId
     const MATCH_THRESHOLD = 0.65;
     
     for (const stored of storedDescriptors) {
@@ -212,7 +210,7 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
       
       if (similarity > MATCH_THRESHOLD && similarity > bestMatch.confidence) {
         bestMatch = {
-          studentId: stored.studentId,
+          userId: stored.userId, // Changed from studentId to userId
           confidence: similarity
         };
       }
@@ -226,7 +224,7 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
   async matchFaceForAttendance(
     capturedImage: string,
     maxMatches: number = 5
-  ): Promise<Array<{studentId: string, name: string, matric_number: string, confidence: number}>> {
+  ): Promise<Array<{userId: string, name: string, staffId: string, confidence: number}>> { // Updated return type
     try {
       // 1. Extract face from captured image
       const capturedDescriptor = await this.extractFaceDescriptor(capturedImage);
@@ -236,11 +234,12 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
         return [];
       }
       
-      // 2. Get all enrolled students WITH face embeddings
-      const { data: students, error } = await supabase
-        .from('students')
-        .select('student_id, name, matric_number, face_embedding')
+      // 2. Get all enrolled users WITH face embeddings
+      const { data: users, error } = await supabase
+        .from('users') // ✅ CHANGED from 'students' to 'users'
+        .select('id, staff_id, full_name, face_embedding, enrollment_status') // ✅ CHANGED columns
         .eq('enrollment_status', 'enrolled')
+        .eq('is_active', true)
         .not('face_embedding', 'is', null)
         .limit(50);
       
@@ -249,39 +248,42 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
         return [];
       }
       
-      if (!students || students.length === 0) {
-        console.log('No students with face embeddings found');
+      if (!users || users.length === 0) {
+        console.log('No users with face embeddings found');
         return [];
       }
       
       const matches = [];
       const MATCH_THRESHOLD = 0.65;
       
-      // 3. Compare with each student's embedding
-      for (const student of students) {
+      // 3. Compare with each user's embedding
+      for (const user of users) {
         try {
-          if (!student.face_embedding || student.face_embedding.length === 0) {
+          if (!user.face_embedding || user.face_embedding.length === 0) {
             continue;
           }
           
           // Convert stored array back to Float32Array
-          const storedDescriptor = new Float32Array(student.face_embedding);
+          const embeddingArray = typeof user.face_embedding === 'string' 
+            ? JSON.parse(user.face_embedding) 
+            : user.face_embedding;
+          const storedDescriptor = new Float32Array(embeddingArray);
           
           // Compare faces
           const similarity = this.compareFaces(capturedDescriptor, storedDescriptor);
           
-          console.log(`Comparing with ${student.name}: ${similarity.toFixed(3)}`);
+          console.log(`Comparing with ${user.full_name}: ${similarity.toFixed(3)}`);
           
           if (similarity > MATCH_THRESHOLD) {
             matches.push({
-              studentId: student.student_id,
-              name: student.name,
-              matric_number: student.matric_number,
+              userId: user.id, // ✅ CHANGED from student.student_id
+              name: user.full_name, // ✅ CHANGED from student.name
+              staffId: user.staff_id || '', // ✅ CHANGED from student.matric_number
               confidence: similarity
             });
           }
         } catch (error) {
-          console.error(`Error processing student ${student.student_id}:`, error);
+          console.error(`Error processing user ${user.id}:`, error); // ✅ CHANGED from student.student_id
           continue;
         }
       }
@@ -303,38 +305,39 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
   // ========== DATABASE METHODS ==========
   
   // Update face embedding in database
-  async updateFaceEmbedding(studentId: string, descriptor: Float32Array) {
+  async updateFaceEmbedding(userId: string, descriptor: Float32Array) { // ✅ CHANGED from studentId to userId
     try {
       // Convert Float32Array to array for JSON storage
       const embeddingArray = Array.from(descriptor);
       
       await supabase
-        .from('students')
+        .from('users') // ✅ CHANGED from 'students' to 'users'
         .update({
-          face_embedding: embeddingArray,
-          last_face_update: new Date().toISOString()
+          face_embedding: JSON.stringify(embeddingArray),
+          face_embedding_stored: true, // ✅ ADDED this field
+          updated_at: new Date().toISOString()
         })
-        .eq('student_id', studentId);
+        .eq('id', userId); // ✅ CHANGED from 'student_id' to 'id'
         
-      console.log(`Face embedding updated for student ${studentId}`);
+      console.log(`Face embedding updated for user ${userId}`);
     } catch (error) {
       console.error('Error updating face embedding:', error);
     }
   }
   
-  // Extract and save embedding for existing student
-  async processExistingStudentPhoto(studentId: string, photoBase64: string) {
+  // Extract and save embedding for existing user
+  async processExistingUserPhoto(userId: string, photoBase64: string) { // ✅ CHANGED from student to user
     try {
       const descriptor = await this.extractFaceDescriptor(photoBase64);
       
       if (descriptor) {
-        await this.updateFaceEmbedding(studentId, descriptor);
-        await this.saveEmbeddingToLocal(studentId, descriptor);
+        await this.updateFaceEmbedding(userId, descriptor); // ✅ CHANGED from studentId to userId
+        await this.saveEmbeddingToLocal(userId, descriptor); // ✅ CHANGED from studentId to userId
         return true;
       }
       return false;
     } catch (error) {
-      console.error('Error processing existing student photo:', error);
+      console.error('Error processing existing user photo:', error);
       return false;
     }
   }
@@ -342,16 +345,16 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
   // ========== LOCAL STORAGE METHODS ==========
   
   // Save an embedding to localStorage
-  saveEmbeddingToLocal(studentId: string, descriptor: Float32Array): void {
+  saveEmbeddingToLocal(userId: string, descriptor: Float32Array): void { // ✅ CHANGED from studentId to userId
     const embeddings = this.getEmbeddingsFromLocal();
     
-    // Remove existing embedding for this student
-    const filtered = embeddings.filter(e => e.studentId !== studentId);
+    // Remove existing embedding for this user
+    const filtered = embeddings.filter(e => e.userId !== userId); // ✅ CHANGED from studentId to userId
     
     // Add new embedding (convert Float32Array to regular array for localStorage)
     const descriptorArray = Array.from(descriptor);
     filtered.push({ 
-      studentId, 
+      userId, // ✅ CHANGED from studentId to userId
       descriptor: descriptorArray,
       timestamp: new Date().toISOString() 
     });
@@ -359,9 +362,9 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
     localStorage.setItem(this.EMBEDDINGS_KEY, JSON.stringify(filtered));
   }
   
-  // Get all embeddings from localStorage (what syncService.ts expects)
+  // Get all embeddings from localStorage
   getEmbeddingsFromLocal(): Array<{
-    studentId: string;
+    userId: string; // ✅ CHANGED from studentId to userId
     descriptor: number[];
     timestamp: string;
   }> {
@@ -370,9 +373,9 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
   }
   
   // Convert number[] back to Float32Array
-  getEmbeddingForStudent(studentId: string): Float32Array | null {
+  getEmbeddingForUser(userId: string): Float32Array | null { // ✅ CHANGED from student to user
     const embeddings = this.getEmbeddingsFromLocal();
-    const found = embeddings.find(e => e.studentId === studentId);
+    const found = embeddings.find(e => e.userId === userId); // ✅ CHANGED from studentId to userId
     return found ? new Float32Array(found.descriptor) : null;
   }
   
@@ -381,25 +384,25 @@ private createImageElement(src: string): Promise<HTMLImageElement> {
     localStorage.removeItem(this.EMBEDDINGS_KEY);
   }
   
-  // Check if student has local embedding
-  hasLocalEmbedding(studentId: string): boolean {
-    return this.getEmbeddingForStudent(studentId) !== null;
+  // Check if user has local embedding
+  hasLocalEmbedding(userId: string): boolean { // ✅ CHANGED from studentId to userId
+    return this.getEmbeddingForUser(userId) !== null; // ✅ CHANGED from student to user
   }
   
   // Sync local embeddings to Supabase
   async syncLocalEmbeddingsToDatabase(): Promise<Array<{
-    studentId: string;
+    userId: string; // ✅ CHANGED from studentId to userId
     descriptor: number[];
   }>> {
     const localEmbeddings = this.getEmbeddingsFromLocal();
-    const syncedEmbeddings: Array<{studentId: string; descriptor: number[]}> = [];
+    const syncedEmbeddings: Array<{userId: string; descriptor: number[]}> = []; // ✅ CHANGED from studentId to userId
     
     for (const embedding of localEmbeddings) {
       try {
-        await this.updateFaceEmbedding(embedding.studentId, new Float32Array(embedding.descriptor));
+        await this.updateFaceEmbedding(embedding.userId, new Float32Array(embedding.descriptor)); // ✅ CHANGED from studentId to userId
         syncedEmbeddings.push(embedding);
       } catch (error) {
-        console.error(`Failed to sync embedding for student ${embedding.studentId}:`, error);
+        console.error(`Failed to sync embedding for user ${embedding.userId}:`, error); // ✅ CHANGED from studentId to userId
       }
     }
       

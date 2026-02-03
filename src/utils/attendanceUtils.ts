@@ -1,13 +1,15 @@
-// utils/attendanceUtils.ts
+// utils/attendanceUtils.ts - UPDATED VERSION
 import { supabase } from '../lib/supabase';
 import faceRecognition from './faceRecognition';
 import dayjs from 'dayjs';
-
+import syncService from '../services/syncService';
 
 export interface AttendanceData {
-  course_code: string;
-  course_title: string;
-  level?: number;
+  deviceId: string;
+  organizationId: string;
+  branchId: string;
+  confidence?: number;
+  photoUrl?: string;
 }
 
 export async function markAttendance(
@@ -31,74 +33,57 @@ export async function markAttendance(
       };
     }
     
-    const embedding = Array.from(descriptor);
-    const queryEmbedding = generate128DEmbedding(embedding);
     console.log('✅ Face extracted, searching for matches...');
     
-    // Find similar faces using vector search
-    const { data: matches, error: searchError } = await supabase
-      .rpc('find_similar_faces', {
-        query_embedding: queryEmbedding,
-        similarity_threshold: 0.65,
-        max_results: 3
-      });
+    // Find matching user
+    const matches = await faceRecognition.matchFaceForAttendance(photoData);
     
-    if (searchError) {
-      console.log('Vector search failed, trying manual search...');
-      return await manualFaceSearch(queryEmbedding, attendanceData);
-    }
-    
-    if (!matches || matches.length === 0) {
+    if (matches.length === 0) {
       return {
         success: false,
-        error: 'No matching student found'
+        error: 'No matching user found'
       };
     }
     
     const bestMatch = matches[0];
-    console.log(`✅ Best match: ${bestMatch.name} (${bestMatch.similarity_score.toFixed(3)})`);
+    console.log(`✅ Best match: ${bestMatch.name} (${bestMatch.confidence.toFixed(3)})`);
     
-    // Check if already marked today
+    // Check if user already clocked in today
     const alreadyMarked = await checkExistingAttendance(
-      bestMatch.student_id,
-      attendanceData.course_code
+      bestMatch.userId,
+      attendanceData.branchId
     );
     
     if (alreadyMarked) {
       return {
         success: false,
         error: 'Attendance already marked today',
-        student: {
+        user: {
           name: bestMatch.name,
-          matric_number: bestMatch.matric_number
+          staffId: bestMatch.staffId
         }
       };
     }
     
     // Record attendance
     await recordAttendance({
-      student_id: bestMatch.student_id,
-      student_name: bestMatch.name,
-      matric_number: bestMatch.matric_number,
-      course_code: attendanceData.course_code,
-      course_title: attendanceData.course_title,
-      level: attendanceData.level,
-      confidence_score: bestMatch.similarity_score
+      userId: bestMatch.userId,
+      userName: bestMatch.name,
+      staffId: bestMatch.staffId,
+      deviceId: attendanceData.deviceId,
+      organizationId: attendanceData.organizationId,
+      branchId: attendanceData.branchId,
+      confidence: attendanceData.confidence || bestMatch.confidence,
+      photoUrl: attendanceData.photoUrl
     });
-    
-    // Update last face scan
-    await supabase
-      .from('students_new')
-      .update({ last_face_scan: new Date().toISOString() })
-      .eq('student_id', bestMatch.student_id);
     
     return {
       success: true,
-      student: {
+      user: {
         name: bestMatch.name,
-        matric_number: bestMatch.matric_number
+        staffId: bestMatch.staffId
       },
-      confidence: bestMatch.similarity_score
+      confidence: bestMatch.confidence
     };
     
   } catch (error: any) {
@@ -110,104 +95,183 @@ export async function markAttendance(
   }
 }
 
-async function manualFaceSearch(
-  queryEmbedding: number[],
-  attendanceData: AttendanceData
-): Promise<AttendanceResult> {
+export async function checkExistingAttendance(
+  userId: string,
+  branchId: string
+): Promise<boolean> {
+  const today = new Date().toISOString().split('T')[0];
+  
+  const { data } = await supabase
+    .from('attendance') // ✅ Correct table name
+    .select('id')
+    .eq('user_id', userId) // ✅ Correct column name
+    .eq('branch_id', branchId)
+    .eq('date', today)
+    .maybeSingle();
+  
+  return !!data;
+}
+
+export async function recordAttendance(data: {
+  userId: string;
+  userName: string;
+  staffId: string;
+  deviceId: string;
+  organizationId: string;
+  branchId: string;
+  confidence: number;
+  photoUrl?: string;
+}) {
+  const today = new Date().toISOString().split('T')[0];
+  
+  const attendanceRecord = {
+    user_id: data.userId, // ✅ Correct column name
+    device_id: data.deviceId,
+    organization_id: data.organizationId,
+    branch_id: data.branchId,
+    clock_in: new Date().toISOString(),
+    date: today,
+    status: 'present',
+    confidence_score: data.confidence,
+    photo_url: data.photoUrl,
+    verification_method: 'face',
+    synced: false
+  };
+  
+  const { error } = await supabase
+    .from('attendance') // ✅ Correct table name
+    .insert(attendanceRecord);
+  
+  if (error) {
+    console.error('Error recording attendance:', error);
+    
+    // If there's an error, save to local storage for sync later
+    const pendingAttendance = {
+      userId: data.userId,
+      deviceId: data.deviceId,
+      organizationId: data.organizationId,
+      branchId: data.branchId,
+      timestamp: new Date().toISOString(),
+      confidence: data.confidence,
+      photoUrl: data.photoUrl
+    };
+    
+    syncService.addPendingAttendance(pendingAttendance);
+    console.log('Attendance saved to local storage for sync');
+  }
+}
+
+export async function getUserTodayAttendance(userId: string, branchId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  
+  const { data } = await supabase
+    .from('attendance')
+    .select(`
+      *,
+      users!inner (
+        staff_id,
+        full_name,
+        email
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('branch_id', branchId)
+    .eq('date', today)
+    .maybeSingle();
+  
+  return data;
+}
+
+export async function getTodayAttendance(branchId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  
+  const { data, error } = await supabase
+    .from('attendance')
+    .select(`
+      *,
+      users!inner (
+        staff_id,
+        full_name,
+        email,
+        department:departments (
+          name
+        )
+      )
+    `)
+    .eq('branch_id', branchId)
+    .eq('date', today)
+    .order('clock_in', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching today attendance:', error);
+    return [];
+  }
+  
+  return data || [];
+}
+
+export async function getUserAttendanceHistory(userId: string, days: number = 30) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('date', startDate.toISOString().split('T')[0])
+    .order('date', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching user attendance history:', error);
+    return [];
+  }
+  
+  return data || [];
+}
+
+export async function clockOutUser(attendanceId: string) {
+  const { error } = await supabase
+    .from('attendance')
+    .update({
+      clock_out: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', attendanceId);
+  
+  if (error) {
+    console.error('Error clocking out:', error);
+    throw new Error(`Clock out failed: ${error.message}`);
+  }
+}
+
+// Alternative method using manual face matching
+export async function manualFaceSearch(
+  capturedImage: string,
+  organizationId: string,
+  threshold = 0.65
+) {
   try {
-    // Get all enrolled students
-    const { data: students, error } = await supabase
-      .from('students_new')
-      .select(`
-        id,
-        student_id,
-        name,
-        matric_number,
-        face_embedding,
-        face_detected,
-        face_match_threshold
-      `)
-      .eq('enrollment_status', 'enrolled')
-      .eq('is_active', true)
-      .not('face_embedding', 'is', null);
+    // Use the face recognition service to find matches
+    const matches = await faceRecognition.matchFaceForAttendance(capturedImage);
     
-    if (error || !students || students.length === 0) {
+    if (matches.length === 0) {
       return {
         success: false,
-        error: 'No enrolled students found'
+        error: 'No matching user found'
       };
     }
     
-    const queryVector = new Float32Array(queryEmbedding);
-    let bestMatch: any = null;
-    let bestScore = -1;
-    
-    for (const student of students) {
-      if (!student.face_embedding || !Array.isArray(student.face_embedding)) {
-        continue;
-      }
-      
-      const storedVector = new Float32Array(student.face_embedding);
-      
-      // Calculate similarity
-      const distance = calculateEuclideanDistance(queryVector, storedVector);
-      const similarity = 1 / (1 + distance); // Convert to similarity score
-      
-      const threshold = student.face_match_threshold || 0.65;
-      
-      if (similarity > threshold && similarity > bestScore) {
-        bestScore = similarity;
-        bestMatch = {
-          ...student,
-          similarity_score: similarity
-        };
-      }
-    }
-    
-    if (!bestMatch) {
-      return {
-        success: false,
-        error: 'No matching student found'
-      };
-    }
-    
-    // Check existing attendance
-    const alreadyMarked = await checkExistingAttendance(
-      bestMatch.student_id,
-      attendanceData.course_code
-    );
-    
-    if (alreadyMarked) {
-      return {
-        success: false,
-        error: 'Attendance already marked today',
-        student: {
-          name: bestMatch.name,
-          matric_number: bestMatch.matric_number
-        }
-      };
-    }
-    
-    // Record attendance
-    await recordAttendance({
-      student_id: bestMatch.student_id,
-      student_name: bestMatch.name,
-      matric_number: bestMatch.matric_number,
-      course_code: attendanceData.course_code,
-      course_title: attendanceData.course_title,
-      level: attendanceData.level,
-      confidence_score: bestMatch.similarity_score
+    // Filter by organization if needed
+    const filteredMatches = matches.filter(match => {
+      // You might need to add organization filtering logic here
+      return true;
     });
     
     return {
       success: true,
-      student: {
-        name: bestMatch.name,
-        matric_number: bestMatch.matric_number
-      },
-      confidence: bestMatch.similarity_score
+      matches: filteredMatches,
+      bestMatch: filteredMatches[0]
     };
-    
   } catch (error: any) {
     return {
       success: false,
@@ -215,10 +279,9 @@ async function manualFaceSearch(
     };
   }
 }
-    
-   
 
-function calculateEuclideanDistance(vec1: Float32Array, vec2: Float32Array): number {
+// Helper function to calculate Euclidean distance
+export function calculateEuclideanDistance(vec1: Float32Array, vec2: Float32Array): number {
   let distance = 0;
   for (let i = 0; i < vec1.length; i++) {
     const diff = vec1[i] - vec2[i];
@@ -227,59 +290,8 @@ function calculateEuclideanDistance(vec1: Float32Array, vec2: Float32Array): num
   return Math.sqrt(distance);
 }
 
-async function checkExistingAttendance(
-  studentId: string,
-  courseCode: string
-): Promise<boolean> {
-  const today = dayjs().format('YYYY-MM-DD');
-  
-  const { data } = await supabase
-    .from('student_attendance')
-    .select('id')
-    .eq('student_id', studentId)
-    .eq('course_code', courseCode)
-    .eq('attendance_date', today)
-    .maybeSingle();
-  
-  return !!data;
-}
-
-async function recordAttendance(data: {
-  student_id: string;
-  student_name: string;
-  matric_number: string;
-  course_code: string;
-  course_title: string;
-  level?: number;
-  confidence_score: number;
-}) {
-  const attendanceRecord = {
-    student_id: data.student_id,
-    student_name: data.student_name,
-    matric_number: data.matric_number,
-    course_code: data.course_code,
-    course_title: data.course_title,
-    level: data.level,
-    attendance_date: dayjs().format('YYYY-MM-DD'),
-    check_in_time: new Date().toISOString(),
-    status: 'present',
-    verification_method: 'face_recognition',
-    confidence_score: data.confidence_score,
-    similarity_score: data.confidence_score,
-    score: 2.00,
-    created_at: new Date().toISOString()
-  };
-  
-  const { error } = await supabase
-    .from('student_attendance')
-    .insert([attendanceRecord]);
-  
-  if (error) {
-    throw new Error(`Attendance recording failed: ${error.message}`);
-  }
-}
-
-function generate128DEmbedding(embedding: number[]): number[] {
+// Helper to convert embedding to 128D if needed
+export function generate128DEmbedding(embedding: number[]): number[] {
   if (embedding.length <= 128) {
     return embedding.length === 128 ? embedding : [...embedding, ...Array(128 - embedding.length).fill(0)];
   }
@@ -298,15 +310,16 @@ function generate128DEmbedding(embedding: number[]): number[] {
   return result;
 }
 
-// utils/attendanceUtils.ts - Add these interfaces at the top
-export interface AttendanceStudent {
+// ========== INTERFACES ==========
+
+export interface AttendanceUser {
   name: string;
-  matric_number: string;
+  staffId: string;
 }
 
 export interface AttendanceSuccessResult {
   success: true;
-  student: AttendanceStudent;
+  user: AttendanceUser;
   confidence: number;
   error?: never;
 }
@@ -314,9 +327,41 @@ export interface AttendanceSuccessResult {
 export interface AttendanceErrorResult {
   success: false;
   error: string;
-  student?: AttendanceStudent;
+  user?: AttendanceUser;
   confidence?: never;
 }
 
 export type AttendanceResult = AttendanceSuccessResult | AttendanceErrorResult;
 
+// For backward compatibility (if other files still use student terminology)
+export type AttendanceStudent = AttendanceUser;
+export interface AttendanceSuccessStudentResult extends Omit<AttendanceSuccessResult, 'user'> {
+  student: AttendanceStudent;
+}
+export interface AttendanceErrorStudentResult extends Omit<AttendanceErrorResult, 'user'> {
+  student?: AttendanceStudent;
+}
+export type AttendanceStudentResult = AttendanceSuccessStudentResult | AttendanceErrorStudentResult;
+
+// Convert new result to old format for compatibility
+export function convertToStudentResult(result: AttendanceResult): AttendanceStudentResult {
+  if (result.success) {
+    return {
+      success: true,
+      student: {
+        name: result.user.name,
+        staffId: result.user.staffId
+      },
+      confidence: result.confidence
+    };
+  } else {
+    return {
+      success: false,
+      error: result.error,
+      student: result.user ? {
+        name: result.user.name,
+        staffId: result.user.staffId
+      } : undefined
+    };
+  }
+}

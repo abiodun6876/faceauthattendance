@@ -1,21 +1,24 @@
-// src/App.tsx - WITH BACK BUTTONS (MODIFIED)
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Spin, Alert, Typography, Space, ConfigProvider, theme, Card, Row, Col, Button } from 'antd';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Avatar } from 'antd';
 import { 
   UserPlus,
   Camera,
   Book,
-  Home,
-  ArrowLeft
+  ArrowLeft,
+  Building,
+  Clock
 } from 'lucide-react';
 import EnrollmentPage from './pages/EnrollmentPage';
 import AttendancePage from './pages/AttendancePage';
 import AttendanceManagementPage from './pages/AttendanceManagementPage';
-import { supabase } from './lib/supabase';
+import DeviceSetupPage from './pages/DeviceSetupPage';
+import BranchSelectionPage from './pages/BranchSelectionPage';
+import { supabase, deviceService } from './lib/supabase';
 import './App.css';
 
 const { Title, Text } = Typography;
+const { Header, Content, Footer } = Layout;
 
 interface ConnectionStatus {
   status: 'testing' | 'connected' | 'error';
@@ -23,156 +26,300 @@ interface ConnectionStatus {
   details?: any;
 }
 
-// Wrapper component to add back button to pages
-const PageWrapper = ({ children, showBackButton = true }: { children: React.ReactNode, showBackButton?: boolean }) => {
+// Check if device is registered
+const useDeviceRegistration = () => {
+  const [isRegistered, setIsRegistered] = useState<boolean | null>(null);
+  const [device, setDevice] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkDevice = async () => {
+      const { isRegistered, device } = await deviceService.checkDeviceRegistration();
+      setIsRegistered(isRegistered);
+      setDevice(device);
+      setLoading(false);
+    };
+    checkDevice();
+  }, []);
+
+  return { isRegistered, device, loading };
+};
+
+// Wrapper for protected routes
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isRegistered, loading } = useDeviceRegistration(); // Removed device since it's not used
+  const navigate = useNavigate();
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+      }}>
+        <Spin size="large" />
+        <Text type="secondary" style={{ marginTop: 20 }}>
+          Checking device registration...
+        </Text>
+      </div>
+    );
+  }
+
+  if (!isRegistered) {
+    navigate('/device-setup');
+    return null;
+  }
+
+  return <>{children}</>;
+};
+
+// Page wrapper with organization header
+const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
+  const { device } = useDeviceRegistration();
+
   return (
-    <div style={{ 
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: '#f0f2f5'
-    }}>
-      {/* Header with back button */}
-      {showBackButton && (
-        <div style={{ 
-          padding: '12px 16px',
-          backgroundColor: '#fff',
-          borderBottom: '1px solid #f0f0f0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12
-        }}>
-          <Button
-            type="text"
-            icon={<ArrowLeft size={18} />}
-            onClick={() => window.location.href = '/'}
+    <Layout style={{ minHeight: '100vh', backgroundColor: '#f0f2f5' }}>
+      <Header style={{ 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '0 24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Avatar 
+            size="large"
             style={{ 
-              padding: '4px 8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4
+              backgroundColor: '#fff',
+              color: '#667eea',
+              fontWeight: 'bold'
             }}
           >
-            <Text style={{ fontSize: 14 }}>Back</Text>
-          </Button>
+            {device?.organization?.name?.charAt(0) || 'F'}
+          </Avatar>
+          <div>
+            <Title level={4} style={{ margin: 0, color: '#fff' }}>
+              {device?.organization?.name || 'FaceAuthAttendance'}
+            </Title>
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
+              {device?.branch?.name} • {device?.device_name}
+            </Text>
+          </div>
         </div>
-      )}
+        
+        <Button
+          type="text"
+          icon={<ArrowLeft size={18} />}
+          onClick={() => window.location.href = '/'}
+          style={{ 
+            color: '#fff',
+            padding: '4px 8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 14 }}>Home</Text>
+        </Button>
+      </Header>
       
-      {/* Page content */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <Content style={{ padding: '24px', flex: 1 }}>
         {children}
-      </div>
-    </div>
+      </Content>
+      
+      <Footer style={{ 
+        textAlign: 'center',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: '#fff',
+        padding: '12px'
+      }}>
+        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
+          FaceAuthAttendance Platform • {device?.organization?.settings?.id_label || 'Staff ID'} System
+        </Text>
+      </Footer>
+    </Layout>
   );
 };
 
-const HomeCards = () => {
+// Home page with device info
+const DashboardPage = () => {
+  const { device } = useDeviceRegistration();
+  const navigate = useNavigate();
+
   const cards = [
     {
       key: 'enroll',
-      title: 'Student Enrollment',
-      description: 'Enroll new students with face recognition',
+      title: device?.organization?.type === 'school' ? 'Student Enrollment' : 'Staff Enrollment',
+      description: device?.organization?.type === 'school' 
+        ? 'Enroll new students with face recognition' 
+        : 'Enroll new staff with face recognition',
       icon: <UserPlus size={32} />,
       path: '/enroll',
       color: '#1890ff',
     },
     {
       key: 'attendance',
-      title: 'Take Attendance',
-      description: 'Mark attendance using face recognition',
-      icon: <Camera size={32} />,
+      title: device?.organization?.settings?.attendance_mode === 'shift' ? 'Clock In/Out' : 'Take Attendance',
+      description: device?.organization?.settings?.attendance_mode === 'shift'
+        ? 'Clock in and out using face recognition'
+        : 'Mark attendance using face recognition',
+      icon: device?.organization?.settings?.attendance_mode === 'shift' 
+        ? <Clock size={32} /> 
+        : <Camera size={32} />,
       path: '/attendance',
       color: '#52c41a',
     },
     {
       key: 'attendance-management',
-      title: 'Manage Attendance',
+      title: 'Attendance Management',
       description: 'View, search and filter all records',
       icon: <Book size={32} />,
       path: '/attendance-management',
       color: '#722ed1',
     },
+    {
+      key: 'branch-selection',
+      title: 'Switch Branch',
+      description: 'Change your current branch/location',
+      icon: <Building size={32} />,
+      path: '/branch-selection',
+      color: '#fa8c16',
+    },
   ];
-
-  const navigate = (path: string) => {
-    window.location.href = path;
-  };
 
   return (
     <div style={{ 
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
       backgroundColor: '#f0f2f5'
     }}>
+      {/* Organization Info Banner */}
       <div style={{ 
-        textAlign: 'center', 
-        marginBottom: 40 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '24px',
+        color: '#fff',
+        borderRadius: '0 0 16px 16px',
+        marginBottom: 24
       }}>
-        <Title level={2} style={{ marginBottom: 8 }}>
-          Face Attendance System
-        </Title>
-        <Text type="secondary">
-          Select an option to begin
-        </Text>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <Title level={2} style={{ color: '#fff', margin: 0 }}>
+              {device?.organization?.name || 'FaceAuthAttendance'}
+            </Title>
+            <Text style={{ color: 'rgba(255,255,255,0.9)' }}>
+              {device?.branch?.name} • {device?.device_name}
+            </Text>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
+              ID Type: {device?.organization?.settings?.id_label || 'Staff ID'}
+            </Text>
+            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
+              Mode: {device?.organization?.settings?.attendance_mode === 'shift' ? 'Shift-based' : 'Session-based'}
+            </Text>
+          </div>
+        </div>
       </div>
 
-      <Row gutter={[24, 24]} justify="center" style={{ maxWidth: 800 }}>
-        {cards.map((card) => (
-          <Col xs={24} sm={12} md={8} key={card.key}>
-            <Card
-              hoverable
-              onClick={() => navigate(card.path)}
-              style={{
-                height: '100%',
-                border: `1px solid ${card.color}20`,
-                borderRadius: 12,
-                transition: 'all 0.3s',
-              }}
-              bodyStyle={{
-                padding: '24px',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center',
-                gap: 16 
-              }}>
-                <div style={{
-                  width: 80,
-                  height: 80,
-                  borderRadius: '50%',
-                  backgroundColor: `${card.color}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  {React.cloneElement(card.icon, { color: card.color })}
-                </div>
-                <Title level={4} style={{ margin: 0, color: card.color }}>
-                  {card.title}
-                </Title>
-                <Text type="secondary" style={{ fontSize: '14px' }}>
-                  {card.description}
-                </Text>
-              </div>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
       <div style={{ 
-        marginTop: 40,
-        textAlign: 'center' 
+        flex: 1,
+        padding: '0 24px 24px',
+        maxWidth: 1200,
+        margin: '0 auto',
+        width: '100%'
       }}>
-        <Text type="secondary" style={{ fontSize: '12px' }}>
-          AFE Babalola University • Face Authentication System
-        </Text>
+        <Title level={3} style={{ marginBottom: 24 }}>
+          Dashboard
+        </Title>
+        
+        <Row gutter={[24, 24]}>
+          {cards.map((card) => (
+            <Col xs={24} sm={12} lg={6} key={card.key}>
+              <Card
+                hoverable
+                onClick={() => navigate(card.path)}
+                style={{
+                  height: '100%',
+                  border: `1px solid ${card.color}20`,
+                  borderRadius: 12,
+                  transition: 'all 0.3s',
+                  cursor: 'pointer'
+                }}
+                bodyStyle={{
+                  padding: '24px',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center',
+                  gap: 16 
+                }}>
+                  <div style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: '50%',
+                    backgroundColor: `${card.color}15`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    {React.cloneElement(card.icon, { color: card.color })}
+                  </div>
+                  <Title level={4} style={{ margin: 0, color: card.color }}>
+                    {card.title}
+                  </Title>
+                  <Text type="secondary" style={{ fontSize: '14px' }}>
+                    {card.description}
+                  </Text>
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
+        {/* Stats Section */}
+        <div style={{ marginTop: 48 }}>
+          <Title level={4}>Today's Summary</Title>
+          <Row gutter={[16, 16]}>
+            <Col span={6}>
+              <Card style={{ borderRadius: 8 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, fontWeight: 'bold', color: '#52c41a' }}>0</div>
+                  <Text type="secondary">Present Today</Text>
+                </div>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card style={{ borderRadius: 8 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, fontWeight: 'bold', color: '#fa8c16' }}>0</div>
+                  <Text type="secondary">Late Today</Text>
+                </div>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card style={{ borderRadius: 8 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, fontWeight: 'bold', color: '#f5222d' }}>0</div>
+                  <Text type="secondary">Absent Today</Text>
+                </div>
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card style={{ borderRadius: 8 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, fontWeight: 'bold', color: '#1890ff' }}>0</div>
+                  <Text type="secondary">Total Staff</Text>
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        </div>
       </div>
     </div>
   );
@@ -188,8 +335,9 @@ function App() {
   useEffect(() => {
     async function testConnection() {
       try {
-        const { data: faculties, error } = await supabase
-          .from('faculties')
+        // Only destructure error since organizations is not used
+        const { error } = await supabase
+          .from('organizations')
           .select('*')
           .limit(1);
         
@@ -203,7 +351,7 @@ function App() {
         } else {
           setConnectionStatus({
             status: 'connected',
-            message: 'Connected',
+            message: 'Connected to Multi-Tenant Platform',
             details: null
           });
         }
@@ -236,24 +384,20 @@ function App() {
           margin: '0 auto'
         }}>
           <Alert
-            message="Connection Error"
+            message="Platform Connection Error"
             description={
               <div>
-                <p>Failed to connect to database.</p>
+                <p>Failed to connect to FaceAuthAttendance platform.</p>
+                <p style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+                  Error: {connectionStatus.details}
+                </p>
                 <div style={{ marginTop: 20 }}>
-                  <button 
+                  <Button 
+                    type="primary"
                     onClick={() => window.location.reload()}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: '#1890ff',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 4,
-                      cursor: 'pointer'
-                    }}
                   >
-                    Retry
-                  </button>
+                    Retry Connection
+                  </Button>
                 </div>
               </div>
             }
@@ -275,7 +419,10 @@ function App() {
         height: '100vh',
       }}>
         <Spin size="large" />
-        <Text type="secondary" style={{ marginTop: 20 }}>
+        <Title level={4} style={{ marginTop: 20, color: '#1890ff' }}>
+          FaceAuthAttendance Platform
+        </Title>
+        <Text type="secondary" style={{ marginTop: 8 }}>
           {connectionStatus.message}
         </Text>
       </div>
@@ -287,30 +434,44 @@ function App() {
       theme={{
         algorithm: theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#1890ff',
+          colorPrimary: '#667eea',
           borderRadius: 8,
         },
       }}
     >
       <Router>
-        <div style={{ minHeight: '100vh' }}>
-          <Routes>
-            <Route path="/" element={<HomeCards />} />
-            <Route path="/enroll" element={
-              <PageWrapper>
+        <Routes>
+          {/* Device setup (public route) */}
+          <Route path="/device-setup" element={<DeviceSetupPage />} />
+          <Route path="/branch-selection" element={<BranchSelectionPage />} />
+          
+          {/* Protected routes */}
+          <Route path="/" element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/enroll" element={
+            <ProtectedRoute>
+              <OrganizationLayout>
                 <EnrollmentPage />
-              </PageWrapper>
-            } />
-            {/* Attendance page renders without PageWrapper */}
-            <Route path="/attendance" element={<AttendancePage />} />
-            <Route path="/attendance-management" element={
-              <PageWrapper>
+              </OrganizationLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/attendance" element={
+            <ProtectedRoute>
+              <AttendancePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/attendance-management" element={
+            <ProtectedRoute>
+              <OrganizationLayout>
                 <AttendanceManagementPage />
-              </PageWrapper>
-            } />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </div>
+              </OrganizationLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
       </Router>
     </ConfigProvider>
   );

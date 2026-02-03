@@ -24,6 +24,6 @@
     "jsx": "react-jsx",
     "typeRoots": ["./node_modules/@types", "./src/types"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "craco.config.js", "config-overrides.js"],
   "exclude": ["node_modules", "build", "dist"]
 }

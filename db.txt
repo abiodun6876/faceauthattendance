@@ -1,0 +1,613 @@
+-- ============================================
+-- FACE AUTH ATTENDANCE MULTI-TENANT SCHEMA
+-- ============================================
+
+-- First, drop existing tables if any
+DROP TABLE IF EXISTS sync_queue CASCADE;
+DROP TABLE IF EXISTS face_match_logs CASCADE;
+DROP TABLE IF EXISTS attendance_sessions CASCADE;
+DROP TABLE IF EXISTS face_enrollments CASCADE;
+DROP TABLE IF EXISTS screen_pairs CASCADE;
+DROP TABLE IF EXISTS attendance CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS devices CASCADE;
+DROP TABLE IF EXISTS shifts CASCADE;
+DROP TABLE IF EXISTS departments CASCADE;
+DROP TABLE IF EXISTS branches CASCADE;
+DROP TABLE IF EXISTS organizations CASCADE;
+
+-- Drop existing views
+DROP VIEW IF EXISTS daily_attendance_summary CASCADE;
+DROP VIEW IF EXISTS staff_attendance_history CASCADE;
+DROP VIEW IF EXISTS device_activity_log CASCADE;
+
+-- Drop existing functions
+DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
+DROP FUNCTION IF EXISTS generate_pairing_code() CASCADE;
+DROP FUNCTION IF EXISTS generate_device_token() CASCADE;
+DROP FUNCTION IF EXISTS match_users_by_face(vector, float, uuid) CASCADE;
+
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "vector";
+
+-- 1. ORGANIZATIONS (Core tenant table)
+CREATE TABLE organizations (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  type text NOT NULL CHECK (type IN ('school', 'company', 'event', 'ngo')),
+  subdomain text UNIQUE,
+  settings jsonb DEFAULT '{
+    "id_label": "Staff ID",
+    "attendance_mode": "shift",
+    "require_clock_out": true,
+    "allow_multi_branch": true,
+    "late_penalty_minutes": 15,
+    "verification_threshold": 0.65
+  }'::jsonb,
+  branding jsonb DEFAULT '{
+    "primary_color": "#2563eb",
+    "logo_url": null,
+    "welcome_message": "Face Recognition Attendance System"
+  }'::jsonb,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 2. BRANCHES/LOCATIONS
+CREATE TABLE branches (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  code text NOT NULL,
+  name text NOT NULL,
+  address text,
+  contact_phone text,
+  contact_email text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(organization_id, code)
+);
+
+-- 3. DEPARTMENTS/TEAMS
+CREATE TABLE departments (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  branch_id uuid REFERENCES branches(id) ON DELETE CASCADE,
+  code text NOT NULL,
+  name text NOT NULL,
+  description text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(organization_id, code)
+);
+
+-- 4. SHIFTS (For corporate/company mode) - FIXED: Remove organization-wide unique constraint
+CREATE TABLE shifts (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  branch_id uuid REFERENCES branches(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  code text NOT NULL,
+  start_time time NOT NULL,
+  end_time time NOT NULL,
+  grace_minutes integer DEFAULT 10,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+  -- Removed: UNIQUE(organization_id, code) - Allows same shift code in different branches
+);
+
+-- 5. DEVICES (Your hardware terminals)
+CREATE TABLE devices (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  branch_id uuid REFERENCES branches(id) ON DELETE CASCADE,
+  device_code text NOT NULL UNIQUE,
+  device_name text NOT NULL,
+  device_type text DEFAULT 'android_terminal',
+  device_ip inet,
+  device_token text UNIQUE,
+  pairing_code text,
+  status text DEFAULT 'inactive' CHECK (status IN ('active', 'inactive', 'maintenance', 'disabled')),
+  last_seen timestamptz,
+  location_note text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 6. USERS (Staff/Students across all organizations)
+CREATE TABLE users (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  branch_id uuid REFERENCES branches(id) ON DELETE CASCADE,
+  department_id uuid REFERENCES departments(id) ON DELETE SET NULL,
+  
+  -- Identity fields
+  staff_id text, -- or matric_no based on org type
+  full_name text NOT NULL,
+  email text,
+  phone text,
+  
+  -- Face recognition
+  face_embedding vector(128),
+  face_embedding_stored boolean DEFAULT false,
+  face_photo_url text,
+  face_enrolled_at timestamptz,
+  
+  -- Status
+  user_role text DEFAULT 'staff' CHECK (user_role IN ('staff', 'student', 'admin', 'supervisor')),
+  enrollment_status text DEFAULT 'pending' CHECK (enrollment_status IN ('pending', 'enrolled', 'verified', 'suspended')),
+  is_active boolean DEFAULT true,
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  
+  -- Unique within organization
+  UNIQUE(organization_id, staff_id)
+);
+
+-- 7. ATTENDANCE RECORDS (Clock in/out)
+CREATE TABLE attendance (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  device_id uuid REFERENCES devices(id) ON DELETE SET NULL,
+  shift_id uuid REFERENCES shifts(id) ON DELETE SET NULL,
+  
+  -- Time tracking
+  clock_in timestamptz NOT NULL,
+  clock_out timestamptz,
+  date date NOT NULL,
+  
+  -- Status
+  status text DEFAULT 'present' CHECK (status IN ('present', 'late', 'absent', 'excused', 'leave')),
+  confidence_score float,
+  face_match_score float,
+  verification_method text DEFAULT 'face' CHECK (verification_method IN ('face', 'manual', 'card')),
+  
+  -- Location info
+  branch_id uuid REFERENCES branches(id) ON DELETE SET NULL,
+  department_id uuid REFERENCES departments(id) ON DELETE SET NULL,
+  
+  -- Media
+  photo_url text,
+  
+  -- Sync
+  synced boolean DEFAULT true,
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 8. SCREEN PAIRS (Large screen connections)
+CREATE TABLE screen_pairs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  device_id uuid REFERENCES devices(id) ON DELETE CASCADE UNIQUE,
+  pair_code text NOT NULL UNIQUE,
+  screen_name text,
+  status text DEFAULT 'paired' CHECK (status IN ('paired', 'disconnected', 'expired')),
+  last_activity timestamptz,
+  connected_at timestamptz DEFAULT now(),
+  disconnected_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+-- 9. FACE ENROLLMENTS (Multiple enrollments per user)
+CREATE TABLE face_enrollments (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Face data
+  embedding vector(128) NOT NULL,
+  photo_url text NOT NULL,
+  quality_score float,
+  
+  -- Metadata
+  capture_device text,
+  enrollment_location text,
+  is_primary boolean DEFAULT false,
+  is_active boolean DEFAULT true,
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 10. ATTENDANCE SESSIONS (For school mode)
+CREATE TABLE attendance_sessions (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  course_code text,
+  session_date date NOT NULL,
+  start_time timestamptz NOT NULL,
+  end_time timestamptz,
+  total_students integer DEFAULT 0,
+  attended_students integer DEFAULT 0,
+  status text DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- 11. FACE MATCH LOGS (Audit trail)
+CREATE TABLE face_match_logs (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  device_id uuid REFERENCES devices(id) ON DELETE SET NULL,
+  
+  -- Match data
+  confidence_score float NOT NULL,
+  threshold_score float NOT NULL,
+  is_match boolean NOT NULL,
+  verification_result text CHECK (verification_result IN ('success', 'failed', 'pending')),
+  
+  -- Media
+  photo_url text,
+  capture_device text,
+  
+  created_at timestamptz DEFAULT now()
+);
+
+-- 12. SYNC QUEUE (Offline support)
+CREATE TABLE sync_queue (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+  device_id uuid REFERENCES devices(id) ON DELETE CASCADE,
+  table_name text NOT NULL,
+  record_id text NOT NULL,
+  operation text NOT NULL CHECK (operation IN ('insert', 'update', 'delete')),
+  data jsonb NOT NULL,
+  processed boolean DEFAULT false,
+  processed_at timestamptz,
+  retry_count integer DEFAULT 0,
+  error_message text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+
+-- Organizations
+CREATE INDEX idx_organizations_active ON organizations(is_active);
+CREATE INDEX idx_organizations_type ON organizations(type);
+
+-- Users
+CREATE INDEX idx_users_organization ON users(organization_id);
+CREATE INDEX idx_users_branch ON users(branch_id);
+CREATE INDEX idx_users_staff_id ON users(staff_id);
+CREATE INDEX idx_users_face_embedding ON users USING ivfflat (face_embedding vector_cosine_ops);
+
+-- Attendance
+CREATE INDEX idx_attendance_organization ON attendance(organization_id);
+CREATE INDEX idx_attendance_user_date ON attendance(user_id, date);
+CREATE INDEX idx_attendance_clock_in ON attendance(clock_in);
+CREATE INDEX idx_attendance_device ON attendance(device_id);
+
+-- Devices
+CREATE INDEX idx_devices_organization ON devices(organization_id);
+CREATE INDEX idx_devices_token ON devices(device_token);
+CREATE INDEX idx_devices_status ON devices(status);
+
+-- Face enrollments
+CREATE INDEX idx_face_enrollments_user ON face_enrollments(user_id);
+CREATE INDEX idx_face_enrollments_primary ON face_enrollments(is_primary) WHERE is_primary = true;
+
+-- Face match logs
+CREATE INDEX idx_face_match_logs_created ON face_match_logs(created_at);
+CREATE INDEX idx_face_match_logs_user_device ON face_match_logs(user_id, device_id);
+
+-- Sync queue
+CREATE INDEX idx_sync_queue_processed ON sync_queue(processed);
+CREATE INDEX idx_sync_queue_device ON sync_queue(device_id);
+
+-- Shifts
+CREATE INDEX idx_shifts_branch ON shifts(branch_id);
+CREATE INDEX idx_shifts_organization ON shifts(organization_id);
+
+-- ============================================
+-- FUNCTIONS AND TRIGGERS
+-- ============================================
+
+-- Auto-update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Apply triggers to all tables with updated_at
+CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_branches_updated_at BEFORE UPDATE ON branches FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_departments_updated_at BEFORE UPDATE ON departments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_shifts_updated_at BEFORE UPDATE ON shifts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_devices_updated_at BEFORE UPDATE ON devices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_attendance_updated_at BEFORE UPDATE ON attendance FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_face_enrollments_updated_at BEFORE UPDATE ON face_enrollments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Generate unique pairing code
+CREATE OR REPLACE FUNCTION generate_pairing_code()
+RETURNS text AS $$
+DECLARE
+    code text;
+    exists_count integer;
+BEGIN
+    FOR i IN 1..10 LOOP
+        code := upper(substring(md5(random()::text) from 1 for 6));
+        SELECT COUNT(*) INTO exists_count FROM screen_pairs WHERE pair_code = code;
+        IF exists_count = 0 THEN
+            RETURN code;
+        END IF;
+    END LOOP;
+    RAISE EXCEPTION 'Failed to generate unique pairing code after 10 attempts';
+END;
+$$ language 'plpgsql';
+
+-- Generate device token
+CREATE OR REPLACE FUNCTION generate_device_token()
+RETURNS text AS $$
+DECLARE
+    token text;
+    exists_count integer;
+BEGIN
+    FOR i IN 1..10 LOOP
+        token := encode(gen_random_bytes(32), 'hex');
+        SELECT COUNT(*) INTO exists_count FROM devices WHERE device_token = token;
+        IF exists_count = 0 THEN
+            RETURN token;
+        END IF;
+    END LOOP;
+    RAISE EXCEPTION 'Failed to generate unique device token after 10 attempts';
+END;
+$$ language 'plpgsql';
+
+-- Function for face matching (vector similarity search)
+CREATE OR REPLACE FUNCTION match_users_by_face(
+  query_embedding vector(128),
+  match_threshold float,
+  filter_organization_id uuid
+)
+RETURNS TABLE(
+  id uuid,
+  staff_id text,
+  full_name text,
+  face_photo_url text,
+  similarity float
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    u.id,
+    u.staff_id,
+    u.full_name,
+    u.face_photo_url,
+    1 - (u.face_embedding <=> query_embedding) as similarity
+  FROM users u
+  WHERE u.organization_id = filter_organization_id
+    AND u.face_embedding IS NOT NULL
+    AND u.is_active = true
+    AND u.enrollment_status = 'enrolled'
+    AND 1 - (u.face_embedding <=> query_embedding) > match_threshold
+  ORDER BY u.face_embedding <=> query_embedding
+  LIMIT 5;
+END;
+$$;
+
+-- ============================================
+-- INITIAL DATA FOR TESTING
+-- ============================================
+
+-- Insert sample organization (Nigeram)
+INSERT INTO organizations (name, type, settings) 
+VALUES 
+('Nigeram Limited', 'company', '{
+  "id_label": "Staff ID",
+  "attendance_mode": "shift",
+  "require_clock_out": true,
+  "allow_multi_branch": true,
+  "late_penalty_minutes": 15,
+  "verification_threshold": 0.65,
+  "shift_based": true,
+  "max_shift_hours": 9,
+  "overtime_allowed": true
+}'::jsonb);
+
+DO $$
+DECLARE
+    org_id uuid;
+    branch1_id uuid;
+    branch2_id uuid;
+    device_token text;
+BEGIN
+    -- Get the organization ID
+    SELECT id INTO org_id FROM organizations WHERE name = 'Nigeram Limited';
+    
+    -- Insert sample branches
+    INSERT INTO branches (organization_id, code, name, address)
+    VALUES 
+    (org_id, 'IKJ', 'Ikeja Branch', '123 Ikeja Road, Lagos')
+    RETURNING id INTO branch1_id;
+    
+    INSERT INTO branches (organization_id, code, name, address)
+    VALUES 
+    (org_id, 'VIC', 'Victoria Island Branch', '45 Ahmadu Bello Way, VI')
+    RETURNING id INTO branch2_id;
+    
+    -- Insert sample shifts for branch 1 (Ikeja)
+    INSERT INTO shifts (organization_id, branch_id, name, code, start_time, end_time)
+    VALUES 
+    (org_id, branch1_id, 'Morning Shift', 'MORNING', '08:00:00', '17:00:00'),
+    (org_id, branch1_id, 'Afternoon Shift', 'AFTERNOON', '12:00:00', '21:00:00');
+    
+    -- Insert sample shifts for branch 2 (Victoria Island) with different codes
+    INSERT INTO shifts (organization_id, branch_id, name, code, start_time, end_time)
+    VALUES 
+    (org_id, branch2_id, 'Morning Shift', 'VI-MORNING', '09:00:00', '18:00:00'),
+    (org_id, branch2_id, 'Evening Shift', 'VI-EVENING', '14:00:00', '23:00:00');
+    
+    -- Generate device token
+    device_token := generate_device_token();
+    
+    -- Insert sample device for Ikeja branch
+    INSERT INTO devices (organization_id, branch_id, device_code, device_name, device_token, status)
+    VALUES 
+    (org_id, branch1_id, 'NGR-IKJ-001', 'Nigeram Terminal 1', device_token, 'active');
+    
+    -- Insert sample admin user for Ikeja
+    INSERT INTO users (
+      organization_id,
+      branch_id,
+      staff_id,
+      full_name,
+      email,
+      user_role,
+      enrollment_status
+    ) VALUES (
+      org_id,
+      branch1_id,
+      'ADM001',
+      'System Administrator',
+      'admin@nigeram.com',
+      'admin',
+      'verified'
+    );
+    
+    -- Insert sample staff users
+    INSERT INTO users (
+      organization_id,
+      branch_id,
+      staff_id,
+      full_name,
+      user_role,
+      enrollment_status
+    ) VALUES 
+    (org_id, branch1_id, 'EMP001', 'John Doe', 'staff', 'enrolled'),
+    (org_id, branch1_id, 'EMP002', 'Jane Smith', 'staff', 'enrolled'),
+    (org_id, branch2_id, 'EMP101', 'Mike Johnson', 'staff', 'pending');
+    
+    RAISE NOTICE 'Sample data created successfully. Organization ID: %, Device Token: %', org_id, device_token;
+END $$;
+
+-- ============================================
+-- VIEWS FOR REPORTING (FIXED ROUND FUNCTION)
+-- ============================================
+
+-- Daily attendance summary
+CREATE OR REPLACE VIEW daily_attendance_summary AS
+SELECT 
+    a.organization_id,
+    a.date,
+    o.name as organization_name,
+    COUNT(DISTINCT a.user_id) as total_staff,
+    COUNT(CASE WHEN a.status = 'present' THEN 1 END) as present_count,
+    COUNT(CASE WHEN a.status = 'late' THEN 1 END) as late_count,
+    COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as absent_count,
+    ROUND(AVG(a.confidence_score)::numeric, 2) as avg_confidence
+FROM attendance a
+JOIN organizations o ON a.organization_id = o.id
+GROUP BY a.organization_id, a.date, o.name;
+
+-- Staff attendance history
+CREATE OR REPLACE VIEW staff_attendance_history AS
+SELECT 
+    u.organization_id,
+    u.staff_id,
+    u.full_name,
+    b.name as branch_name,
+    d.name as department_name,
+    COUNT(a.id) as total_days,
+    COUNT(CASE WHEN a.status = 'present' THEN 1 END) as present_days,
+    COUNT(CASE WHEN a.status = 'late' THEN 1 END) as late_days,
+    COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as absent_days,
+    MIN(a.clock_in) as first_clock_in,
+    MAX(a.clock_out) as last_clock_out
+FROM users u
+LEFT JOIN attendance a ON u.id = a.user_id
+LEFT JOIN branches b ON u.branch_id = b.id
+LEFT JOIN departments d ON u.department_id = d.id
+GROUP BY u.organization_id, u.staff_id, u.full_name, b.name, d.name;
+
+-- Device activity log
+CREATE OR REPLACE VIEW device_activity_log AS
+SELECT 
+    d.organization_id,
+    d.device_code,
+    d.device_name,
+    b.name as branch_name,
+    d.status as device_status,
+    d.last_seen,
+    COUNT(a.id) as total_scans,
+    COUNT(DISTINCT DATE(a.clock_in)) as active_days,
+    MIN(a.clock_in) as first_activity,
+    MAX(a.clock_in) as last_activity
+FROM devices d
+LEFT JOIN branches b ON d.branch_id = b.id
+LEFT JOIN attendance a ON d.id = a.device_id
+GROUP BY d.organization_id, d.device_code, d.device_name, b.name, d.status, d.last_seen;
+
+-- ============================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ============================================
+
+-- Enable RLS on all tables
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE branches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE screen_pairs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE face_enrollments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE face_match_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sync_queue ENABLE ROW LEVEL SECURITY;
+
+-- Basic RLS policies (can be refined later)
+CREATE POLICY "Enable read access for authenticated users" ON organizations
+  FOR SELECT USING (true);
+
+CREATE POLICY "Enable read access for authenticated users" ON branches
+  FOR SELECT USING (true);
+
+CREATE POLICY "Enable read access for authenticated users" ON devices
+  FOR SELECT USING (true);
+
+CREATE POLICY "Enable read access for authenticated users" ON users
+  FOR SELECT USING (true);
+
+CREATE POLICY "Enable read access for authenticated users" ON attendance
+  FOR SELECT USING (true);
+
+-- ============================================
+-- REAL-TIME SETUP
+-- ============================================
+
+-- Enable realtime for tables that need live updates
+BEGIN;
+  DROP PUBLICATION IF EXISTS supabase_realtime;
+  CREATE PUBLICATION supabase_realtime;
+  ALTER PUBLICATION supabase_realtime ADD TABLE screen_pairs;
+  ALTER PUBLICATION supabase_realtime ADD TABLE attendance;
+  ALTER PUBLICATION supabase_realtime ADD TABLE face_match_logs;
+COMMIT;
+
+-- ============================================
+-- FINAL SETUP COMPLETE
+-- ============================================
+
+-- Comment for success
+COMMENT ON TABLE organizations IS 'Multi-tenant organizations table - core of FaceAuthAttendance platform';
+COMMENT ON TABLE devices IS 'Hardware terminals controlled by vendor - key business model';
+
+SELECT '✅ Database schema created successfully!' as message;

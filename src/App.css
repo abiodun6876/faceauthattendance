@@ -2,18 +2,18 @@
 :root {
   --primary-color: #00aaff;
   --secondary-color: #00ffaa;
-  --dark-bg: #0a1a35;
-  --darker-bg: #051024;
-  --light-bg: #0f2447;
-  --text-primary: #ffffff;
-  --text-secondary: #aaccff;
+  --dark-bg: #ffffff;
+  --darker-bg: #ffffff;
+  --light-bg: #cacaca;
+  --text-primary: #000000;
+  --text-secondary: #000000;
   --success-color: #00ffaa;
   --warning-color: #ffaa00;
   --error-color: #ff3355;
   --border-color: rgba(0, 150, 255, 0.3);
   --glow-blue: 0 0 20px rgba(0, 170, 255, 0.4);
   --glow-green: 0 0 20px rgba(0, 255, 150, 0.4);
-  --glass-bg: rgba(10, 26, 53, 0.8);
+  --glass-bg: rgba(255, 255, 255, 0.8);
 }
 
 /* ========== BASE STYLES ========== */
@@ -64,15 +64,15 @@ body {
 
 .ant-menu-item-selected {
   background: linear-gradient(90deg, 
-    rgba(0, 170, 255, 0.2) 0%, 
-    rgba(0, 170, 255, 0.1) 100%) !important;
+    rgba(255, 255, 255, 0.2) 0%, 
+    rgba(255, 255, 255, 0.1) 100%) !important;
   color: var(--secondary-color) !important;
   border-right: 3px solid var(--secondary-color) !important;
 }
 
 .ant-menu-item:hover {
   color: var(--primary-color) !important;
-  background: rgba(0, 170, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* ========== TYPOGRAPHY ========== */
@@ -82,7 +82,7 @@ body {
 
 h1.ant-typography {
   color: var(--text-primary) !important;
-  text-shadow: 0 2px 10px rgba(0, 170, 255, 0.3);
+  text-shadow: 0 2px 10px rgba(237, 241, 243, 0.3);
 }
 
 h2.ant-typography {
@@ -128,7 +128,7 @@ h4.ant-typography {
 .ant-btn-default:hover {
   border-color: var(--primary-color) !important;
   color: var(--primary-color) !important;
-  background: rgba(0, 170, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* ========== CARDS ========== */
@@ -137,7 +137,7 @@ h4.ant-typography {
   border: 1px solid var(--border-color) !important;
   border-radius: 12px !important;
   backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.2) !important;
 }
 
 .ant-card-head {

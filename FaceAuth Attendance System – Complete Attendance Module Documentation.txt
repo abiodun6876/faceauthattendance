@@ -1,0 +1,298 @@
+# FaceAuth Attendance System – Complete Attendance Module Documentation
+
+**Product:** Face Recognition Attendance System (Web-Based)
+**Developer:** Akinpelu Abiodun Moses
+**Platform:** Multi‑Tenant Web Application
+**Database:** PostgreSQL (Supabase)
+**AI Engine:** TensorFlow.js / face‑api.js
+
+---
+
+## 1. Overview
+
+The Attendance Module is the core component of the FaceAuth system responsible for:
+
+* Real‑time face identification
+* Clock‑in and clock‑out management
+* Shift/session control
+* Device validation
+* Multi‑branch support
+* Large screen monitoring
+* Offline synchronization
+
+The module is designed to serve:
+
+* Universities & schools
+* Businesses & enterprises
+* Events & conferences
+* Religious and community organizations
+
+Each organization operates independently using its own devices, branches, and database records while sharing the same software core.
+
+---
+
+## 2. Core Concepts
+
+### 2.1 Entities
+
+* **Organization** – Client company or institution
+* **Branch** – Physical location of organization
+* **Device** – Android phone used for capture
+* **User** – Student/staff/participant
+* **Attendance Record** – Daily clock data
+* **Screen Pair** – Connection to large display
+
+### 2.2 Attendance Modes
+
+1. Standard Clock‑In / Clock‑Out
+2. Shift‑Based Attendance
+3. Session‑Based (schools & events)
+4. Continuous Monitoring Mode
+
+---
+
+## 3. Attendance Workflow
+
+### Step 1 – Device Validation
+
+* App loads device information
+* Confirms organization and branch
+* Verifies license and status
+* Enables camera only for authorized devices
+
+### Step 2 – Face Capture
+
+* Live webcam stream
+* Real‑time face detection
+* Quality checks
+* Embedding generation
+
+### Step 3 – Identification
+
+* Compare embedding using match_users_by_face
+* Threshold verification
+* Confidence scoring
+* Anti‑spoof validation
+
+### Step 4 – Attendance Decision
+
+IF no record today → CLOCK IN
+IF clocked in only → CLOCK OUT
+IF completed → reject duplicate
+
+### Step 5 – Logging
+
+* Save attendance table
+* Save match logs
+* Notify large screen
+* Sync offline queue
+
+---
+
+## 4. Database Structure
+
+### Main Tables
+
+* users
+* face_enrollments
+* attendance
+* devices
+* organizations
+* branches
+* screen_pairs
+* face_match_logs
+* sync_queue
+
+### Key Fields
+
+Attendance Record contains:
+
+* user_id
+* organization_id
+* branch_id
+* device_id
+* date
+* clock_in
+* clock_out
+* face_match_score
+* verification_method
+* status
+
+---
+
+## 5. Clock Logic Rules
+
+1. One record per user per day
+2. First match = clock_in
+3. Second match = clock_out
+4. Third match = rejected
+5. Confidence must exceed threshold
+6. User must belong to organization
+7. Device must be authorized
+
+---
+
+## 6. Large Screen Monitoring
+
+Features:
+
+* Pair PC using share code
+* Real‑time attendance feed
+* Photo preview
+* Name and ID display
+* Daily statistics
+
+Used by:
+
+* Security desk
+* Reception
+* Admin office
+
+---
+
+## 7. Offline Support
+
+* Records stored in sync_queue
+* Auto retry when online
+* Conflict resolution
+* Timestamp preservation
+
+---
+
+## 8. Security
+
+* Encrypted embeddings only
+* TLS communication
+* Role permissions
+* Device binding
+* Anti‑spoof checks
+
+---
+
+## 9. Setup Per Organization
+
+During onboarding admin defines:
+
+* Clock mode
+* Shift rules
+* Branches
+* Departments
+* Device IDs
+* Large screen pairing
+
+---
+
+## 10. Benefits
+
+* Contactless
+* Fast (<2 seconds)
+* Fraud resistant
+* Works on low‑cost Android
+* Multi‑tenant
+* Scalable
+
+---
+
+## 11. Conclusion
+
+The Attendance Module delivers a flexible, organization‑specific system built on a single robust codebase, allowing deployment to unlimited companies without rebuilding the application.
+
+It supports education, corporate, and event environments with device‑based licensing and large screen integration.
+
+---
+
+## 10. Attendance Mode Logic (Clock‑In / Clock‑Out Strategy)
+
+Different organizations require different behavior. The platform supports three operating modes configurable per organization in settings.attendance_mode.
+
+### A. Toggle Mode (Automatic)
+
+**Logic:**
+
+* First successful face match of the day → CLOCK IN
+* Next match → CLOCK OUT
+* Subsequent matches → update last CLOCK OUT
+
+**Best for:** small companies and offices where staff rarely leave and return multiple times.
+
+**Pros**
+
+* Zero UI interaction
+* Fastest experience
+* Works with kiosk style terminals
+
+**Cons**
+
+* Cannot differentiate break vs final exit
+* Risk of accidental double tap
+
+---
+
+### B. Explicit Button Mode
+
+Interface shows two large actions:
+
+* [CLOCK IN]
+* [CLOCK OUT]
+
+User selects intention before face capture.
+
+**Best for:**
+
+* Factories with multiple exits
+* Organizations that calculate overtime
+* Places with frequent movement in/out
+
+**Validation Rules**
+
+* Prevent clock‑out without clock‑in
+* Prevent double clock‑in
+* Allow supervisor override
+* Grace minutes per shift
+
+---
+
+### C. Event / Single Mark Mode
+
+Only one record per session or day.
+
+**Use cases**
+
+* Schools taking attendance per lecture
+* Churches / events
+* Exams and conferences
+
+**Behavior**
+
+* Each scan = “Present” for that event
+* No clock‑out required
+* Session based instead of shift based
+
+---
+
+### Recommended Hybrid Flow
+
+1. Organization setup asks:
+
+* Do you need IN & OUT? (Yes/No)
+* Do staff leave multiple times?
+* Is this event based?
+
+2. System automatically selects mode:
+
+* Company → Explicit or Toggle
+* School → Event Mode
+* Mixed → Department level rule
+
+3. Device UI adapts per organization.
+
+---
+
+### Database Handling
+
+* attendance table stores both clock_in and clock_out
+* event mode uses clock_in only
+* status field derived automatically
+* multiple records allowed per day when multi‑exit enabled
+
+This ensures one platform serves: companies, schools, events, and hybrid organizations.

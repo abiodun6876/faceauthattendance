@@ -1,67 +1,68 @@
 // utils/api.ts
 import { supabase } from '../lib/supabase';
 
-export interface Program {
-  id: string;
-  code: string;
-  name: string;
-  short_name?: string;
-  faculty_id?: string;
-  department_id?: string;
-  program_type?: string;
-  duration_years?: number;
-  is_active?: boolean;
-  created_at?: string;
-  updated_at?: string;
+interface DatabaseUser {
+  branch_id: string;
+  created_at: string;
+  department_id: string;
+  email: string;
+  enrollment_status: string;
+  face_embedding: string;
+  face_embedding_stored: boolean;
+  face_enrolled_at: string;
+  user_role: string;
+  full_name: string;
+  is_active: boolean;
+  organization_id: string;
 }
 
-export const fetchPrograms = async (): Promise<Program[]> => {
-  try {
-    console.log('Fetching programs from database...');
-    
-    const { data, error } = await supabase
-      .from('programs')
-      .select('*')
-      .eq('is_active', true)  // Only fetch active programs
-      .order('name');  // Order by name
+interface Branch {
+  id: string;
+  name: string;
+  is_active: boolean;
+  organization_id: string;
+}
 
-    if (error) {
-      console.error('Database error fetching programs:', error);
-      throw error;
+// Fetch all users in organization
+export const fetchUsers = async (organizationId?: string): Promise<DatabaseUser[]> => {
+  try {
+    let query = supabase
+      .from('users')
+      .select('*')
+      .eq('is_active', true);
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
     }
 
-    console.log('Fetched programs:', data);
-    
-    // Ensure we return an array even if data is null
+    const { data, error } = await query.order('full_name');
+
+    if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('Error in fetchPrograms:', error);
-    
-    // Return empty array instead of throwing to prevent page crash
+    console.error('Error fetching users:', error);
     return [];
   }
 };
 
-// Alternative: fetch with additional filters
-export const fetchProgramsForEnrollment = async (): Promise<Program[]> => {
+// Fetch all branches in organization
+export const fetchBranches = async (organizationId?: string): Promise<Branch[]> => {
   try {
-    console.log('Fetching programs for enrollment...');
-    
-    const { data, error } = await supabase
-      .from('programs')
-      .select('id, code, name, short_name, program_type, duration_years, is_active')
-      .eq('is_active', true)
-      .order('name');
+    let query = supabase
+      .from('branches')
+      .select('*')
+      .eq('is_active', true);
 
-    if (error) {
-      console.error('Database error:', error);
-      return [];
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
     }
 
-    console.log(`Found ${data?.length || 0} active programs`);
+    const { data, error } = await query.order('name');
+
+    if (error) throw error;
     return data || [];
   } catch (error) {
-    console.error('Error fetching programs:', error);
+    console.error('Error fetching branches:', error);
     return [];
   }
 };

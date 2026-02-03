@@ -1,0 +1,994 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  public: {
+    Tables: {
+      attendance: {
+        Row: {
+          user: any
+          branch_id: string | null
+          clock_in: string
+          clock_out: string | null
+          confidence_score: number | null
+          created_at: string | null
+          date: string
+          department_id: string | null
+          device_id: string | null
+          face_match_score: number | null
+          id: string
+          organization_id: string | null
+          photo_url: string | null
+          shift_id: string | null
+          status: string | null
+          synced: boolean | null
+          updated_at: string | null
+          user_id: string | null
+          verification_method: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          clock_in: string
+          clock_out?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          date: string
+          department_id?: string | null
+          device_id?: string | null
+          face_match_score?: number | null
+          id?: string
+          organization_id?: string | null
+          photo_url?: string | null
+          shift_id?: string | null
+          status?: string | null
+          synced?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+          verification_method?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          clock_in?: string
+          clock_out?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          date?: string
+          department_id?: string | null
+          device_id?: string | null
+          face_match_score?: number | null
+          id?: string
+          organization_id?: string | null
+          photo_url?: string | null
+          shift_id?: string | null
+          status?: string | null
+          synced?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+          verification_method?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_sessions: {
+        Row: {
+          attended_students: number | null
+          course_code: string | null
+          created_at: string | null
+          end_time: string | null
+          id: string
+          is_active: boolean | null
+          organization_id: string | null
+          session_date: string
+          start_time: string
+          status: string | null
+          total_students: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          attended_students?: number | null
+          course_code?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string | null
+          session_date: string
+          start_time: string
+          status?: string | null
+          total_students?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          attended_students?: number | null
+          course_code?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string | null
+          session_date?: string
+          start_time?: string
+          status?: string | null
+          total_students?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branches: {
+        Row: {
+          address: string | null
+          code: string
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          code: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          organization_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          code?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          organization_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      departments: {
+        Row: {
+          branch_id: string | null
+          code: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          code: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          organization_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          code?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          organization_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "departments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "departments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devices: {
+        Row: {
+          branch_id: string | null
+          created_at: string | null
+          device_code: string
+          device_ip: unknown
+          device_name: string
+          device_token: string | null
+          device_type: string | null
+          id: string
+          is_active: boolean | null
+          last_seen: string | null
+          location_note: string | null
+          organization_id: string | null
+          pairing_code: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string | null
+          device_code: string
+          device_ip?: unknown
+          device_name: string
+          device_token?: string | null
+          device_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_seen?: string | null
+          location_note?: string | null
+          organization_id?: string | null
+          pairing_code?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string | null
+          device_code?: string
+          device_ip?: unknown
+          device_name?: string
+          device_token?: string | null
+          device_type?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_seen?: string | null
+          location_note?: string | null
+          organization_id?: string | null
+          pairing_code?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      face_enrollments: {
+        Row: {
+          capture_device: string | null
+          created_at: string | null
+          embedding: string
+          enrollment_location: string | null
+          id: string
+          is_active: boolean | null
+          is_primary: boolean | null
+          organization_id: string | null
+          photo_url: string
+          quality_score: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          capture_device?: string | null
+          created_at?: string | null
+          embedding: string
+          enrollment_location?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_primary?: boolean | null
+          organization_id?: string | null
+          photo_url: string
+          quality_score?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          capture_device?: string | null
+          created_at?: string | null
+          embedding?: string
+          enrollment_location?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_primary?: boolean | null
+          organization_id?: string | null
+          photo_url?: string
+          quality_score?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "face_enrollments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "face_enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      face_match_logs: {
+        Row: {
+          capture_device: string | null
+          confidence_score: number
+          created_at: string | null
+          device_id: string | null
+          id: string
+          is_match: boolean
+          organization_id: string | null
+          photo_url: string | null
+          threshold_score: number
+          user_id: string | null
+          verification_result: string | null
+        }
+        Insert: {
+          capture_device?: string | null
+          confidence_score: number
+          created_at?: string | null
+          device_id?: string | null
+          id?: string
+          is_match: boolean
+          organization_id?: string | null
+          photo_url?: string | null
+          threshold_score: number
+          user_id?: string | null
+          verification_result?: string | null
+        }
+        Update: {
+          capture_device?: string | null
+          confidence_score?: number
+          created_at?: string | null
+          device_id?: string | null
+          id?: string
+          is_match?: boolean
+          organization_id?: string | null
+          photo_url?: string | null
+          threshold_score?: number
+          user_id?: string | null
+          verification_result?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "face_match_logs_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "face_match_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "face_match_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          branding: Json | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          settings: Json | null
+          subdomain: string | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          branding?: Json | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          settings?: Json | null
+          subdomain?: string | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          branding?: Json | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          settings?: Json | null
+          subdomain?: string | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      screen_pairs: {
+        Row: {
+          connected_at: string | null
+          created_at: string | null
+          device_id: string | null
+          disconnected_at: string | null
+          id: string
+          last_activity: string | null
+          pair_code: string
+          screen_name: string | null
+          status: string | null
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string | null
+          device_id?: string | null
+          disconnected_at?: string | null
+          id?: string
+          last_activity?: string | null
+          pair_code: string
+          screen_name?: string | null
+          status?: string | null
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string | null
+          device_id?: string | null
+          disconnected_at?: string | null
+          id?: string
+          last_activity?: string | null
+          pair_code?: string
+          screen_name?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screen_pairs_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: true
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shifts: {
+        Row: {
+          branch_id: string | null
+          code: string
+          created_at: string | null
+          end_time: string
+          grace_minutes: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string | null
+          start_time: string
+          updated_at: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          code: string
+          created_at?: string | null
+          end_time: string
+          grace_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          organization_id?: string | null
+          start_time: string
+          updated_at?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          code?: string
+          created_at?: string | null
+          end_time?: string
+          grace_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          organization_id?: string | null
+          start_time?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shifts_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shifts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sync_queue: {
+        Row: {
+          created_at: string | null
+          data: Json
+          device_id: string | null
+          error_message: string | null
+          id: string
+          operation: string
+          organization_id: string | null
+          processed: boolean | null
+          processed_at: string | null
+          record_id: string
+          retry_count: number | null
+          table_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          data: Json
+          device_id?: string | null
+          error_message?: string | null
+          id?: string
+          operation: string
+          organization_id?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          record_id: string
+          retry_count?: number | null
+          table_name: string
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json
+          device_id?: string | null
+          error_message?: string | null
+          id?: string
+          operation?: string
+          organization_id?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          record_id?: string
+          retry_count?: number | null
+          table_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_queue_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          branch_id: string | null
+          created_at: string | null
+          department_id: string | null
+          email: string | null
+          enrollment_status: string | null
+          face_embedding: string | null
+          face_embedding_stored: boolean | null
+          face_enrolled_at: string | null
+          face_photo_url: string | null
+          full_name: string
+          id: string
+          is_active: boolean | null
+          organization_id: string | null
+          phone: string | null
+          staff_id: string | null
+          updated_at: string | null
+          user_role: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string | null
+          department_id?: string | null
+          email?: string | null
+          enrollment_status?: string | null
+          face_embedding?: string | null
+          face_embedding_stored?: boolean | null
+          face_enrolled_at?: string | null
+          face_photo_url?: string | null
+          full_name: string
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string | null
+          phone?: string | null
+          staff_id?: string | null
+          updated_at?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string | null
+          department_id?: string | null
+          email?: string | null
+          enrollment_status?: string | null
+          face_embedding?: string | null
+          face_embedding_stored?: boolean | null
+          face_enrolled_at?: string | null
+          face_photo_url?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string | null
+          phone?: string | null
+          staff_id?: string | null
+          updated_at?: string | null
+          user_role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      daily_attendance_summary: {
+        Row: {
+          absent_count: number | null
+          avg_confidence: number | null
+          date: string | null
+          late_count: number | null
+          organization_id: string | null
+          organization_name: string | null
+          present_count: number | null
+          total_staff: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_activity_log: {
+        Row: {
+          active_days: number | null
+          branch_name: string | null
+          device_code: string | null
+          device_name: string | null
+          device_status: string | null
+          first_activity: string | null
+          last_activity: string | null
+          last_seen: string | null
+          organization_id: string | null
+          total_scans: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_attendance_history: {
+        Row: {
+          absent_days: number | null
+          branch_name: string | null
+          department_name: string | null
+          first_clock_in: string | null
+          full_name: string | null
+          last_clock_out: string | null
+          late_days: number | null
+          organization_id: string | null
+          present_days: number | null
+          staff_id: string | null
+          total_days: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Functions: {
+      generate_device_token: { Args: never; Returns: string }
+      generate_pairing_code: { Args: never; Returns: string }
+      match_users_by_face: {
+        Args: {
+          filter_organization_id: string
+          match_threshold: number
+          query_embedding: string
+        }
+        Returns: {
+          face_photo_url: string
+          full_name: string
+          id: string
+          similarity: number
+          staff_id: string
+        }[]
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {},
+  },
+} as const

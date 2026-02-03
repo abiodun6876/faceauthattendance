@@ -1,18 +1,25 @@
-// components/FaceCamera.tsx
-import React, { useRef, useState, useEffect } from 'react';
+// components/FaceCamera.tsx - Multi-tenant Version
+import React, { useRef, useState, useEffect, useCallback } from 'react'; // Added useCallback
 import Webcam from 'react-webcam';
-import { Button, Spin, message, Typography, Alert } from 'antd';
-import { Camera, AlertCircle } from 'lucide-react';
+import { Button, Spin, message, Typography, Alert, Tag } from 'antd';
+import { Camera, AlertCircle, User, Zap } from 'lucide-react';
 
 const { Text } = Typography;
 
 interface FaceCameraProps {
   mode: 'enrollment' | 'attendance';
   onEnrollmentComplete?: (photoData: string) => void;
-  onAttendanceComplete?: (result: { success: boolean; photoData?: { base64: string } }) => void;
+  onAttendanceComplete?: (result: { 
+    success: boolean; 
+    photoData?: { base64: string };
+    user?: any;
+    confidence?: number;
+  }) => void;
   autoCapture?: boolean;
   captureInterval?: number;
   loading?: boolean;
+  deviceInfo?: any;
+  organizationName?: string;
 }
 
 const FaceCamera: React.FC<FaceCameraProps> = ({
@@ -21,26 +28,35 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   onAttendanceComplete,
   autoCapture = false,
   captureInterval = 3000,
-  loading = false
+  loading = false,
+  deviceInfo,
+  organizationName
 }) => {
   const webcamRef = useRef<any>(null);
   const [isCameraActive, setIsCameraActive] = useState(true);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [cameraError, setCameraError] = useState<string>('');
+  const [cameraReady, setCameraReady] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check camera permissions on mount
   useEffect(() => {
     const checkCameraPermissions = async () => {
       try {
         console.log('Checking camera permissions...');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          } 
+        });
         console.log('Camera access granted');
         
         // Stop the stream immediately
         stream.getTracks().forEach(track => track.stop());
         
         setCameraError('');
+        setCameraReady(true);
       } catch (error: any) {
         console.error('Camera permission error:', error);
         setCameraError('Camera access denied. Please allow camera permissions in your browser settings.');
@@ -51,18 +67,22 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     checkCameraPermissions();
   }, []);
 
-  const capturePhoto = () => {
+  const capturePhoto = useCallback(() => {
     console.log('Attempting to capture photo...');
     
-    if (!webcamRef.current) {
-      console.error('Webcam ref is null');
+    if (!webcamRef.current || !cameraReady) {
+      console.error('Webcam not ready');
       message.error('Camera not ready');
       return null;
     }
     
     try {
-      const imageSrc = webcamRef.current.getScreenshot();
-      console.log('Photo captured:', imageSrc ? `Length: ${imageSrc.length}` : 'No image');
+      const imageSrc = webcamRef.current.getScreenshot({
+        width: 640,
+        height: 480
+      });
+      
+      console.log('Photo captured successfully');
       
       if (!imageSrc) {
         console.error('getScreenshot returned null/undefined');
@@ -76,9 +96,9 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       message.error('Camera error occurred');
       return null;
     }
-  };
+  }, [webcamRef, cameraReady]);
 
-  const handleCapture = () => {
+  const handleCapture = useCallback(() => {
     console.log('Capture button clicked');
     const photoData = capturePhoto();
     
@@ -92,15 +112,16 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     if (mode === 'enrollment' && onEnrollmentComplete) {
       onEnrollmentComplete(photoData);
     } else if (mode === 'attendance' && onAttendanceComplete) {
+      // For attendance mode, we'll handle face matching elsewhere
       onAttendanceComplete({
         success: true,
         photoData: { base64: photoData }
       });
     }
-  };
+  }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete]);
 
   useEffect(() => {
-    if (autoCapture && isCameraActive && mode === 'attendance') {
+    if (autoCapture && isCameraActive && cameraReady && mode === 'attendance') {
       intervalRef.current = setInterval(() => {
         setCountdown(1);
         setTimeout(() => {
@@ -115,11 +136,11 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, [autoCapture, isCameraActive, mode, captureInterval]);
+  }, [autoCapture, isCameraActive, mode, captureInterval, cameraReady, handleCapture]); // Added handleCapture
 
   const videoConstraints = {
-    width: 640,
-    height: 480,
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
     facingMode: "user" as const
   };
 
@@ -146,9 +167,16 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         />
         <Button 
           type="primary" 
-          onClick={() => {
-            setCameraError('');
-            setIsCameraActive(true);
+          onClick={async () => {
+            try {
+              const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+              stream.getTracks().forEach(track => track.stop());
+              setCameraError('');
+              setIsCameraActive(true);
+              setCameraReady(true);
+            } catch (error) {
+              message.error('Still cannot access camera. Please check browser settings.');
+            }
           }}
           size="large"
         >
@@ -174,30 +202,70 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               borderRadius: 8,
               backgroundColor: '#000'
             }}
-            onUserMedia={() => console.log('Webcam stream started')}
+            onUserMedia={() => {
+              console.log('Webcam stream started');
+              setCameraReady(true);
+            }}
             onUserMediaError={(error) => {
               console.error('Webcam error:', error);
               setCameraError('Failed to start camera. Please check your camera connection.');
               setIsCameraActive(false);
             }}
+            mirrored={true}
           />
           
-          {/* Debug overlay - remove in production */}
+          {/* Device/Branch Info Overlay */}
+          {(deviceInfo || organizationName) && (
+            <div style={{
+              position: 'absolute',
+              top: 10,
+              left: 10,
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              color: 'white',
+              padding: '4px 8px',
+              borderRadius: 4,
+              fontSize: 12,
+              zIndex: 5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              {organizationName && <Tag color="blue">{organizationName}</Tag>}
+              {deviceInfo?.device_name && <Tag color="green">{deviceInfo.device_name}</Tag>}
+              {deviceInfo?.branch?.name && <Tag color="purple">{deviceInfo.branch.name}</Tag>}
+            </div>
+          )}
+          
+          {/* Mode Overlay */}
           <div style={{
             position: 'absolute',
             top: 10,
-            left: 10,
+            right: 10,
             backgroundColor: 'rgba(0,0,0,0.7)',
             color: 'white',
-            padding: '4px 8px',
+            padding: '4px 12px',
             borderRadius: 4,
             fontSize: 12,
-            zIndex: 5
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4
           }}>
-            Mode: {mode} | Camera: {isCameraActive ? 'Active' : 'Inactive'}
+            {mode === 'enrollment' ? (
+              <>
+                <User size={12} />
+                <span>ENROLLMENT</span>
+              </>
+            ) : (
+              <>
+                <Zap size={12} />
+                <span>ATTENDANCE</span>
+              </>
+            )}
           </div>
           
-          {countdown && (
+          {/* Auto-capture Countdown */}
+          {countdown && autoCapture && (
             <div style={{
               position: 'absolute',
               top: '50%',
@@ -207,10 +275,27 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               fontWeight: 'bold',
               color: 'white',
               textShadow: '0 2px 8px rgba(0,0,0,0.5)',
-              zIndex: 10
+              zIndex: 10,
+              animation: 'pulse 1s infinite'
             }}>
               {countdown}
             </div>
+          )}
+          
+          {/* Face Guide Overlay */}
+          {mode === 'enrollment' && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '60%',
+              height: '70%',
+              border: '2px dashed rgba(255,255,255,0.5)',
+              borderRadius: '50%',
+              pointerEvents: 'none',
+              zIndex: 2
+            }} />
           )}
           
           {loading && (
@@ -219,13 +304,17 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              zIndex: 20
+              zIndex: 20,
+              textAlign: 'center'
             }}>
               <Spin size="large" />
+              <Text style={{ color: 'white', display: 'block', marginTop: 16 }}>
+                {mode === 'enrollment' ? 'Processing face...' : 'Matching face...'}
+              </Text>
             </div>
           )}
           
-          {mode === 'enrollment' && !autoCapture && (
+          {mode === 'enrollment' && !autoCapture && !loading && (
             <div style={{
               position: 'absolute',
               bottom: 20,
@@ -239,24 +328,44 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                 size="large"
                 icon={<Camera />}
                 onClick={handleCapture}
-                loading={loading}
+                disabled={!cameraReady}
                 style={{ 
-                  height: 50, 
-                  fontSize: 16,
-                  padding: '0 32px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                  height: 60, 
+                  fontSize: 18,
+                  padding: '0 40px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
                 }}
               >
                 CAPTURE FACE
               </Button>
               
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary" style={{ color: 'white' }}>
-                  Make sure face is clearly visible
+              <div style={{ marginTop: 12 }}>
+                <Text type="secondary" style={{ 
+                  color: 'white', 
+                  textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                  fontSize: 14 
+                }}>
+                  Position face within the circle
                 </Text>
               </div>
             </div>
           )}
+          
+          {/* Camera Status */}
+          <div style={{
+            position: 'absolute',
+            bottom: 10,
+            left: 10,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            color: 'white',
+            padding: '2px 8px',
+            borderRadius: 4,
+            fontSize: 10,
+            zIndex: 5
+          }}>
+            {cameraReady ? '🟢 Camera Ready' : '🟡 Camera Initializing'}
+          </div>
         </>
       ) : (
         <div style={{
@@ -267,14 +376,33 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           justifyContent: 'center',
           backgroundColor: '#f0f0f0',
           borderRadius: 8,
-          gap: 16
+          gap: 16,
+          padding: 24
         }}>
-          <div style={{ fontSize: 48 }}>📷</div>
-          <Text type="secondary">Camera is disabled</Text>
+          <div style={{ 
+            fontSize: 48,
+            animation: 'pulse 2s infinite' 
+          }}>
+            📷
+          </div>
+          <Text type="secondary" style={{ textAlign: 'center' }}>
+            Camera is disabled or not accessible
+          </Text>
           <Button 
             type="primary" 
-            onClick={() => setIsCameraActive(true)}
+            onClick={async () => {
+              try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(track => track.stop());
+                setIsCameraActive(true);
+                setCameraReady(true);
+                message.success('Camera enabled');
+              } catch (error) {
+                message.error('Cannot access camera');
+              }
+            }}
             size="large"
+            icon={<Camera />}
           >
             Enable Camera
           </Button>
