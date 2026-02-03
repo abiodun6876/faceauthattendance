@@ -698,52 +698,66 @@ const EnrollmentPage: React.FC = () => {
       title: 'Complete',
       icon: <CheckCircle size={16} />,
       content: enrollmentResult ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 20px' }}>
           {enrollmentResult.success ? (
-            <>
-              <CheckCircle size={64} color="#52c41a" style={{ marginBottom: 24 }} />
-              <Title level={3} style={{ marginBottom: 24 }}>
-                Biometric Enrollment Successful!
-              </Title>
+            <div style={{ maxWidth: 600, width: '100%' }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                <CheckCircle size={80} color="#52c41a" style={{ marginBottom: 24 }} />
+                <Title level={2} style={{ marginBottom: 8 }}>
+                  Biometric Enrollment Successful!
+                </Title>
+                <Text type="secondary" style={{ fontSize: 16 }}>
+                  User has been registered and face biometrics stored securely.
+                </Text>
+              </div>
 
-              <Card style={{ maxWidth: 500, margin: '0 auto 32px' }}>
-                <Descriptions column={1} size="small">
-                  <Descriptions.Item label="Name">
-                    <Text strong>{formData.full_name}</Text>
+              <Card
+                style={{
+                  borderRadius: 12,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                  marginBottom: 32,
+                  border: '1px solid #f0f0f0'
+                }}
+              >
+                <Descriptions
+                  column={1}
+                  size="middle"
+                  bordered
+                  labelStyle={{ fontWeight: 'bold', width: 150 }}
+                >
+                  <Descriptions.Item label="Full Name">
+                    {formData.full_name}
                   </Descriptions.Item>
-                  <Descriptions.Item label="ID">
-                    <Tag color="blue">{formData.staff_id}</Tag>
+                  <Descriptions.Item label="ID Number">
+                    <Tag color="blue" style={{ fontSize: 14 }}>{formData.staff_id}</Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label="Biometric Quality">
+                  <Descriptions.Item label="User Role">
+                    <Tag color="green">{formData.user_role?.toUpperCase()}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Biometric Status">
                     <Space>
                       <Progress
                         percent={enrollmentResult.quality}
                         size="small"
-                        style={{ width: 100 }}
-                        showInfo={false}
+                        style={{ width: 120 }}
+                        status="success"
                       />
-                      <Text>{enrollmentResult.quality}%</Text>
+                      <Text strong>{enrollmentResult.quality}% Match Quality</Text>
                     </Space>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Embedding Dimensions">
-                    128D vector stored
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Status">
-                    <Tag color="green">ENROLLED</Tag>
                   </Descriptions.Item>
                 </Descriptions>
 
-                <Divider style={{ margin: '16px 0' }} />
-
-                <Alert
-                  message="Biometric Security"
-                  description="Face embeddings are securely stored and can be used for attendance recognition."
-                  type="success"
-                  showIcon
-                />
+                <div style={{ marginTop: 24 }}>
+                  <Alert
+                    message="Biometric Security Active"
+                    description="This user can now perform face-recognition based clock-ins and clock-outs on any authorized device."
+                    type="success"
+                    showIcon
+                  />
+                </div>
               </Card>
 
-              <Space>
+              <Space style={{ width: '100%', justifyContent: 'center' }} size="large">
                 <Button
                   type="primary"
                   size="large"
@@ -768,7 +782,7 @@ const EnrollmentPage: React.FC = () => {
                   Go to Attendance
                 </Button>
               </Space>
-            </>
+            </div>
           ) : (
             <>
               <X size={64} color="#ff4d4f" style={{ marginBottom: 24 }} />

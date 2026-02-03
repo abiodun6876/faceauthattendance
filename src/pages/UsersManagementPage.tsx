@@ -28,7 +28,7 @@ import {
     Edit,
     Download
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, deviceService } from '../lib/supabase';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -62,22 +62,30 @@ const UsersManagementPage: React.FC = () => {
     const loadUsers = async () => {
         try {
             setLoading(true);
-            const organizationId = localStorage.getItem('organization_id');
+            const { isRegistered: _isRegistered, device: deviceInfo } = await deviceService.checkDeviceRegistration();
+            const organizationId = deviceInfo?.organization_id || localStorage.getItem('organization_id');
 
             if (!organizationId) {
-                message.error('No organization found');
+                message.error('No organization found. Please ensure device is registered.');
                 return;
             }
 
-            const { data, error } = await supabase
+            const branchId = localStorage.getItem('branch_id');
+
+            let query = supabase
                 .from('users')
                 .select(`
           *,
           branch:branches(name),
           organization:organizations(name, type)
         `)
-                .eq('organization_id', organizationId)
-                .order('created_at', { ascending: false });
+                .eq('organization_id', organizationId);
+
+            if (branchId) {
+                query = query.eq('branch_id', branchId);
+            }
+
+            const { data, error } = await query.order('created_at', { ascending: false });
 
             if (error) throw error;
 

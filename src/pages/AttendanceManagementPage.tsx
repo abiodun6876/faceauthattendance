@@ -115,11 +115,20 @@ const AttendanceManagementPage: React.FC = () => {
   // Fetch active users count
   const fetchActiveUsers = useCallback(async () => {
     try {
-      const { count } = await supabase
+      const organizationId = localStorage.getItem('organization_id');
+      const branchId = localStorage.getItem('branch_id');
+
+      let query = supabase
         .from('users')
         .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
         .eq('is_active', true);
 
+      if (branchId) {
+        query = query.eq('branch_id', branchId);
+      }
+
+      const { count } = await query;
       return count || 0;
     } catch (error) {
       console.error('Error fetching active users:', error);
@@ -150,15 +159,25 @@ const AttendanceManagementPage: React.FC = () => {
   const fetchAttendanceData = useCallback(async () => {
     setLoading(true);
     try {
+      const organizationId = localStorage.getItem('organization_id');
+      const branchId = localStorage.getItem('branch_id');
+
       // Fetch attendance with user data
-      const { data: attendance, error: attendanceError } = await supabase
+      let query = supabase
         .from('attendance')
         .select(`
           *,
           user:users(*)
         `)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
         .limit(1000);
+
+      if (branchId) {
+        query = query.eq('branch_id', branchId);
+      }
+
+      const { data: attendance, error: attendanceError } = await query;
 
       if (attendanceError) {
         throw attendanceError;
@@ -176,12 +195,14 @@ const AttendanceManagementPage: React.FC = () => {
         const { data: branchesData } = await supabase
           .from('branches')
           .select('id, name')
+          .eq('organization_id', organizationId)
           .eq('is_active', true);
 
         // Fetch departments for filter
         const { data: departmentsData } = await supabase
           .from('departments')
           .select('id, name')
+          .eq('organization_id', organizationId)
           .eq('is_active', true);
 
         // Set branches and departments (commented out setters since we're using _ prefix)
@@ -193,10 +214,17 @@ const AttendanceManagementPage: React.FC = () => {
         console.log('Departments data:', departmentsData?.length || 0);
 
         // In the fetchAttendanceData function, update the users query:
-        const { data: usersData } = await supabase
+        let usersQuery = supabase
           .from('users')
           .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
+          .eq('organization_id', organizationId)
           .eq('is_active', true);
+
+        if (branchId) {
+          usersQuery = usersQuery.eq('branch_id', branchId);
+        }
+
+        const { data: usersData } = await usersQuery;
 
         setUsers(usersData as UserRecord[]);
 

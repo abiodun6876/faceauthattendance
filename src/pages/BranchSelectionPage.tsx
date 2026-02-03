@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Typography, 
-  Card, 
-  Button, 
-  Alert, 
+import {
+  Typography,
+  Card,
+  Button,
+  Alert,
   Spin,
   Layout,
   List,
   Radio
 } from 'antd';
-import { 
-  Building, 
-  MapPin, 
+import {
+  Building,
+  MapPin,
   CheckCircle,
   ArrowLeft
 } from 'lucide-react';
@@ -33,7 +33,7 @@ const BranchSelectionPage: React.FC = () => {
   const loadBranches = useCallback(async () => {
     try {
       const { isRegistered, device } = await deviceService.checkDeviceRegistration();
-      
+
       if (!isRegistered || !device) {
         navigate('/device-setup');
         return;
@@ -91,6 +91,7 @@ const BranchSelectionPage: React.FC = () => {
           .single();
 
         if (updatedDevice) {
+          localStorage.setItem('branch_id', updatedDevice.branch_id || '');
           // Update context by reloading
           window.location.href = '/';
         }
@@ -104,11 +105,11 @@ const BranchSelectionPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
+      <div style={{
+        display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
       }}>
         <Spin size="large" />
@@ -121,7 +122,7 @@ const BranchSelectionPage: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh', backgroundColor: '#f0f2f5' }}>
-      <Content style={{ 
+      <Content style={{
         padding: 24,
         maxWidth: 800,
         margin: '0 auto',
@@ -132,7 +133,7 @@ const BranchSelectionPage: React.FC = () => {
             type="text"
             icon={<ArrowLeft size={18} />}
             onClick={() => navigate(-1)}
-            style={{ 
+            style={{
               padding: '4px 8px',
               display: 'flex',
               alignItems: 'center',
@@ -142,7 +143,7 @@ const BranchSelectionPage: React.FC = () => {
           >
             <Text style={{ fontSize: 14 }}>Back</Text>
           </Button>
-          
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <div style={{
               width: 48,
@@ -182,11 +183,11 @@ const BranchSelectionPage: React.FC = () => {
               Current Organization
             </Text>
           </div>
-          
+
           {currentDevice && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
               gap: 12,
               padding: '12px 16px',
               backgroundColor: '#f6ffed',
@@ -281,15 +282,15 @@ const BranchSelectionPage: React.FC = () => {
           </div>
         </Card>
 
-        <div style={{ 
-          marginTop: 32, 
+        <div style={{
+          marginTop: 32,
           padding: '16px',
           backgroundColor: '#fff3cd',
           borderRadius: 8,
           border: '1px solid #ffeaa7'
         }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            <strong>Note:</strong> Changing branch will affect where attendance is recorded. 
+            <strong>Note:</strong> Changing branch will affect where attendance is recorded.
             Make sure you select the correct location.
           </Text>
         </div>

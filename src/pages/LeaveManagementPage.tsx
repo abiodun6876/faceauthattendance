@@ -56,6 +56,8 @@ const LeaveManagementPage: React.FC = () => {
             const organizationId = localStorage.getItem('organization_id');
             const userId = localStorage.getItem('user_id');
 
+            const branchId = localStorage.getItem('branch_id');
+
             let query = supabase
                 .from('leave_requests' as any)
                 .select(`
@@ -63,8 +65,13 @@ const LeaveManagementPage: React.FC = () => {
           user:users!leave_requests_user_id_fkey(full_name, staff_id),
           approver:users!leave_requests_approved_by_fkey(full_name)
         `)
-                .eq('organization_id', organizationId)
-                .order('created_at', { ascending: false });
+                .eq('organization_id', organizationId);
+
+            if (branchId) {
+                query = query.eq('branch_id', branchId);
+            }
+
+            query = query.order('created_at', { ascending: false });
 
             // Filter based on active tab
             if (activeTab === 'my-requests') {

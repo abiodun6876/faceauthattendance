@@ -55,7 +55,9 @@ const VisitorManagementPage: React.FC = () => {
             setLoading(true);
             const organizationId = localStorage.getItem('organization_id');
 
-            const { data, error } = await supabase
+            const branchId = localStorage.getItem('branch_id');
+
+            let query = supabase
                 .from('appointments' as any)
                 .select(`
           *,
@@ -63,7 +65,13 @@ const VisitorManagementPage: React.FC = () => {
           host:users!appointments_host_user_id_fkey(full_name),
           approved_by_user:users!appointments_approved_by_fkey(full_name)
         `)
-                .eq('organization_id', organizationId)
+                .eq('organization_id', organizationId);
+
+            if (branchId) {
+                query = query.eq('branch_id', branchId);
+            }
+
+            const { data, error } = await query
                 .order('appointment_date', { ascending: false })
                 .order('start_time', { ascending: false });
 
@@ -90,11 +98,18 @@ const VisitorManagementPage: React.FC = () => {
     const loadStaff = useCallback(async () => {
         try {
             const organizationId = localStorage.getItem('organization_id');
-            const { data, error } = await supabase
+            const branchId = localStorage.getItem('branch_id');
+            let query = supabase
                 .from('users')
                 .select('id, full_name, user_role')
                 .eq('organization_id', organizationId)
                 .eq('user_role', 'staff');
+
+            if (branchId) {
+                query = query.eq('branch_id', branchId);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setStaff(data || []);

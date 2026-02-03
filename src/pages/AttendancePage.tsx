@@ -216,11 +216,17 @@ const AttendancePage: React.FC = () => {
     try {
       const today = dayjs().format('YYYY-MM-DD');
 
-      const { data: attendance, error } = await supabase
+      let query = supabase
         .from('attendance')
         .select('*')
         .eq('date', today)
         .eq('organization_id', deviceInfo?.organization_id);
+
+      if (deviceInfo?.branch_id) {
+        query = query.eq('branch_id', deviceInfo.branch_id);
+      }
+
+      const { data: attendance, error } = await query;
 
       if (error) throw error;
 
@@ -241,11 +247,17 @@ const AttendancePage: React.FC = () => {
   // Load user count
   const loadUserCount = useCallback(async () => {
     try {
-      const { count, error } = await supabase
+      let query = supabase
         .from('users')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', deviceInfo?.organization_id)
         .eq('is_active', true);
+
+      if (deviceInfo?.branch_id) {
+        query = query.eq('branch_id', deviceInfo.branch_id);
+      }
+
+      const { count, error } = await query;
 
       if (error) throw error;
 
@@ -262,14 +274,20 @@ const AttendancePage: React.FC = () => {
   // Load recent attendance
   const loadRecentAttendance = useCallback(async (limit = 10) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('attendance')
         .select(`
           *,
           user:users(full_name, staff_id, face_photo_url, department_id, user_role),
           branch:branches(name)
         `)
-        .eq('organization_id', deviceInfo?.organization_id)
+        .eq('organization_id', deviceInfo?.organization_id);
+
+      if (deviceInfo?.branch_id) {
+        query = query.eq('branch_id', deviceInfo.branch_id);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -624,13 +642,18 @@ const AttendancePage: React.FC = () => {
 
     setManualLoading(true);
     try {
-      const { data: user, error } = await supabase
+      let query = supabase
         .from('users')
         .select('*')
         .or(`staff_id.eq.${manualId},email.eq.${manualId}`)
         .eq('organization_id', deviceInfo?.organization_id)
-        .eq('is_active', true)
-        .single();
+        .eq('is_active', true);
+
+      if (deviceInfo?.branch_id) {
+        query = query.eq('branch_id', deviceInfo.branch_id);
+      }
+
+      const { data: user, error } = await query.single();
 
       if (error || !user) {
         throw new Error('User not found');

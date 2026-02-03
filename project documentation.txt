@@ -1,0 +1,66 @@
+# FaceAuthAttendance - Project Documentation
+
+## Project Overview
+FaceAuthAttendance is a state-of-the-art, multi-tenant biometric attendance and organization management system. It leverages AI-powered face recognition to provide secure, contactless, and efficient tracking for staff, students, and visitors.
+
+## Technology Stack
+- **Frontend**: React.js with TypeScript
+- **State Management**: React Hooks
+- **UI Framework**: Ant Design (AntD)
+- **Icons**: Lucide React
+- **Backend/Database**: Supabase (PostgreSQL with Realtime capabilities)
+- **AI/Biometrics**: Face-api.js (TensorFlow.js based)
+- **Date Handling**: Day.js
+- **Styling**: Vanilla CSS + Design Tokens
+
+## Key Features
+
+### 1. Biometric Enrollment
+- High-precision face capture using system cameras.
+- Real-time face detection and match quality assessment.
+- Secure storage of 128D face embeddings (vectors) in Supabase.
+- Mobile-responsive multi-step enrollment process.
+
+### 2. Attendance System
+- **Biometric Mode**: Automatic verification via face recognition (clock-in/clock-out).
+- **Manual Mode**: Fallback ID-based entry for cases where biometry isn't available.
+- **Multi-Tenant Scoping**: Data is strictly filtered by Organization and Branch/Device.
+- **Shift Support**: Configurable work hours and late-arrival penalties.
+
+### 3. Management Modules
+- **User Management**: Unified interface for managing both Staff and Students.
+- **Visitor Management**: Appointment scheduling, host notification, and unique pass code generation.
+- **Leave Management**: Employee leave request submission and approval workflow.
+- **Customer Management**: CRM-lite module for managing corporate or individual clients.
+
+### 4. Dashboard & Analytics
+- Real-time stats for "Present", "Late", "Absent", and total headcount.
+- Clickable stats for quick drill-down into detailed reports.
+- Organization-wide activity monitoring.
+
+### 5. Multi-Tenant Architecture
+- Supports multiple organizations (Schools, Offices, etc.).
+- Subdomain-based organization identification.
+- Branch-level data isolation within the same organization.
+
+## Database Schema (Supabase)
+Key tables include:
+- `organizations`: Primary tenant data and global settings.
+- `branches`: Physical locations under an organization.
+- `users`: Unified table for staff and students.
+- `attendance`: Attendance logs with confidence scores and photo proof.
+- `face_enrollments`: Secure biometric data storage.
+- `appointments`: Visitor scheduling data.
+- `leave_requests`: Employee absence management.
+- `devices`: Kiosk/Terminal registration data.
+
+## Deployment & Build
+- **CI/CD**: Netlify (Build command: `npm run build`).
+- **ESLint**: Strict quality checks (Warnings treated as errors to ensure clean production builds).
+
+## Security
+- **Row Level Security (RLS)**: Enforced at the Supabase level to ensure users only see data belonging to their organization.
+- **Biometric Security**: Face embeddings are stored as high-dimensional vectors, not raw biometric images, enhancing privacy.
+
+---
+© 2026 FaceAuthAttendance Team. All rights reserved.
