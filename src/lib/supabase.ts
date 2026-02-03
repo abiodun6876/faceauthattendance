@@ -586,13 +586,14 @@ export const organizationService = {
     name: string;
     type: 'company' | 'school';
     idLabel?: string;
+    branchName?: string;
   }) {
     try {
       // Generate a subdomain from name (simplified)
       const cleanName = params.name.toLowerCase().replace(/[^a-z0-9]/g, '');
       const subdomain = `${cleanName}-${Math.floor(Math.random() * 10000)}`;
 
-      const { data, error } = await supabase
+      const { data: organization, error } = await supabase
         .from('organizations')
         .insert(asAny({
           name: params.name,
@@ -622,7 +623,25 @@ export const organizationService = {
         .single();
 
       if (error) throw error;
-      return { success: true, organization: data };
+
+      // Create a default branch for the new organization
+      const { error: branchError } = await supabase
+        .from('branches')
+        .insert(asAny({
+          organization_id: organization.id,
+          name: params.branchName || 'Main Branch',
+          code: (params.branchName || 'MAIN').substring(0, 3).toUpperCase(),
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+
+      if (branchError) {
+        console.error('Error creating default branch:', branchError);
+        // Continue anyway, as the organization was created
+      }
+
+      return { success: true, organization };
     } catch (error: any) {
       console.error('Error creating organization:', error);
       return { success: false, error: error.message };

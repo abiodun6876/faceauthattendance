@@ -26,7 +26,8 @@ import {
   Key,
   Save,
   RefreshCw,
-  ArrowLeft
+  ArrowLeft,
+  MapPin
 } from 'lucide-react';
 import supabase, { deviceService, organizationService } from '../lib/supabase';
 
@@ -93,15 +94,20 @@ const DeviceSetupPage: React.FC = () => {
   // Handle Organization Creation
   const handleCreateOrganization = async () => {
     try {
-      await form.validateFields(['new_org_name', 'new_org_type']);
+      await form.validateFields(['new_org_name', 'new_org_type', 'new_branch_name']);
       const name = form.getFieldValue('new_org_name');
       const type = form.getFieldValue('new_org_type');
+      const branchName = form.getFieldValue('new_branch_name');
 
       setCreateOrgLoading(true);
-      const result = await organizationService.createOrganization({ name, type });
+      const result = await organizationService.createOrganization({
+        name,
+        type,
+        branchName
+      });
 
       if (result.success && result.organization) {
-        message.success('Organization created successfully!');
+        message.success('Organization and Main Branch created successfully!');
         // Set the organization code to the new subdomain AND switch to join mode
         form.setFieldValue('organization_code', result.organization.subdomain);
         setOrgMode('join');
@@ -139,12 +145,12 @@ const DeviceSetupPage: React.FC = () => {
     }
 
     try {
-      // Don't pass organization_code at all - it will use the first active org
+      // Pass organization_code if provided
       const result = await deviceService.registerDevice({
         device_name: values.device_name,
         device_code: values.device_code,
-        pairing_code: values.pairing_code
-        // No organization_code parameter
+        pairing_code: values.pairing_code,
+        organization_code: values.organization_code
       });
 
       console.log('📊 Registration Result:', result);
@@ -295,6 +301,15 @@ const DeviceSetupPage: React.FC = () => {
                   <Option value="company">Company / Business</Option>
                   <Option value="school">School / Educational</Option>
                 </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="new_branch_name"
+                label="Primary Branch/Location"
+                rules={[{ required: true, message: 'Please enter your first branch name' }]}
+                initialValue="Main Office"
+              >
+                <Input size="large" placeholder="e.g. Headquarters, Lagos Branch" prefix={<MapPin size={16} />} />
               </Form.Item>
 
               <Button

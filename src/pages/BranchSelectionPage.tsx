@@ -14,9 +14,11 @@ import {
   Building,
   MapPin,
   CheckCircle,
-  ArrowLeft
+  ArrowLeft,
+  Plus
 } from 'lucide-react';
 import { supabase, deviceService } from '../lib/supabase';
+import { Form, Input, Modal, message as antdMessage } from 'antd';
 
 const { Title, Text } = Typography;
 const { Content } = Layout;
@@ -29,6 +31,9 @@ const BranchSelectionPage: React.FC = () => {
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [currentDevice, setCurrentDevice] = useState<any>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm] = Form.useForm();
+  const [creating, setCreating] = useState(false);
 
   const loadBranches = useCallback(async () => {
     try {
@@ -100,6 +105,41 @@ const BranchSelectionPage: React.FC = () => {
       setError(err.message || 'Failed to update branch');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCreateBranch = async (values: any) => {
+    if (!currentDevice?.organization_id) return;
+
+    setCreating(true);
+    try {
+      const { data: newBranch, error: createError } = await supabase
+        .from('branches')
+        .insert({
+          organization_id: currentDevice.organization_id,
+          name: values.name,
+          code: values.code || values.name.substring(0, 3).toUpperCase(),
+          address: values.address,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      antdMessage.success('Branch created successfully!');
+      setShowCreateModal(false);
+      createForm.resetFields();
+
+      // Reload branches and select the new one
+      await loadBranches();
+      setSelectedBranch(newBranch.id);
+    } catch (err: any) {
+      antdMessage.error(err.message || 'Failed to create branch');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -217,6 +257,18 @@ const BranchSelectionPage: React.FC = () => {
             </Text>
           </div>
 
+          <div style={{ marginBottom: 24 }}>
+            <Button
+              type="dashed"
+              block
+              icon={<Plus size={16} />}
+              onClick={() => setShowCreateModal(true)}
+              style={{ height: 50, borderRadius: 8 }}
+            >
+              Add New Branch
+            </Button>
+          </div>
+
           <Radio.Group
             value={selectedBranch}
             onChange={(e) => setSelectedBranch(e.target.value)}
@@ -294,6 +346,43 @@ const BranchSelectionPage: React.FC = () => {
             Make sure you select the correct location.
           </Text>
         </div>
+
+        <Modal
+          title="Create New Branch"
+          open={showCreateModal}
+          onCancel={() => setShowCreateModal(false)}
+          onOk={() => createForm.submit()}
+          confirmLoading={creating}
+          destroyOnClose
+        >
+          <Form
+            form={createForm}
+            layout="vertical"
+            onFinish={handleCreateBranch}
+            initialValues={{ is_active: true }}
+          >
+            <Form.Item
+              name="name"
+              label="Branch Name"
+              rules={[{ required: true, message: 'Please enter branch name' }]}
+            >
+              <Input placeholder="e.g. Ikeja Office, Lekki Branch" />
+            </Form.Item>
+            <Form.Item
+              name="code"
+              label="Branch Code (Optional)"
+              extra="3-letter code, e.g. IKJ, LEK"
+            >
+              <Input maxLength={5} placeholder="e.g. IKJ" />
+            </Form.Item>
+            <Form.Item
+              name="address"
+              label="Address (Optional)"
+            >
+              <Input.TextArea rows={2} placeholder="Enter branch address" />
+            </Form.Item>
+          </Form>
+        </Modal>
       </Content>
     </Layout>
   );
