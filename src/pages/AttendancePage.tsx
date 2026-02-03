@@ -664,8 +664,7 @@ const AttendancePage: React.FC = () => {
     determineAttendanceAction,
     recordAttendance,
     loadStats,
-    loadRecentAttendance,
-    checkLastAttendance
+    loadRecentAttendance
   ]);
 
   // Handle manual attendance
