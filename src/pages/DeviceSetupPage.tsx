@@ -25,7 +25,8 @@ import {
   QrCode,
   Key,
   Save,
-  RefreshCw
+  RefreshCw,
+  ArrowLeft
 } from 'lucide-react';
 import supabase, { deviceService, organizationService } from '../lib/supabase';
 
@@ -386,7 +387,7 @@ const DeviceSetupPage: React.FC = () => {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      padding: 24,
+      padding: '16px',
       background: 'var(--gray-50)'
     }}>
       <Card
@@ -394,11 +395,23 @@ const DeviceSetupPage: React.FC = () => {
           maxWidth: 900,
           width: '100%',
           border: 'none',
-          boxShadow: 'var(--shadow-xl)'
+          boxShadow: 'var(--shadow-xl)',
+          overflow: 'hidden'
         }}
-        bodyStyle={{ padding: '48px 40px' }}
+        bodyStyle={{ padding: '24px' }}
       >
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+        <div style={{ textAlign: 'center', marginBottom: 48, position: 'relative' }}>
+          <Button
+            type="text"
+            icon={<ArrowLeft size={24} />}
+            onClick={() => navigate('/')}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              color: 'var(--gray-600)'
+            }}
+          />
           <Title level={2} style={{ color: 'var(--primary-700)', marginBottom: 8 }}>
             Device Setup
           </Title>

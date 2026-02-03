@@ -31,7 +31,6 @@ import {
   CheckCircle,
   Clock,
   User,
-  Home,
   Users,
   RefreshCw,
   BarChart3,
@@ -41,6 +40,7 @@ import {
   Settings,
   History,
   LogIn,
+  ArrowLeft,
   LogOut,
   Monitor,
   QrCode,
@@ -805,7 +805,7 @@ const AttendancePage: React.FC = () => {
             <Space size={16}>
               <Button
                 type="text"
-                icon={<Home size={20} />}
+                icon={<ArrowLeft size={24} />}
                 onClick={() => navigate('/')}
                 style={{ color: 'var(--gray-600)' }}
               />

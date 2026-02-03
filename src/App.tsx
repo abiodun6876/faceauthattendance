@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Avatar } from 'antd';
-import { 
+import {
   UserPlus,
   Camera,
   Book,
   ArrowLeft,
   Building,
-  Clock
+  Clock,
+  Settings
 } from 'lucide-react';
 import EnrollmentPage from './pages/EnrollmentPage';
 import AttendancePage from './pages/AttendancePage';
@@ -52,11 +53,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
+      <div style={{
+        display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
       }}>
         <Spin size="large" />
@@ -81,7 +82,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <Layout style={{ minHeight: '100vh', backgroundColor: '#f0f2f5' }}>
-      <Header style={{ 
+      <Header style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         padding: '0 24px',
         display: 'flex',
@@ -89,9 +90,9 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
         justifyContent: 'space-between'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Avatar 
+          <Avatar
             size="large"
-            style={{ 
+            style={{
               backgroundColor: '#fff',
               color: '#667eea',
               fontWeight: 'bold'
@@ -108,12 +109,12 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
             </Text>
           </div>
         </div>
-        
+
         <Button
           type="text"
           icon={<ArrowLeft size={18} />}
           onClick={() => window.location.href = '/'}
-          style={{ 
+          style={{
             color: '#fff',
             padding: '4px 8px',
             display: 'flex',
@@ -124,12 +125,12 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
           <Text style={{ color: '#fff', fontSize: 14 }}>Home</Text>
         </Button>
       </Header>
-      
+
       <Content style={{ padding: '24px', flex: 1 }}>
         {children}
       </Content>
-      
-      <Footer style={{ 
+
+      <Footer style={{
         textAlign: 'center',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         color: '#fff',
@@ -152,8 +153,8 @@ const DashboardPage = () => {
     {
       key: 'enroll',
       title: device?.organization?.type === 'school' ? 'Student Enrollment' : 'Staff Enrollment',
-      description: device?.organization?.type === 'school' 
-        ? 'Enroll new students with face recognition' 
+      description: device?.organization?.type === 'school'
+        ? 'Enroll new students with face recognition'
         : 'Enroll new staff with face recognition',
       icon: <UserPlus size={32} />,
       path: '/enroll',
@@ -165,8 +166,8 @@ const DashboardPage = () => {
       description: device?.organization?.settings?.attendance_mode === 'shift'
         ? 'Clock in and out using face recognition'
         : 'Mark attendance using face recognition',
-      icon: device?.organization?.settings?.attendance_mode === 'shift' 
-        ? <Clock size={32} /> 
+      icon: device?.organization?.settings?.attendance_mode === 'shift'
+        ? <Clock size={32} />
         : <Camera size={32} />,
       path: '/attendance',
       color: '#52c41a',
@@ -187,17 +188,25 @@ const DashboardPage = () => {
       path: '/branch-selection',
       color: '#fa8c16',
     },
+    {
+      key: 'settings',
+      title: 'Device Settings',
+      description: 'Pairing codes and configuration',
+      icon: <Settings size={32} />,
+      path: '/device-setup',
+      color: '#595959',
+    },
   ];
 
   return (
-    <div style={{ 
+    <div style={{
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       backgroundColor: '#f0f2f5'
     }}>
       {/* Organization Info Banner */}
-      <div style={{ 
+      <div style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         padding: '24px',
         color: '#fff',
@@ -206,10 +215,10 @@ const DashboardPage = () => {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <Title level={2} style={{ color: '#fff', margin: 0 }}>
+            <Title level={2} style={{ color: '#fff', margin: 0, fontSize: '1.5rem', wordBreak: 'break-word' }}>
               {device?.organization?.name || 'FaceAuthAttendance'}
             </Title>
-            <Text style={{ color: 'rgba(255,255,255,0.9)' }}>
+            <Text style={{ color: 'rgba(255,255,255,0.9)', display: 'block' }}>
               {device?.branch?.name} • {device?.device_name}
             </Text>
           </div>
@@ -224,9 +233,9 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      <div style={{ 
+      <div style={{
         flex: 1,
-        padding: '0 24px 24px',
+        padding: '0 16px 24px', // Reduced side padding from 24px to 16px
         maxWidth: 1200,
         margin: '0 auto',
         width: '100%'
@@ -234,8 +243,8 @@ const DashboardPage = () => {
         <Title level={3} style={{ marginBottom: 24 }}>
           Dashboard
         </Title>
-        
-        <Row gutter={[24, 24]}>
+
+        <Row gutter={[16, 16]}> {/* Reduced gutter from 24 to 16 */}
           {cards.map((card) => (
             <Col xs={24} sm={12} lg={6} key={card.key}>
               <Card
@@ -253,11 +262,11 @@ const DashboardPage = () => {
                   textAlign: 'center',
                 }}
               >
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 16 
+                  gap: 16
                 }}>
                   <div style={{
                     width: 80,
@@ -340,7 +349,7 @@ function App() {
           .from('organizations')
           .select('*')
           .limit(1);
-        
+
         if (error) {
           console.error('Connection test failed:', error);
           setConnectionStatus({
@@ -366,18 +375,18 @@ function App() {
         setLoading(false);
       }
     }
-    
+
     testConnection();
   }, []);
 
   if (connectionStatus.status === 'error') {
     return (
       <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center', 
-          alignItems: 'center', 
+          justifyContent: 'center',
+          alignItems: 'center',
           height: '100vh',
           padding: 20,
           maxWidth: 500,
@@ -392,7 +401,7 @@ function App() {
                   Error: {connectionStatus.details}
                 </p>
                 <div style={{ marginTop: 20 }}>
-                  <Button 
+                  <Button
                     type="primary"
                     onClick={() => window.location.reload()}
                   >
@@ -411,11 +420,11 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
+      <div style={{
+        display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
       }}>
         <Spin size="large" />
@@ -444,7 +453,7 @@ function App() {
           {/* Device setup (public route) */}
           <Route path="/device-setup" element={<DeviceSetupPage />} />
           <Route path="/branch-selection" element={<BranchSelectionPage />} />
-          
+
           {/* Protected routes */}
           <Route path="/" element={
             <ProtectedRoute>
