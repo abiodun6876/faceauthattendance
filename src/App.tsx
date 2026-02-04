@@ -35,6 +35,7 @@ import LeaveManagementPage from './pages/LeaveManagementPage';
 import VehicleManagementPage from './pages/VehicleManagementPage'; // Add this import
 import DriverTripPage from './pages/DriverTripPage'; // Add this import
 import { supabase, deviceService } from './lib/supabase';
+
 import './App.css';
 
 const { Title, Text } = Typography;

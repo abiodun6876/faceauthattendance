@@ -25,6 +25,8 @@ import {
     Tabs,
     InputNumber,
     Descriptions,
+    Alert,
+    Spin
 } from 'antd';
 import {
     Truck,
@@ -114,6 +116,7 @@ const VehicleManagementPage: React.FC = () => {
     const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [trips, setTrips] = useState<Trip[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
+    const [allUsers, setAllUsers] = useState<any[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [tripModalVisible, setTripModalVisible] = useState(false);
     const [tripDetailModalVisible, setTripDetailModalVisible] = useState(false);
@@ -128,6 +131,7 @@ const VehicleManagementPage: React.FC = () => {
         activeTrips: 0,
         expiringDocs: 0
     });
+    const [driverLoading, setDriverLoading] = useState(false);
 
     // Load vehicles
     const loadVehicles = useCallback(async () => {
@@ -135,6 +139,8 @@ const VehicleManagementPage: React.FC = () => {
             setLoading(true);
             const organizationId = localStorage.getItem('organization_id');
             const branchId = localStorage.getItem('branch_id');
+
+            console.log('Loading vehicles for org:', organizationId, 'branch:', branchId);
 
             let query = supabase
                 .from('vehicles')
@@ -158,11 +164,17 @@ const VehicleManagementPage: React.FC = () => {
             }
 
             const { data, error } = await query.order('created_at', { ascending: false });
-            if (error) throw error;
+            
+            if (error) {
+                console.error('Supabase error loading vehicles:', error);
+                throw error;
+            }
+            
+            console.log('Vehicles loaded:', data?.length);
             setVehicles(data as Vehicle[] || []);
         } catch (error: any) {
             console.error('Error loading vehicles:', error);
-            message.error('Failed to load vehicles');
+            message.error(`Failed to load vehicles: ${error.message || 'Unknown error'}`);
         } finally {
             setLoading(false);
         }
@@ -172,6 +184,8 @@ const VehicleManagementPage: React.FC = () => {
     const loadTrips = useCallback(async () => {
         try {
             const organizationId = localStorage.getItem('organization_id');
+            console.log('Loading trips for org:', organizationId);
+            
             const { data, error } = await supabase
                 .from('vehicle_trips')
                 .select(`
@@ -182,31 +196,66 @@ const VehicleManagementPage: React.FC = () => {
                 .eq('organization_id', organizationId)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (error) {
+                console.error('Supabase error loading trips:', error);
+                throw error;
+            }
+            
+            console.log('Trips loaded:', data?.length);
             setTrips(data as Trip[] || []);
         } catch (error: any) {
             console.error('Error loading trips:', error);
-            message.error('Failed to load trips');
+            message.error(`Failed to load trips: ${error.message || 'Unknown error'}`);
         }
     }, []);
 
-    // Load drivers
-    const loadDrivers = useCallback(async () => {
+    // Load all active users (for drivers dropdown)
+    const loadAllUsers = useCallback(async () => {
         try {
+            setDriverLoading(true);
             const organizationId = localStorage.getItem('organization_id');
-            const { data, error } = await supabase
+            const branchId = localStorage.getItem('branch_id');
+            
+            console.log('Loading users for org:', organizationId, 'branch:', branchId);
+
+            // First, let's check what users exist
+            let query = supabase
                 .from('users')
                 .select('id, full_name, email, phone, user_role, is_active, staff_id, face_photo_url')
                 .eq('organization_id', organizationId)
-                .eq('is_active', true)
-                .eq('user_role', 'driver')
-                .order('full_name', { ascending: true });
+                .eq('is_active', true);
 
-            if (error) throw error;
-            setDrivers(data || []);
+            if (branchId) {
+                query = query.eq('branch_id', branchId);
+            }
+
+            const { data, error } = await query.order('full_name', { ascending: true });
+
+            if (error) {
+                console.error('Supabase error loading users:', error);
+                throw error;
+            }
+            
+            console.log('All users loaded:', data?.length);
+            console.log('User roles:', data?.map(u => ({ name: u.full_name, role: u.user_role })));
+            
+            setAllUsers(data || []);
+            
+            // Filter to only show users with driver role (or if no driver role, show all active users)
+            const driverUsers = data?.filter(user => 
+                user.user_role === 'driver' || 
+                user.user_role === 'staff' || // Include staff as potential drivers
+                user.user_role === 'admin' || // Include admins as potential drivers
+                !user.user_role // Include users without role
+            ) || [];
+            
+            console.log('Driver users:', driverUsers.length);
+            setDrivers(driverUsers);
         } catch (error: any) {
-            console.error('Error loading drivers:', error);
-            message.error('Failed to load drivers');
+            console.error('Error loading users:', error);
+            message.error(`Failed to load users: ${error.message || 'Unknown error'}`);
+        } finally {
+            setDriverLoading(false);
         }
     }, []);
 
@@ -217,10 +266,12 @@ const VehicleManagementPage: React.FC = () => {
             const today = dayjs();
             
             // Vehicle stats
-            const { data: vehiclesData } = await supabase
+            const { data: vehiclesData, error: vehiclesError } = await supabase
                 .from('vehicles')
                 .select('status, registration_expiry, insurance_expiry, inspection_expiry')
                 .eq('organization_id', organizationId);
+
+            if (vehiclesError) throw vehiclesError;
 
             const totalVehicles = vehiclesData?.length || 0;
             const activeVehicles = vehiclesData?.filter(v => v.status === 'active').length || 0;
@@ -240,10 +291,12 @@ const VehicleManagementPage: React.FC = () => {
             });
 
             // Trip stats
-            const { data: tripsData } = await supabase
+            const { data: tripsData, error: tripsError } = await supabase
                 .from('vehicle_trips')
                 .select('status')
                 .eq('organization_id', organizationId);
+
+            if (tripsError) throw tripsError;
 
             const totalTrips = tripsData?.length || 0;
             const activeTrips = tripsData?.filter(t => t.status === 'in_progress').length || 0;
@@ -255,7 +308,7 @@ const VehicleManagementPage: React.FC = () => {
                 activeTrips,
                 expiringDocs
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error loading stats:', error);
         }
     }, []);
@@ -264,9 +317,9 @@ const VehicleManagementPage: React.FC = () => {
     useEffect(() => {
         loadVehicles();
         loadTrips();
-        loadDrivers();
+        loadAllUsers();
         loadStats();
-    }, [loadVehicles, loadTrips, loadDrivers, loadStats]);
+    }, [loadVehicles, loadTrips, loadAllUsers, loadStats]);
 
     // Handle vehicle operations
     const handleVehicleSubmit = async (values: any) => {
@@ -275,6 +328,13 @@ const VehicleManagementPage: React.FC = () => {
             const organizationId = localStorage.getItem('organization_id');
             const branchId = localStorage.getItem('branch_id');
             const userId = localStorage.getItem('user_id');
+
+            console.log('Submitting vehicle with data:', {
+                organizationId,
+                branchId,
+                userId,
+                values
+            });
 
             const vehicleData = {
                 organization_id: organizationId,
@@ -291,28 +351,40 @@ const VehicleManagementPage: React.FC = () => {
                 insurance_expiry: values.insurance_expiry?.format('YYYY-MM-DD'),
                 inspection_expiry: values.inspection_expiry?.format('YYYY-MM-DD'),
                 current_driver_id: values.current_driver_id || null,
-                status: values.status,
+                status: values.status || 'active',
                 mileage: values.mileage || 0,
                 created_by: userId,
                 updated_by: userId
             };
 
+            console.log('Vehicle data to save:', vehicleData);
+
             if (selectedVehicle) {
                 // Update
+                console.log('Updating vehicle:', selectedVehicle.id);
                 const { error } = await supabase
                     .from('vehicles')
                     .update(vehicleData)
                     .eq('id', selectedVehicle.id);
 
-                if (error) throw error;
+                if (error) {
+                    console.error('Supabase update error:', error);
+                    throw error;
+                }
                 message.success('Vehicle updated successfully');
             } else {
                 // Create
-                const { error } = await supabase
+                console.log('Creating new vehicle');
+                const { data, error } = await supabase
                     .from('vehicles')
-                    .insert(vehicleData);
+                    .insert(vehicleData)
+                    .select();
 
-                if (error) throw error;
+                if (error) {
+                    console.error('Supabase insert error:', error);
+                    throw error;
+                }
+                console.log('Vehicle created:', data);
                 message.success('Vehicle added successfully');
             }
 
@@ -323,7 +395,7 @@ const VehicleManagementPage: React.FC = () => {
             loadStats();
         } catch (error: any) {
             console.error('Error saving vehicle:', error);
-            message.error('Failed to save vehicle');
+            message.error(`Failed to save vehicle: ${error.message || 'Check RLS policies'}`);
         } finally {
             setLoading(false);
         }
@@ -638,10 +710,10 @@ const VehicleManagementPage: React.FC = () => {
             render: (record: Trip) => (
                 <div>
                     <Text strong style={{ fontSize: 13 }}>
-                        {record.driver?.full_name}
+                        {record.driver?.full_name || 'No driver assigned'}
                     </Text>
                     <Text type="secondary" style={{ fontSize: 11 }}>
-                        {record.driver?.phone}
+                        {record.driver?.phone || ''}
                     </Text>
                 </div>
             ),
@@ -851,6 +923,15 @@ const VehicleManagementPage: React.FC = () => {
                     }
                 >
                     <TabPane tab="Vehicles" key="vehicles">
+                        {vehicles.length === 0 && !loading && (
+                            <Alert
+                                message="No Vehicles Found"
+                                description="Add your first vehicle by clicking the 'Add Vehicle' button"
+                                type="info"
+                                showIcon
+                                style={{ marginBottom: 16 }}
+                            />
+                        )}
                         <Table
                             columns={vehicleColumns}
                             dataSource={vehicles.filter(v => 
@@ -865,6 +946,15 @@ const VehicleManagementPage: React.FC = () => {
                         />
                     </TabPane>
                     <TabPane tab="Trips" key="trips">
+                        {trips.length === 0 && !loading && (
+                            <Alert
+                                message="No Trips Found"
+                                description="Schedule your first trip by clicking the 'Schedule Trip' button"
+                                type="info"
+                                showIcon
+                                style={{ marginBottom: 16 }}
+                            />
+                        )}
                         <Table
                             columns={tripColumns}
                             dataSource={trips.filter(t => 
@@ -1017,15 +1107,50 @@ const VehicleManagementPage: React.FC = () => {
                             <Form.Item
                                 label="Driver"
                                 name="current_driver_id"
+                                extra={driverLoading ? "Loading users..." : `${drivers.length} users available`}
                             >
                                 <Select 
-                                    placeholder="Select driver" 
+                                    placeholder={driverLoading ? "Loading users..." : "Select driver"} 
                                     size="large"
                                     allowClear
+                                    loading={driverLoading}
+                                    notFoundContent={
+                                        driverLoading ? (
+                                            <div style={{ padding: 16, textAlign: 'center' }}>
+                                                <Spin size="small" />
+                                                <div style={{ marginTop: 8 }}>Loading users...</div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ padding: 16, textAlign: 'center' }}>
+                                                <Text type="secondary">No users found</Text>
+                                                <div style={{ marginTop: 8 }}>
+                                                    <Button 
+                                                        type="link" 
+                                                        size="small"
+                                                        onClick={() => navigate('/users')}
+                                                    >
+                                                        Go to User Management
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )
+                                    }
                                 >
                                     {drivers.map(driver => (
                                         <Option key={driver.id} value={driver.id}>
-                                            {driver.full_name} ({driver.phone})
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <Avatar size={24} src={driver.face_photo_url}>
+                                                    {driver.full_name?.charAt(0)}
+                                                </Avatar>
+                                                <div>
+                                                    <div>{driver.full_name}</div>
+                                                    <div style={{ fontSize: 12, color: '#666' }}>
+                                                        {driver.staff_id && `ID: ${driver.staff_id}`}
+                                                        {driver.phone && ` • ${driver.phone}`}
+                                                        {driver.user_role && ` • ${driver.user_role}`}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </Option>
                                     ))}
                                 </Select>
@@ -1057,6 +1182,25 @@ const VehicleManagementPage: React.FC = () => {
                             </Form.Item>
                         </Col>
                     </Row>
+
+                    {allUsers.length === 0 && (
+                        <Alert
+                            message="No Users Available"
+                            description="You need to add users first before assigning drivers. Go to User Management to add users."
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            action={
+                                <Button 
+                                    type="link" 
+                                    size="small"
+                                    onClick={() => navigate('/users')}
+                                >
+                                    Go to Users
+                                </Button>
+                            }
+                        />
+                    )}
 
                     <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
                         <Space>
@@ -1111,6 +1255,7 @@ const VehicleManagementPage: React.FC = () => {
                                     placeholder="Select vehicle" 
                                     size="large"
                                     showSearch
+                                    loading={vehicles.length === 0 && loading}
                                 >
                                     {vehicles.map(vehicle => (
                                         <Option key={vehicle.id} value={vehicle.id}>
@@ -1130,6 +1275,7 @@ const VehicleManagementPage: React.FC = () => {
                                     placeholder="Select driver" 
                                     size="large"
                                     showSearch
+                                    loading={driverLoading}
                                 >
                                     {drivers.map(driver => (
                                         <Option key={driver.id} value={driver.id}>
