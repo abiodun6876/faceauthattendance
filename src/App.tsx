@@ -17,7 +17,9 @@ import {
   X,
   Layout as LayoutIcon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Truck,
+  MapPin
 } from 'lucide-react';
 import EnrollmentPage from './pages/EnrollmentPage';
 import AttendancePage from './pages/AttendancePage';
@@ -30,6 +32,8 @@ import UserProfilePage from './pages/UserProfilePage';
 import VisitorManagementPage from './pages/VisitorManagementPage';
 import CustomerManagementPage from './pages/CustomerManagementPage';
 import LeaveManagementPage from './pages/LeaveManagementPage';
+import VehicleManagementPage from './pages/VehicleManagementPage'; // Add this import
+import DriverTripPage from './pages/DriverTripPage'; // Add this import
 import { supabase, deviceService } from './lib/supabase';
 import './App.css';
 
@@ -109,6 +113,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
     { key: '/users', icon: <Users size={18} />, label: 'User Management' },
     { key: '/leave', icon: <CalendarDays size={18} />, label: 'Leave' },
     { key: '/customers', icon: <Briefcase size={18} />, label: 'Customers' },
+    { key: '/vehicles', icon: <Truck size={18} />, label: 'Vehicle Management' }, // Add this
     { key: '/org-settings', icon: <Settings size={18} />, label: 'Settings' },
   ];
 
@@ -222,6 +227,18 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Add Driver Trip button if user is a driver */}
+            {device?.current_user?.user_role === 'driver' && (
+              <Button
+                type="primary"
+                shape="round"
+                icon={<MapPin size={16} />}
+                onClick={() => navigate('/driver-trip')}
+                style={{ background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)', border: 'none' }}
+              >
+                Driver Trip
+              </Button>
+            )}
             <Button
               type="primary"
               shape="round"
@@ -390,6 +407,23 @@ const DashboardPage = () => {
       color: '#722ed1',
     },
     {
+      key: 'vehicles',
+      title: 'Vehicle Management',
+      description: 'Track vehicles & document expiry',
+      icon: <Truck size={32} />,
+      path: '/vehicles',
+      color: '#1890ff',
+    },
+    {
+      key: 'driver-trip',
+      title: 'Driver Trip',
+      description: 'Share Google Maps trip links',
+      icon: <MapPin size={32} />,
+      path: '/driver-trip',
+      color: '#52c41a',
+      show: device?.current_user?.user_role === 'driver'
+    },
+    {
       key: 'org-settings',
       title: 'Attendance Settings',
       description: 'Work hours & Late rules',
@@ -406,6 +440,9 @@ const DashboardPage = () => {
       color: '#595959',
     },
   ];
+
+  // Filter cards based on user role
+  const filteredCards = cards.filter(card => card.show !== false);
 
   return (
     <div style={{
@@ -437,6 +474,9 @@ const DashboardPage = () => {
             </Text>
             <Text style={{ display: 'block', color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
               Mode: {device?.organization?.settings?.attendance_mode === 'shift' ? 'Shift-based' : 'Session-based'}
+            </Text>
+            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
+              Role: {device?.current_user?.user_role || 'User'}
             </Text>
           </div>
         </div>
@@ -517,7 +557,7 @@ const DashboardPage = () => {
         </Title>
 
         <Row gutter={[16, 16]}> {/* Reduced gutter from 24 to 16 */}
-          {cards.map((card) => (
+          {filteredCards.map((card) => (
             <Col xs={24} sm={12} lg={6} key={card.key}>
               <Card
                 hoverable
@@ -741,6 +781,19 @@ function App() {
           <Route path="/leave" element={
             <ProtectedRoute>
               <LeaveManagementPage />
+            </ProtectedRoute>
+          } />
+          {/* Add new routes for vehicle management */}
+          <Route path="/vehicles" element={
+            <ProtectedRoute>
+              <OrganizationLayout>
+                <VehicleManagementPage />
+              </OrganizationLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/driver-trip" element={
+            <ProtectedRoute>
+              <DriverTripPage />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" />} />

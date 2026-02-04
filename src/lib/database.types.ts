@@ -622,6 +622,56 @@ export type Database = {
           },
         ]
       }
+      document_notifications: {
+        Row: {
+          created_at: string | null
+          document_type: string
+          expiry_date: string
+          id: string
+          message_sent: string | null
+          notification_sent_at: string | null
+          notification_type: string | null
+          sent_to_phone: string | null
+          status: string | null
+          updated_at: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          document_type: string
+          expiry_date: string
+          id?: string
+          message_sent?: string | null
+          notification_sent_at?: string | null
+          notification_type?: string | null
+          sent_to_phone?: string | null
+          status?: string | null
+          updated_at?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string | null
+          document_type?: string
+          expiry_date?: string
+          id?: string
+          message_sent?: string | null
+          notification_sent_at?: string | null
+          notification_type?: string | null
+          sent_to_phone?: string | null
+          status?: string | null
+          updated_at?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_notifications_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       face_enrollments: {
         Row: {
           capture_device: string | null
@@ -815,6 +865,82 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_logs: {
+        Row: {
+          attachments: string[] | null
+          cost: number | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          mechanic_name: string | null
+          mileage_at_service: number | null
+          next_service_date: string | null
+          notes: string | null
+          organization_id: string
+          service_center: string | null
+          service_date: string
+          service_type: string
+          updated_at: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          attachments?: string[] | null
+          cost?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mechanic_name?: string | null
+          mileage_at_service?: number | null
+          next_service_date?: string | null
+          notes?: string | null
+          organization_id: string
+          service_center?: string | null
+          service_date: string
+          service_type: string
+          updated_at?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          attachments?: string[] | null
+          cost?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mechanic_name?: string | null
+          mileage_at_service?: number | null
+          next_service_date?: string | null
+          notes?: string | null
+          organization_id?: string
+          service_center?: string | null
+          service_date?: string
+          service_type?: string
+          updated_at?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_logs_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
         ]
@@ -1016,6 +1142,53 @@ export type Database = {
           },
         ]
       }
+      trip_checkpoints: {
+        Row: {
+          actual_time: string | null
+          checkpoint_name: string
+          created_at: string | null
+          expected_time: string | null
+          id: string
+          location: string | null
+          notes: string | null
+          status: string | null
+          trip_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_time?: string | null
+          checkpoint_name: string
+          created_at?: string | null
+          expected_time?: string | null
+          id?: string
+          location?: string | null
+          notes?: string | null
+          status?: string | null
+          trip_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_time?: string | null
+          checkpoint_name?: string
+          created_at?: string | null
+          expected_time?: string | null
+          id?: string
+          location?: string | null
+          notes?: string | null
+          status?: string | null
+          trip_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_checkpoints_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           branch_id: string | null
@@ -1097,6 +1270,245 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicle_trips: {
+        Row: {
+          actual_duration_minutes: number | null
+          actual_end_time: string | null
+          actual_start_time: string | null
+          branch_id: string | null
+          created_at: string | null
+          distance_km: number | null
+          driver_check_in_time: string | null
+          driver_check_out_time: string | null
+          driver_id: string
+          end_location: string | null
+          estimated_duration_minutes: number | null
+          google_maps_link: string | null
+          id: string
+          organization_id: string
+          purpose: string | null
+          scheduled_end_time: string | null
+          scheduled_start_time: string | null
+          security_check_in_time: string | null
+          security_check_out_time: string | null
+          security_notes: string | null
+          start_location: string | null
+          status: string | null
+          trip_name: string
+          updated_at: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          actual_duration_minutes?: number | null
+          actual_end_time?: string | null
+          actual_start_time?: string | null
+          branch_id?: string | null
+          created_at?: string | null
+          distance_km?: number | null
+          driver_check_in_time?: string | null
+          driver_check_out_time?: string | null
+          driver_id: string
+          end_location?: string | null
+          estimated_duration_minutes?: number | null
+          google_maps_link?: string | null
+          id?: string
+          organization_id: string
+          purpose?: string | null
+          scheduled_end_time?: string | null
+          scheduled_start_time?: string | null
+          security_check_in_time?: string | null
+          security_check_out_time?: string | null
+          security_notes?: string | null
+          start_location?: string | null
+          status?: string | null
+          trip_name: string
+          updated_at?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          actual_duration_minutes?: number | null
+          actual_end_time?: string | null
+          actual_start_time?: string | null
+          branch_id?: string | null
+          created_at?: string | null
+          distance_km?: number | null
+          driver_check_in_time?: string | null
+          driver_check_out_time?: string | null
+          driver_id?: string
+          end_location?: string | null
+          estimated_duration_minutes?: number | null
+          google_maps_link?: string | null
+          id?: string
+          organization_id?: string
+          purpose?: string | null
+          scheduled_end_time?: string | null
+          scheduled_start_time?: string | null
+          security_check_in_time?: string | null
+          security_check_out_time?: string | null
+          security_notes?: string | null
+          start_location?: string | null
+          status?: string | null
+          trip_name?: string
+          updated_at?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_trips_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_trips_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_trips_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_trips_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicles: {
+        Row: {
+          branch_id: string | null
+          color: string | null
+          created_at: string | null
+          created_by: string | null
+          current_driver_id: string | null
+          fuel_type: string | null
+          id: string
+          inspection_expiry: string | null
+          insurance_expiry: string | null
+          last_service_date: string | null
+          license_plate: string
+          make: string | null
+          mileage: number | null
+          model: string | null
+          next_service_date: string | null
+          organization_id: string
+          permit_expiry: string | null
+          registration_expiry: string | null
+          road_tax_expiry: string | null
+          status: string | null
+          transmission: string | null
+          updated_at: string | null
+          updated_by: string | null
+          vehicle_name: string
+          vehicle_type: string
+          vin: string | null
+          year: number | null
+        }
+        Insert: {
+          branch_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_driver_id?: string | null
+          fuel_type?: string | null
+          id?: string
+          inspection_expiry?: string | null
+          insurance_expiry?: string | null
+          last_service_date?: string | null
+          license_plate: string
+          make?: string | null
+          mileage?: number | null
+          model?: string | null
+          next_service_date?: string | null
+          organization_id: string
+          permit_expiry?: string | null
+          registration_expiry?: string | null
+          road_tax_expiry?: string | null
+          status?: string | null
+          transmission?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          vehicle_name: string
+          vehicle_type?: string
+          vin?: string | null
+          year?: number | null
+        }
+        Update: {
+          branch_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_driver_id?: string | null
+          fuel_type?: string | null
+          id?: string
+          inspection_expiry?: string | null
+          insurance_expiry?: string | null
+          last_service_date?: string | null
+          license_plate?: string
+          make?: string | null
+          mileage?: number | null
+          model?: string | null
+          next_service_date?: string | null
+          organization_id?: string
+          permit_expiry?: string | null
+          registration_expiry?: string | null
+          road_tax_expiry?: string | null
+          status?: string | null
+          transmission?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          vehicle_name?: string
+          vehicle_type?: string
+          vin?: string | null
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_current_driver_id_fkey"
+            columns: ["current_driver_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -1221,8 +1633,23 @@ export type Database = {
           },
         ]
       }
+      vehicle_document_expiry: {
+        Row: {
+          current_driver_id: string | null
+          days_until_expiry: number | null
+          document_type: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          expiry_date: string | null
+          license_plate: string | null
+          vehicle_id: string | null
+          vehicle_name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      check_document_expiry_notifications: { Args: never; Returns: undefined }
       generate_device_token: { Args: never; Returns: string }
       generate_pairing_code: { Args: never; Returns: string }
       generate_pass_code: { Args: never; Returns: string }
