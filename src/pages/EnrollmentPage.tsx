@@ -1000,7 +1000,7 @@ const EnrollmentPage: React.FC = () => {
                 </div>
                 {faceProcessingResult.faceBox && (
                   <div>
-                    <Text>Face Position:</Text>
+                    <Text>Position:</Text>
                     <Text type="secondary" style={{ display: 'block' }}>
                       X: {Math.round(faceProcessingResult.faceBox.x)},
                       Y: {Math.round(faceProcessingResult.faceBox.y)}
@@ -1008,7 +1008,7 @@ const EnrollmentPage: React.FC = () => {
                   </div>
                 )}
                 <div>
-                  <Text>Embedding Dimensions:</Text>
+                  <Text>Embedding:</Text>
                   <Tag color="blue">128-dimensional vector</Tag>
                 </div>
                 <Alert
