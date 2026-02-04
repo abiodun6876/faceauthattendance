@@ -388,7 +388,8 @@ const AttendancePage: React.FC = () => {
         loadStats(),
         loadRecentAttendance(),
         checkLastAttendance(),
-        loadUserCount()
+        loadUserCount(),
+        faceService.initializeModels()
       ]);
 
       await determineNextAction();

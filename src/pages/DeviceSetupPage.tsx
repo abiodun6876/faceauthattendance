@@ -1,5 +1,5 @@
 // pages/DeviceSetupPage.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -47,6 +47,12 @@ const DeviceSetupPage: React.FC = () => {
   const [setupMode, setSetupMode] = useState<'register' | 'login'>('register');
   const [orgMode, setOrgMode] = useState<'join' | 'create'>('join');
   const [createOrgLoading, setCreateOrgLoading] = useState(false);
+
+  // Auto-generate codes on mount
+  useEffect(() => {
+    generateDeviceCode();
+    generatePairingCode();
+  }, []);
 
   // Generate a unique device code
   const generateDeviceCode = () => {
