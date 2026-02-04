@@ -1,4 +1,4 @@
-// src/pages/AttendanceManagementPage.tsx - FIXED VERSION
+// src/pages/AttendanceManagementPage.tsx - COMPLETE FIXED VERSION
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card,
@@ -89,8 +89,8 @@ const AttendanceManagementPage: React.FC = () => {
   const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
   const [filteredData, setFilteredData] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [branches, _setBranches] = useState<{ id: string, name: string }[]>([]);
-  const [departments, _setDepartments] = useState<{ id: string, name: string }[]>([]);
+  const [branches, setBranches] = useState<{ id: string, name: string }[]>([]);
+  const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -112,11 +112,17 @@ const AttendanceManagementPage: React.FC = () => {
     dateRange: null as [Dayjs, Dayjs] | null
   });
 
-  // Fetch active users count
+
+  // Fetch active users count - UPDATED
   const fetchActiveUsers = useCallback(async () => {
     try {
       const organizationId = localStorage.getItem('organization_id');
       const branchId = localStorage.getItem('branch_id');
+
+      if (!organizationId) {
+        console.warn('No organization_id found in localStorage');
+        return 0;
+      }
 
       let query = supabase
         .from('users')
@@ -155,20 +161,40 @@ const AttendanceManagementPage: React.FC = () => {
     });
   }, [fetchActiveUsers]);
 
-  // Fetch attendance data with user information
+  // Fetch attendance data with user information - FIXED with correct table name
   const fetchAttendanceData = useCallback(async () => {
     setLoading(true);
     try {
       const organizationId = localStorage.getItem('organization_id');
       const branchId = localStorage.getItem('branch_id');
 
-      // Fetch attendance with user data
+      console.log('📊 Fetching attendance data...');
+      console.log('Organization ID:', organizationId);
+      console.log('Branch ID:', branchId);
+
+      if (!organizationId) {
+        throw new Error('Organization ID not found. Please log in again.');
+      }
+
+      // Fetch attendance with user data - CORRECT TABLE NAME: 'attendance' (not 'attendance:')
       let query = supabase
-        .from('attendance')
+        .from('attendance') // ✅ Correct table name from schema
         .select(`
-          *,
-          user:users(*)
-        `)
+        *,
+        user:users!attendance_user_id_fkey(
+          id, 
+          staff_id, 
+          full_name, 
+          email, 
+          phone, 
+          user_role, 
+          enrollment_status,
+          is_active,
+          organization_id,
+          branch_id,
+          department_id
+        )
+      `)
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
         .limit(1000);
@@ -180,60 +206,154 @@ const AttendanceManagementPage: React.FC = () => {
       const { data: attendance, error: attendanceError } = await query;
 
       if (attendanceError) {
-        throw attendanceError;
-      }
+        console.error('Attendance query error:', attendanceError);
 
-      if (attendance) {
-        setAttendanceData(attendance as any);
-        setFilteredData(attendance as any);
-
-        // Extract unique values for filters - store in variable that's actually used
-        const uniqueUserIds = Array.from(new Set(attendance.map(record => record.user_id).filter(Boolean)));
-        console.log('Unique user IDs:', uniqueUserIds.length);
-
-        // Fetch branches for filter
-        const { data: branchesData } = await supabase
-          .from('branches')
-          .select('id, name')
+        // Try alternative JOIN syntax
+        console.log('🔄 Trying alternative JOIN syntax...');
+        const { data: altAttendance, error: altError } = await supabase
+          .from('attendance')
+          .select(`
+          *,
+          user:users(*)
+        `)
           .eq('organization_id', organizationId)
-          .eq('is_active', true);
+          .order('created_at', { ascending: false })
+          .limit(1000);
 
-        // Fetch departments for filter
-        const { data: departmentsData } = await supabase
-          .from('departments')
-          .select('id, name')
-          .eq('organization_id', organizationId)
-          .eq('is_active', true);
+        if (altError) {
+          console.error('Alternative JOIN error:', altError);
 
-        // Set branches and departments (commented out setters since we're using _ prefix)
-        // _setBranches(branchesData || []);
-        // _setDepartments(departmentsData || []);
+          // Fallback: Try without the JOIN
+          console.log('🔄 Trying fallback query without JOIN...');
+          const { data: simpleData, error: simpleError } = await supabase
+            .from('attendance')
+            .select('*')
+            .eq('organization_id', organizationId)
+            .order('created_at', { ascending: false })
+            .limit(1000);
 
-        // Log the data to use the variables
-        console.log('Branches data:', branchesData?.length || 0);
-        console.log('Departments data:', departmentsData?.length || 0);
+          if (simpleError) {
+            console.error('Simple query error:', simpleError);
+            throw new Error(`Failed to fetch attendance: ${simpleError.message}`);
+          }
 
-        // In the fetchAttendanceData function, update the users query:
-        let usersQuery = supabase
-          .from('users')
-          .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
-          .eq('organization_id', organizationId)
-          .eq('is_active', true);
+          // Manually fetch user data for each record
+          console.log('🔄 Fetching user data separately...');
+          const enhancedData = await Promise.all(
+            (simpleData || []).map(async (record) => {
+              const { data: userData } = await supabase
+                .from('users')
+                .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
+                .eq('id', record.user_id)
+                .single();
 
-        if (branchId) {
-          usersQuery = usersQuery.eq('branch_id', branchId);
+              return {
+                ...record,
+                user: userData || null
+              } as AttendanceRecord;
+            })
+          );
+
+          setAttendanceData(enhancedData);
+          setFilteredData(enhancedData);
+          await calculateStats(enhancedData);
+          console.log(`✅ Loaded ${enhancedData.length} attendance records with fallback`);
+
+        } else {
+          // Alternative JOIN succeeded
+          if (altAttendance) {
+            console.log(`✅ Loaded ${altAttendance.length} attendance records with alternative JOIN`);
+            setAttendanceData(altAttendance as any);
+            setFilteredData(altAttendance as any);
+            await calculateStats(altAttendance);
+          }
         }
 
-        const { data: usersData } = await usersQuery;
-
-        setUsers(usersData as UserRecord[]);
-
-        // Calculate statistics
-        calculateStats(attendance);
+      } else {
+        // Original query succeeded
+        if (attendance) {
+          console.log(`✅ Loaded ${attendance.length} attendance records`);
+          console.log('Sample record:', attendance[0]);
+          setAttendanceData(attendance as any);
+          setFilteredData(attendance as any);
+          await calculateStats(attendance);
+        }
       }
+
+      // Fetch branches for filter
+      const { data: branchesData, error: branchesError } = await supabase
+        .from('branches')
+        .select('id, name')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true);
+
+      if (branchesError) {
+        console.error('Error fetching branches:', branchesError);
+      } else {
+        console.log(`✅ Loaded ${branchesData?.length || 0} branches`);
+        setBranches(branchesData || []);
+      }
+
+      // Fetch departments for filter
+      const { data: departmentsData, error: deptError } = await supabase
+        .from('departments')
+        .select('id, name')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true);
+
+      if (deptError) {
+        console.error('Error fetching departments:', deptError);
+      } else {
+        console.log(`✅ Loaded ${departmentsData?.length || 0} departments`);
+        setDepartments(departmentsData || []);
+      }
+
+      // Fetch users for filter
+      let usersQuery = supabase
+        .from('users')
+        .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true);
+
+      if (branchId) {
+        usersQuery = usersQuery.eq('branch_id', branchId);
+      }
+
+      const { data: usersData, error: usersError } = await usersQuery;
+
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+      } else {
+        console.log(`✅ Loaded ${usersData?.length || 0} active users`);
+        setUsers(usersData as UserRecord[]);
+      }
+
     } catch (error: any) {
-      console.error('Error fetching attendance:', error);
-      message.error('Failed to fetch attendance data');
+      console.error('❌ Error fetching attendance:', error);
+
+      // Show more helpful error message
+      let errorMessage = 'Failed to fetch attendance data';
+      if (error.message.includes('relation "attendance" does not exist')) {
+        errorMessage = 'Attendance table not found in database. Please check your database setup.';
+      } else if (error.message.includes('JWT')) {
+        errorMessage = 'Authentication error. Please log in again.';
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (error.message.includes('Organization ID not found')) {
+        errorMessage = 'Please log in to access attendance data.';
+      }
+
+      message.error(errorMessage);
+
+      // Set empty data to prevent UI from breaking
+      setAttendanceData([]);
+      setFilteredData([]);
+
+      // Show debug info
+      const orgId = localStorage.getItem('organization_id');
+      const brId = localStorage.getItem('branch_id');
+      console.log('Debug info:', { orgId, brId });
+
     } finally {
       setLoading(false);
     }
@@ -315,7 +435,7 @@ const AttendanceManagementPage: React.FC = () => {
 
   // Export data
   const exportToCSV = useCallback(() => {
-    const headers = ['Staff ID', 'Full Name', 'Email', 'Date', 'Clock In', 'Clock Out', 'Status', 'Method', 'Confidence Score', 'Branch', 'Department', 'Face Match Score', 'Device ID'];
+    const headers = ['Staff ID', 'Full Name', 'Email', 'Date', 'Clock In', 'Clock Out', 'Status', 'Method', 'Confidence Score', 'Face Match Score', 'Device ID', 'Branch ID', 'Department ID'];
 
     const csvData = filteredData.map(record => [
       record.user?.staff_id || '',
@@ -327,11 +447,10 @@ const AttendanceManagementPage: React.FC = () => {
       record.status || '',
       record.verification_method || '',
       record.confidence_score ? `${(record.confidence_score * 100).toFixed(1)}%` : '',
-      // Note: branches/departments arrays might be empty since we're not setting them
-      '', // branch name placeholder
-      '', // department name placeholder
       record.face_match_score ? `${(record.face_match_score * 100).toFixed(1)}%` : '',
-      record.device_id || ''
+      record.device_id || '',
+      record.branch_id || '',
+      record.department_id || ''
     ]);
 
     const csvContent = [
@@ -462,23 +581,32 @@ const AttendanceManagementPage: React.FC = () => {
       title: 'Branch/Dept',
       key: 'branch_dept',
       width: 150,
-      render: (record: AttendanceRecord) => (
-        <div>
-          <div style={{ fontSize: '12px' }}>
-            <Tooltip title={getBranchName(record.branch_id)}>
-              <Tag color="blue" style={{ fontSize: '11px', padding: '2px 6px' }}>
-                <BranchesOutlined /> {getBranchName(record.branch_id)}
-              </Tag>
-            </Tooltip>
-            <br />
-            <Tooltip title={getDepartmentName(record.department_id)}>
-              <Tag color="purple" style={{ fontSize: '11px', padding: '2px 6px', marginTop: 4 }}>
-                <ApartmentOutlined /> {getDepartmentName(record.department_id)}
-              </Tag>
-            </Tooltip>
-          </div>
-        </div>
-      ),
+      render: (record: AttendanceRecord) => {
+        const BranchDeptCell = () => {
+          const branchName = getBranchName(record.branch_id);
+          const deptName = getDepartmentName(record.department_id);
+
+          return (
+            <div>
+              <div style={{ fontSize: '12px' }}>
+                <Tooltip title={branchName}>
+                  <Tag color="blue" style={{ fontSize: '11px', padding: '2px 6px' }}>
+                    <BranchesOutlined /> {branchName}
+                  </Tag>
+                </Tooltip>
+                <br />
+                <Tooltip title={deptName}>
+                  <Tag color="purple" style={{ fontSize: '11px', padding: '2px 6px', marginTop: 4 }}>
+                    <ApartmentOutlined /> {deptName}
+                  </Tag>
+                </Tooltip>
+              </div>
+            </div>
+          );
+        };
+
+        return <BranchDeptCell />;
+      },
     },
     {
       title: 'Actions',
@@ -495,10 +623,12 @@ const AttendanceManagementPage: React.FC = () => {
     },
   ], [getBranchName, getDepartmentName]);
 
+  // Initialize on component mount
   useEffect(() => {
     fetchAttendanceData();
   }, [fetchAttendanceData]);
 
+  // Apply filters whenever they change
   useEffect(() => {
     applyFilters();
   }, [filters, attendanceData, applyFilters]);
@@ -591,6 +721,14 @@ const AttendanceManagementPage: React.FC = () => {
               size="middle"
             >
               Export
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchAttendanceData}
+              size="middle"
+              loading={loading}
+            >
+              Refresh
             </Button>
           </Space>
         }
@@ -702,7 +840,7 @@ const AttendanceManagementPage: React.FC = () => {
         showIcon
         style={{ marginBottom: 16 }}
         action={
-          <Button type="link" size="small" onClick={fetchAttendanceData}>
+          <Button type="link" size="small" onClick={fetchAttendanceData} loading={loading}>
             Refresh
           </Button>
         }
@@ -714,6 +852,29 @@ const AttendanceManagementPage: React.FC = () => {
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Spin size="large" />
             <div style={{ marginTop: 16 }}>Loading attendance records...</div>
+          </div>
+        ) : filteredData.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Alert
+              message="No attendance records found"
+              description={
+                attendanceData.length === 0
+                  ? "No attendance data has been recorded yet. Check back after some clock-ins/outs have been recorded."
+                  : "No records match your current filters. Try adjusting your search criteria."
+              }
+              type="info"
+              showIcon
+            />
+            {attendanceData.length === 0 && (
+              <Button
+                type="primary"
+                style={{ marginTop: 16 }}
+                onClick={fetchAttendanceData}
+                loading={loading}
+              >
+                Try Again
+              </Button>
+            )}
           </div>
         ) : (
           <Table

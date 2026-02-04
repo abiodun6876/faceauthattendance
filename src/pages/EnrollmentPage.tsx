@@ -213,7 +213,7 @@ const EnrollmentPage: React.FC = () => {
     }
   }, [deviceInfo?.organization_id]);
 
-  const handleEnrollment = useCallback(async (photoData: string, faceResult: FaceProcessingResult) => {
+  const handleEnrollment = useCallback(async (userData: any, photoData: string, faceResult: FaceProcessingResult) => {
     setLoading(true);
 
     try {
@@ -222,15 +222,15 @@ const EnrollmentPage: React.FC = () => {
       }
 
       // Prepare user data - BOTH staff and student go to the users table
-      const userData = {
-        full_name: formData.full_name,
-        staff_id: formData.staff_id,
-        email: formData.email || null,
-        phone: formData.phone || null,
-        user_role: formData.user_role, // 'staff', 'student', or 'admin'
-        gender: formData.gender,
-        branch_id: formData.branch_id || deviceInfo?.branch_id,
-        department_id: formData.department_id || null,
+      const userInsertData = {
+        full_name: userData.full_name,
+        staff_id: userData.staff_id,
+        email: userData.email || null,
+        phone: userData.phone || null,
+        user_role: userData.user_role, // 'staff', 'student', or 'admin'
+        gender: userData.gender,
+        branch_id: userData.branch_id || deviceInfo?.branch_id,
+        department_id: userData.department_id || null,
         organization_id: deviceInfo?.organization_id,
         is_active: true,
         enrollment_status: 'enrolled',
@@ -239,14 +239,14 @@ const EnrollmentPage: React.FC = () => {
       };
 
       // For students, add extra fields if needed
-      if (formData.user_role === 'student') {
-        userData['level'] = formData.level || 100;
-        userData['program_code'] = formData.department_name || 'General';
+      if (userData.user_role === 'student') {
+        userInsertData['level'] = userData.level || 100;
+        userInsertData['program_code'] = userData.department_name || 'General';
       }
 
       // 💾 SAVE DRAFT TO LOCAL STORAGE FIRST (Reliability requirement)
       const enrollmentDraft = {
-        userData,
+        userData: userInsertData,
         faceResult: {
           ...faceResult,
           embedding: Array.from(faceResult.embedding) // Must convert Float32Array to regular array for JSON
@@ -260,7 +260,7 @@ const EnrollmentPage: React.FC = () => {
       // Insert user into the users table
       const { data: user, error: userError } = await supabase
         .from('users')
-        .insert(userData)
+        .insert(userInsertData)
         .select()
         .single();
 
@@ -349,9 +349,10 @@ const EnrollmentPage: React.FC = () => {
 
       // ✅ SUCCESS - CLEAR DRAFT
       localStorage.removeItem('pending_enrollment_draft');
+      localStorage.removeItem('processing_draft'); // Also clear processing flag
       console.log('🗑️ Enrollment draft cleared');
 
-      // Get role display name - FIXED: Proper ternary chain
+      // Get role display name
       const getRoleDisplayName = (role: string) => {
         switch (role) {
           case 'student': return 'Student';
@@ -369,15 +370,13 @@ const EnrollmentPage: React.FC = () => {
         }
       };
 
-      const roleDisplayName = getRoleDisplayName(formData.user_role);
+      const roleDisplayName = getRoleDisplayName(userData.user_role);
 
       // Set all states at once to avoid multiple re-renders
       setEnrollmentResult(result);
+      setFormData(userData); // Update form data here if needed
       setCurrentStep(2);
       message.success(`${roleDisplayName} enrolled with biometrics!`);
-
-      // Only reset form and states when user clicks "Enroll Another User"
-      // Don't reset them here to show the success screen
 
     } catch (error: any) {
       console.error('Enrollment error:', error);
@@ -390,7 +389,7 @@ const EnrollmentPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [formData, deviceInfo]);
+  }, [deviceInfo]); // Removed formData from dependencies since we're not using it anymore
 
   const processFaceImage = useCallback(async (capturedPhotoData: string) => {
     setFaceProcessing(true);
@@ -428,9 +427,10 @@ const EnrollmentPage: React.FC = () => {
       setPhotoPreview(capturedPhotoData);
       setProcessingProgress(100);
 
-      // Auto-proceed to enrollment after successful face capture
+      // In processFaceImage function, update the call to handleEnrollment:
       if (formData.full_name) {
-        await handleEnrollment(capturedPhotoData, result);
+        // Pass all 3 arguments: userData, photoData, faceResult
+        await handleEnrollment(formData, capturedPhotoData, result);
       }
 
     } catch (error: any) {
@@ -467,48 +467,85 @@ const EnrollmentPage: React.FC = () => {
     });
   }, [processFaceImage]);
 
+
   const syncPendingDraft = useCallback(async () => {
     const draft = localStorage.getItem('pending_enrollment_draft');
     if (!draft) return;
 
     try {
-      const { userData, faceResult, photoData } = JSON.parse(draft);
+      const parsedDraft = JSON.parse(draft);
+      const { userData, faceResult, photoData, timestamp } = parsedDraft;
 
       // Check if this draft is too old (more than 1 hour)
-      const draftAge = dayjs().diff(dayjs(JSON.parse(draft).timestamp), 'hour');
+      const draftAge = dayjs().diff(dayjs(timestamp), 'hour');
       if (draftAge > 1) {
         localStorage.removeItem('pending_enrollment_draft');
         return;
+      }
+
+      // Use a state variable to track if we're currently processing a draft
+      // to prevent infinite loops
+      const isProcessing = localStorage.getItem('processing_draft');
+      if (isProcessing === 'true') {
+        return; // Already processing a draft, exit
       }
 
       Modal.confirm({
         title: 'Unsynced Enrollment Found',
         content: `We found a pending enrollment for ${userData.full_name}. Would you like to try syncing it now?`,
         onOk: async () => {
-          // Re-convert regular array back to Float32Array
-          const reconstructedFaceResult = {
-            ...faceResult,
-            embedding: new Float32Array(faceResult.embedding)
-          };
-          setFormData(userData); // Set form data so handleEnrollment works correctly
-          await handleEnrollment(photoData, reconstructedFaceResult);
+          // Set flag to indicate we're processing
+          localStorage.setItem('processing_draft', 'true');
+
+          try {
+            // Re-convert regular array back to Float32Array
+            const reconstructedFaceResult = {
+              ...faceResult,
+              embedding: new Float32Array(faceResult.embedding)
+            };
+
+            // Use a ref or direct call instead of setting form state
+            // that would trigger re-renders
+            await handleEnrollment(userData, photoData, reconstructedFaceResult);
+
+            // Clear the flag after successful enrollment
+            localStorage.removeItem('processing_draft');
+          } catch (error) {
+            // Clear the flag on error too
+            localStorage.removeItem('processing_draft');
+            throw error;
+          }
         },
         onCancel: () => {
-          // Keep the draft for later
-          console.log('User chose to sync later');
+          // Remove the draft if user explicitly cancels
+          localStorage.removeItem('pending_enrollment_draft');
+          console.log('User chose to cancel enrollment draft');
         }
       });
     } catch (e) {
       console.error('Failed to parse draft:', e);
       localStorage.removeItem('pending_enrollment_draft');
+      localStorage.removeItem('processing_draft');
     }
   }, [handleEnrollment]);
 
   useEffect(() => {
     loadDeviceInfo();
     initializeForm();
-    syncPendingDraft(); // Check for drafts on mount
+
+    // Check for drafts on mount, but only if not already processing
+    const isProcessing = localStorage.getItem('processing_draft');
+    if (isProcessing !== 'true') {
+      syncPendingDraft();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      localStorage.removeItem('processing_draft');
+    };
   }, [loadDeviceInfo, initializeForm, syncPendingDraft]);
+
+
 
   const uploadProps = {
     beforeUpload: (file: File) => {
