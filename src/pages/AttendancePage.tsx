@@ -867,6 +867,38 @@ const AttendancePage: React.FC = () => {
     };
   }, [initializeAttendance, checkConnection, scanInterval, setupAutoScan]);
 
+  // Real-time attendance subscription
+  useEffect(() => {
+    if (!deviceInfo?.organization_id) return;
+
+    console.log('📡 Setting up real-time attendance listener for org:', deviceInfo.organization_id);
+
+    const attendanceChannel = supabase.channel('attendance-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance',
+          filter: `organization_id=eq.${deviceInfo.organization_id}`
+        },
+        (payload) => {
+          console.log('🔔 Real-time attendance update received:', payload);
+          // Refresh data to keep stats and list in sync
+          loadStats();
+          loadRecentAttendance();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 Attendance subscription status:', status);
+      });
+
+    return () => {
+      console.log('🔌 Removing real-time attendance listener');
+      supabase.removeChannel(attendanceChannel);
+    };
+  }, [deviceInfo?.organization_id, loadStats, loadRecentAttendance]);
+
   if (!deviceInfo) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
