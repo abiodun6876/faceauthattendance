@@ -930,6 +930,36 @@ const AttendancePage: React.FC = () => {
     };
   }, [deviceInfo?.organization_id, loadUserCount]);
 
+  // Real-time face match logs subscription
+  useEffect(() => {
+    if (!deviceInfo?.organization_id) return;
+
+    console.log('📡 Setting up real-time face match listener for org:', deviceInfo.organization_id);
+
+    const logChannel = supabase.channel('face-match-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'face_match_logs',
+          filter: `organization_id=eq.${deviceInfo.organization_id}`
+        },
+        (payload) => {
+          console.log('🖼️ Real-time face match log received:', payload);
+          // You could trigger notifications here if needed
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 Face match log subscription status:', status);
+      });
+
+    return () => {
+      console.log('🔌 Removing real-time face match listener');
+      supabase.removeChannel(logChannel);
+    };
+  }, [deviceInfo?.organization_id]);
+
   if (!deviceInfo) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
