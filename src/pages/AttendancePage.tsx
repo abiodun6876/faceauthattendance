@@ -960,6 +960,37 @@ const AttendancePage: React.FC = () => {
     };
   }, [deviceInfo?.organization_id]);
 
+  // Real-time shifts subscription
+  useEffect(() => {
+    if (!deviceInfo?.organization_id) return;
+
+    console.log('📡 Setting up real-time shifts listener for org:', deviceInfo.organization_id);
+
+    const shiftChannel = supabase.channel('shift-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shifts',
+          filter: `organization_id=eq.${deviceInfo.organization_id}`
+        },
+        (payload) => {
+          console.log('🕒 Real-time shift update received:', payload);
+          // Refresh statistics as shift times affect late/early detection
+          loadStats();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 Shift subscription status:', status);
+      });
+
+    return () => {
+      console.log('🔌 Removing real-time shifts listener');
+      supabase.removeChannel(shiftChannel);
+    };
+  }, [deviceInfo?.organization_id, loadStats]);
+
   if (!deviceInfo) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
