@@ -161,25 +161,46 @@ const AttendanceManagementPage: React.FC = () => {
     });
   }, [fetchActiveUsers]);
 
-  // Fetch attendance data with user information - FIXED with correct table name
-  const fetchAttendanceData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const organizationId = localStorage.getItem('organization_id');
-      const branchId = localStorage.getItem('branch_id');
-
-      console.log('📊 Fetching attendance data...');
-      console.log('Organization ID:', organizationId);
-      console.log('Branch ID:', branchId);
-
-      if (!organizationId) {
-        throw new Error('Organization ID not found. Please log in again.');
+ // Fetch attendance data for the current device's branch
+const fetchAttendanceData = useCallback(async () => {
+  setLoading(true);
+  try {
+    // Get device info from localStorage or device registration
+    const deviceInfoStr = localStorage.getItem('device_info');
+    let deviceInfo: any = null;
+    
+    if (deviceInfoStr) {
+      try {
+        deviceInfo = JSON.parse(deviceInfoStr);
+      } catch (e) {
+        console.error('Error parsing device info:', e);
       }
+    }
 
-      // Fetch attendance with user data - CORRECT TABLE NAME: 'attendance' (not 'attendance:')
-      let query = supabase
-        .from('attendance') // ✅ Correct table name from schema
-        .select(`
+    // If no device info in localStorage, try to get current device
+    if (!deviceInfo) {
+      const { data: currentDevice } = await supabase
+        .from('devices')
+        .select('id, branch_id, organization_id, device_name')
+        .eq('device_code', localStorage.getItem('device_code') || '')
+        .single();
+      
+      if (currentDevice) {
+        deviceInfo = currentDevice;
+        localStorage.setItem('device_info', JSON.stringify(currentDevice));
+      }
+    }
+
+    console.log('📊 Fetching attendance data for device:', deviceInfo);
+    
+    if (!deviceInfo?.branch_id) {
+      throw new Error('Device not registered to a branch. Please setup device first.');
+    }
+
+    // Fetch attendance for this device's branch
+    let query = supabase
+      .from('attendance')
+      .select(`
         *,
         user:users!attendance_user_id_fkey(
           id, 
@@ -195,169 +216,117 @@ const AttendanceManagementPage: React.FC = () => {
           department_id
         )
       `)
-        .eq('organization_id', organizationId)
+      .eq('branch_id', deviceInfo.branch_id)  // ✅ Filter by device's branch
+      .order('created_at', { ascending: false })
+      .limit(1000);
+
+    // Also filter by device_id if you want only this device's records
+    const { data: attendance, error: attendanceError } = await query;
+
+    if (attendanceError) {
+      console.error('Attendance query error:', attendanceError);
+      
+      // Fallback: Try without JOIN
+      console.log('🔄 Trying fallback query without JOIN...');
+      const { data: simpleData } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('branch_id', deviceInfo.branch_id)
         .order('created_at', { ascending: false })
         .limit(1000);
 
-      if (branchId) {
-        query = query.eq('branch_id', branchId);
+      if (simpleData) {
+        // Manually fetch user data
+        const enhancedData = await Promise.all(
+          simpleData.map(async (record) => {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
+              .eq('id', record.user_id)
+              .single();
+
+            return {
+              ...record,
+              user: userData || null
+            } as AttendanceRecord;
+          })
+        );
+
+        setAttendanceData(enhancedData);
+        setFilteredData(enhancedData);
+        await calculateStats(enhancedData);
+        console.log(`✅ Loaded ${enhancedData.length} attendance records`);
       }
-
-      const { data: attendance, error: attendanceError } = await query;
-
-      if (attendanceError) {
-        console.error('Attendance query error:', attendanceError);
-
-        // Try alternative JOIN syntax
-        console.log('🔄 Trying alternative JOIN syntax...');
-        const { data: altAttendance, error: altError } = await supabase
-          .from('attendance')
-          .select(`
-          *,
-          user:users(*)
-        `)
-          .eq('organization_id', organizationId)
-          .order('created_at', { ascending: false })
-          .limit(1000);
-
-        if (altError) {
-          console.error('Alternative JOIN error:', altError);
-
-          // Fallback: Try without the JOIN
-          console.log('🔄 Trying fallback query without JOIN...');
-          const { data: simpleData, error: simpleError } = await supabase
-            .from('attendance')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .order('created_at', { ascending: false })
-            .limit(1000);
-
-          if (simpleError) {
-            console.error('Simple query error:', simpleError);
-            throw new Error(`Failed to fetch attendance: ${simpleError.message}`);
-          }
-
-          // Manually fetch user data for each record
-          console.log('🔄 Fetching user data separately...');
-          const enhancedData = await Promise.all(
-            (simpleData || []).map(async (record) => {
-              const { data: userData } = await supabase
-                .from('users')
-                .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
-                .eq('id', record.user_id)
-                .single();
-
-              return {
-                ...record,
-                user: userData || null
-              } as AttendanceRecord;
-            })
-          );
-
-          setAttendanceData(enhancedData);
-          setFilteredData(enhancedData);
-          await calculateStats(enhancedData);
-          console.log(`✅ Loaded ${enhancedData.length} attendance records with fallback`);
-
-        } else {
-          // Alternative JOIN succeeded
-          if (altAttendance) {
-            console.log(`✅ Loaded ${altAttendance.length} attendance records with alternative JOIN`);
-            setAttendanceData(altAttendance as any);
-            setFilteredData(altAttendance as any);
-            await calculateStats(altAttendance);
-          }
-        }
-
-      } else {
-        // Original query succeeded
-        if (attendance) {
-          console.log(`✅ Loaded ${attendance.length} attendance records`);
-          console.log('Sample record:', attendance[0]);
-          setAttendanceData(attendance as any);
-          setFilteredData(attendance as any);
-          await calculateStats(attendance);
-        }
+    } else {
+      if (attendance) {
+        console.log(`✅ Loaded ${attendance.length} attendance records for branch ${deviceInfo.branch_id}`);
+        setAttendanceData(attendance as any);
+        setFilteredData(attendance as any);
+        await calculateStats(attendance);
       }
-
-      // Fetch branches for filter
-      const { data: branchesData, error: branchesError } = await supabase
-        .from('branches')
-        .select('id, name')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true);
-
-      if (branchesError) {
-        console.error('Error fetching branches:', branchesError);
-      } else {
-        console.log(`✅ Loaded ${branchesData?.length || 0} branches`);
-        setBranches(branchesData || []);
-      }
-
-      // Fetch departments for filter
-      const { data: departmentsData, error: deptError } = await supabase
-        .from('departments')
-        .select('id, name')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true);
-
-      if (deptError) {
-        console.error('Error fetching departments:', deptError);
-      } else {
-        console.log(`✅ Loaded ${departmentsData?.length || 0} departments`);
-        setDepartments(departmentsData || []);
-      }
-
-      // Fetch users for filter
-      let usersQuery = supabase
-        .from('users')
-        .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true);
-
-      if (branchId) {
-        usersQuery = usersQuery.eq('branch_id', branchId);
-      }
-
-      const { data: usersData, error: usersError } = await usersQuery;
-
-      if (usersError) {
-        console.error('Error fetching users:', usersError);
-      } else {
-        console.log(`✅ Loaded ${usersData?.length || 0} active users`);
-        setUsers(usersData as UserRecord[]);
-      }
-
-    } catch (error: any) {
-      console.error('❌ Error fetching attendance:', error);
-
-      // Show more helpful error message
-      let errorMessage = 'Failed to fetch attendance data';
-      if (error.message.includes('relation "attendance" does not exist')) {
-        errorMessage = 'Attendance table not found in database. Please check your database setup.';
-      } else if (error.message.includes('JWT')) {
-        errorMessage = 'Authentication error. Please log in again.';
-      } else if (error.message.includes('network')) {
-        errorMessage = 'Network error. Please check your connection.';
-      } else if (error.message.includes('Organization ID not found')) {
-        errorMessage = 'Please log in to access attendance data.';
-      }
-
-      message.error(errorMessage);
-
-      // Set empty data to prevent UI from breaking
-      setAttendanceData([]);
-      setFilteredData([]);
-
-      // Show debug info
-      const orgId = localStorage.getItem('organization_id');
-      const brId = localStorage.getItem('branch_id');
-      console.log('Debug info:', { orgId, brId });
-
-    } finally {
-      setLoading(false);
     }
-  }, [calculateStats]);
+
+    // Fetch branches for filter (only current branch)
+    const { data: branchesData } = await supabase
+      .from('branches')
+      .select('id, name')
+      .eq('id', deviceInfo.branch_id);
+
+    if (branchesData) {
+      console.log(`✅ Loaded current branch:`, branchesData[0]?.name);
+      setBranches(branchesData);
+    }
+
+    // Fetch departments for filter (only for current branch)
+    const { data: departmentsData } = await supabase
+      .from('departments')
+      .select('id, name')
+      .eq('branch_id', deviceInfo.branch_id)
+      .eq('is_active', true);
+
+    if (departmentsData) {
+      console.log(`✅ Loaded ${departmentsData.length} departments for current branch`);
+      setDepartments(departmentsData);
+    }
+
+    // Fetch users for filter (only for current branch)
+    const { data: usersData } = await supabase
+      .from('users')
+      .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
+      .eq('branch_id', deviceInfo.branch_id)
+      .eq('is_active', true);
+
+    if (usersData) {
+      console.log(`✅ Loaded ${usersData.length} active users for current branch`);
+      setUsers(usersData as UserRecord[]);
+    }
+
+  } catch (error: any) {
+    console.error('❌ Error fetching attendance:', error);
+    
+    let errorMessage = 'Failed to fetch attendance data';
+    if (error.message.includes('Device not registered')) {
+      errorMessage = 'Device not setup. Please register device first.';
+    } else if (error.message.includes('JWT')) {
+      errorMessage = 'Authentication error. Please restart the app.';
+    } else if (error.message.includes('network')) {
+      errorMessage = 'Network error. Please check connection.';
+    }
+    
+    message.error(errorMessage);
+    
+    // Check if we need to redirect to device setup
+    if (error.message.includes('Device not registered')) {
+      setTimeout(() => window.location.href = '/device-setup', 2000);
+    }
+    
+    setAttendanceData([]);
+    setFilteredData([]);
+    
+  } finally {
+    setLoading(false);
+  }
+}, [calculateStats]);
 
   // Apply filters
   const applyFilters = useCallback(() => {
