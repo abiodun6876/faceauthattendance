@@ -7,44 +7,25 @@ import {
   Col,
   Typography,
   Button,
-  Alert,
   Space,
-  Statistic,
   Tag,
   Modal,
   Spin,
   Result,
-  Avatar,
-  List,
-  Divider,
   message,
   Tooltip,
   Radio,
   Input,
-  Descriptions,
-  Empty,
   Switch,
   Image
 } from 'antd';
 import {
   Camera,
-  CheckCircle,
-  Clock,
-  User,
-  Users,
   RefreshCw,
-  BarChart3,
-  ChevronRight,
-  Bell,
-  Power,
   Settings,
-  History,
   LogIn,
   ArrowLeft,
   LogOut,
-  Monitor,
-  QrCode,
-  TrendingUp,
   Wifi,
   WifiOff
 } from 'lucide-react';
@@ -144,7 +125,7 @@ const AttendancePage: React.FC = () => {
     attendance_rate: 0,
     average_confidence: 0
   });
-  const [recentAttendance, setRecentAttendance] = useState<AttendanceRecord[]>([]);
+  
   const [showResultModal, setShowResultModal] = useState(false);
   const [attendanceResult, setAttendanceResult] = useState<{
     success: boolean;
@@ -161,8 +142,7 @@ const AttendancePage: React.FC = () => {
   const [manualId, setManualId] = useState('');
   const [manualLoading, setManualLoading] = useState(false);
   const [_showHistory, _setShowHistory] = useState(false);
-  const [screenPairCode, setScreenPairCode] = useState('');
-  const [pairingLoading, setPairingLoading] = useState(false);
+
 
   // Helper function to extract organization settings
   const extractOrganizationSettings = useCallback((settings: any): OrganizationSettings => {
@@ -272,7 +252,7 @@ const AttendancePage: React.FC = () => {
   }, [deviceInfo?.organization_id, deviceInfo?.branch_id]);
 
   // Load recent attendance
-  const loadRecentAttendance = useCallback(async (limit = 10) => {
+  const load = useCallback(async (limit = 10) => {
     try {
       let query = supabase
         .from('attendance')
@@ -287,12 +267,12 @@ const AttendancePage: React.FC = () => {
         query = query.eq('branch_id', deviceInfo.branch_id);
       }
 
-      const { data, error } = await query
+      const { error } = await query
         .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      setRecentAttendance(data || []);
+     
     } catch (error) {
       console.error('Error loading recent attendance:', error);
     }
@@ -386,7 +366,7 @@ const AttendancePage: React.FC = () => {
 
       await Promise.all([
         loadStats(),
-        loadRecentAttendance(),
+        load(),
         checkLastAttendance(),
         loadUserCount(),
         faceService.initializeModels()
@@ -399,7 +379,7 @@ const AttendancePage: React.FC = () => {
     }
   }, [
     loadStats,
-    loadRecentAttendance,
+    load,
     checkLastAttendance,
     loadUserCount,
     determineNextAction,
@@ -653,7 +633,7 @@ const AttendancePage: React.FC = () => {
       // Refresh data
       await Promise.all([
         loadStats(),
-        loadRecentAttendance()
+        load()
       ]);
 
       // FAST TRACK: Automatically close result and resume scanning after 1.5 seconds
@@ -691,7 +671,7 @@ const AttendancePage: React.FC = () => {
     determineAttendanceAction,
     recordAttendance,
     loadStats,
-    loadRecentAttendance
+    load
   ]);
 
   // Handle manual attendance
@@ -742,7 +722,7 @@ const AttendancePage: React.FC = () => {
 
       await Promise.all([
         loadStats(),
-        loadRecentAttendance()
+        load()
       ]);
 
       message.success(`Manual ${action} recorded for ${user.full_name}`);
@@ -761,83 +741,17 @@ const AttendancePage: React.FC = () => {
     determineAttendanceAction,
     recordAttendance,
     loadStats,
-    loadRecentAttendance
+    load
   ]);
 
   // Handle screen pairing
-  const handlePairScreen = useCallback(async () => {
-    if (!screenPairCode.trim()) {
-      message.error('Please enter a pair code');
-      return;
-    }
-
-    setPairingLoading(true);
-    try {
-      const { data: existingPair, error: checkError } = await supabase
-        .from('screen_pairs')
-        .select('*')
-        .eq('pair_code', screenPairCode.trim())
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') throw checkError;
-
-      if (existingPair) {
-        // Update existing pair
-        const { error } = await supabase
-          .from('screen_pairs')
-          .update({
-            device_id: deviceInfo?.id,
-            connected_at: new Date().toISOString(),
-            status: 'connected',
-            last_activity: new Date().toISOString()
-          })
-          .eq('id', existingPair.id);
-
-        if (error) throw error;
-      } else {
-        // Create new pair
-        const { error } = await supabase
-          .from('screen_pairs')
-          .insert({
-            pair_code: screenPairCode.trim(),
-            device_id: deviceInfo?.id,
-            screen_name: `Screen ${screenPairCode}`,
-            status: 'connected',
-            connected_at: new Date().toISOString(),
-            last_activity: new Date().toISOString()
-          });
-
-        if (error) throw error;
-      }
-
-      message.success(`Screen paired successfully! Code: ${screenPairCode}`);
-      setScreenPairCode('');
-
-    } catch (error: any) {
-      console.error('Screen pairing error:', error);
-      message.error(error.message || 'Failed to pair screen');
-    } finally {
-      setPairingLoading(false);
-    }
-  }, [screenPairCode, deviceInfo?.id]);
 
   // Helper functions
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'present': return 'green';
-      case 'late': return 'orange';
-      case 'absent': return 'red';
-      default: return 'default';
-    }
-  };
 
   const formatTime = (time: string) => {
     return dayjs(time).format('HH:mm:ss');
   };
 
-  const getTimeAgo = (time: string) => {
-    return dayjs(time).fromNow();
-  };
 
   // Add a function to use the scanInterval
   const setupAutoScan = useCallback(() => {
@@ -886,7 +800,7 @@ const AttendancePage: React.FC = () => {
           console.log('🔔 Real-time attendance update received:', payload);
           // Refresh data to keep stats and list in sync
           loadStats();
-          loadRecentAttendance();
+          load();
         }
       )
       .subscribe((status) => {
@@ -897,7 +811,7 @@ const AttendancePage: React.FC = () => {
       console.log('🔌 Removing real-time attendance listener');
       supabase.removeChannel(attendanceChannel);
     };
-  }, [deviceInfo?.organization_id, loadStats, loadRecentAttendance]);
+  }, [deviceInfo?.organization_id, loadStats, load]);
 
   // Real-time face enrollment subscription
   useEffect(() => {

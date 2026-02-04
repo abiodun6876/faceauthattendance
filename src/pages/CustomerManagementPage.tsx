@@ -1,5 +1,5 @@
 // pages/CustomerManagementPage.tsx - SIMPLIFIED VERSION (FIXED)
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Card,
@@ -23,14 +23,12 @@ import {
     Users,
     UserPlus,
     ArrowLeft,
-    Mail,
     Phone,
     Edit,
     MapPin,
     FileText,
-    Search
 } from 'lucide-react';
-import { SearchOutlined } from '@ant-design/icons'; // Fixed import
+import { SearchOutlined, } from '@ant-design/icons'; // Fixed import
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
 
@@ -57,9 +55,7 @@ const CustomerManagementPage: React.FC = () => {
         loadCustomers();
     }, []);
 
-    useEffect(() => {
-        filterCustomers();
-    }, [customers, searchText]);
+   
 
     const loadCustomers = async () => {
         try {
@@ -99,20 +95,24 @@ const CustomerManagementPage: React.FC = () => {
         }
     };
 
-    const filterCustomers = () => {
-        let filtered = [...customers];
+    const filterCustomers = useCallback(() => {
+    let filtered = [...customers];
 
-        if (searchText) {
-            filtered = filtered.filter(customer =>
-                customer.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
-                customer.phone?.includes(searchText) ||
-                customer.email?.toLowerCase().includes(searchText.toLowerCase()) ||
-                customer.address?.toLowerCase().includes(searchText.toLowerCase())
-            );
-        }
+    if (searchText) {
+        filtered = filtered.filter(customer =>
+            customer.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+            customer.phone?.includes(searchText) ||
+            customer.email?.toLowerCase().includes(searchText.toLowerCase()) ||
+            customer.address?.toLowerCase().includes(searchText.toLowerCase())
+        );
+    }
 
-        setFilteredCustomers(filtered);
-    };
+    setFilteredCustomers(filtered);
+}, [customers, searchText]); // Add all dependencies here
+
+useEffect(() => {
+    filterCustomers();
+}, [filterCustomers]); // Now filterCustomers is stable with useCallback
 
     const handleSubmit = async (values: any) => {
         try {
