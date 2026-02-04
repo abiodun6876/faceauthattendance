@@ -17,7 +17,15 @@ import {
     Typography,
     Row,
     Col,
-    Statistic
+    Statistic,
+    Avatar,
+    Badge,
+    Divider,
+    Drawer,
+    List,
+    Dropdown,
+    Menu,
+    Pagination
 } from 'antd';
 import {
     Users,
@@ -26,10 +34,22 @@ import {
     Calendar,
     Clock,
     CheckCircle,
-    Key
+    Key,
+    MapPin,
+    Phone,
+    Mail,
+    Building,
+    MoreVertical,
+    ChevronRight,
+    UserCheck,
+    Eye,
+    FileText
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTime);
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -38,11 +58,14 @@ const { TextArea } = Input;
 const VisitorManagementPage: React.FC = () => {
     const navigate = useNavigate();
     const [form] = Form.useForm();
+    const [checkInForm] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [appointments, setAppointments] = useState<any[]>([]);
     const [staff, setStaff] = useState<any[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [checkInModalVisible, setCheckInModalVisible] = useState(false);
+    const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
+    const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
     const [stats, setStats] = useState({
         pending: 0,
         approved: 0,
@@ -50,11 +73,34 @@ const VisitorManagementPage: React.FC = () => {
         today: 0
     });
 
+    const getStatusColor = (status: string) => {
+        const colors: any = {
+            pending: '#fa8c16',
+            approved: '#1890ff',
+            checked_in: '#52c41a',
+            checked_out: '#666',
+            rejected: '#ff4d4f',
+            cancelled: '#d9d9d9'
+        };
+        return colors[status] || '#d9d9d9';
+    };
+
+    const getStatusBadge = (status: string) => {
+        const badgeStatus: any = {
+            pending: 'warning',
+            approved: 'processing',
+            checked_in: 'success',
+            checked_out: 'default',
+            rejected: 'error',
+            cancelled: 'default'
+        };
+        return badgeStatus[status] || 'default';
+    };
+
     const loadAppointments = useCallback(async () => {
         try {
             setLoading(true);
             const organizationId = localStorage.getItem('organization_id');
-
             const branchId = localStorage.getItem('branch_id');
 
             let query = supabase
@@ -164,7 +210,7 @@ const VisitorManagementPage: React.FC = () => {
                     start_time: values.start_time.format('HH:mm'),
                     end_time: values.end_time.format('HH:mm'),
                     purpose: values.purpose,
-                    status: 'approved' // Auto-approve for now
+                    status: 'approved'
                 })
                 .select()
                 .single();
@@ -229,7 +275,7 @@ const VisitorManagementPage: React.FC = () => {
 
             message.success('Visitor checked in successfully');
             setCheckInModalVisible(false);
-            form.resetFields();
+            checkInForm.resetFields();
             loadAppointments();
         } catch (error: any) {
             console.error('Error checking in:', error);
@@ -239,182 +285,397 @@ const VisitorManagementPage: React.FC = () => {
         }
     };
 
+    const handleViewDetails = (appointment: any) => {
+        setSelectedAppointment(appointment);
+        setDetailDrawerVisible(true);
+    };
+
     const columns = [
-        {
-            title: 'Date',
-            dataIndex: 'appointment_date',
-            key: 'date',
-            render: (date: string) => dayjs(date).format('MMM D, YYYY'),
-            sorter: (a: any, b: any) => dayjs(a.appointment_date).unix() - dayjs(b.appointment_date).unix(),
-        },
-        {
-            title: 'Time',
-            key: 'time',
-            render: (record: any) => `${record.start_time} - ${record.end_time}`,
-        },
         {
             title: 'Visitor',
             key: 'visitor',
+            width: 150,
+            render: (record: any) => (
+                <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                    onClick={() => handleViewDetails(record)}
+                >
+                    <Avatar
+                        size={36}
+                        style={{
+                            backgroundColor: getStatusColor(record.status) + '20',
+                            color: getStatusColor(record.status)
+                        }}
+                    >
+                        {record.visitor?.full_name?.charAt(0) || 'V'}
+                    </Avatar>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <Text strong style={{ display: 'block', fontSize: 14 }}>
+                            {record.visitor?.full_name}
+                        </Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>
+                            {record.visitor?.company || 'No company'}
+                        </Text>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            title: 'Date & Time',
+            key: 'datetime',
+            width: 120,
             render: (record: any) => (
                 <div>
-                    <div><strong>{record.visitor?.full_name}</strong></div>
-                    <div style={{ fontSize: 12, color: '#666' }}>{record.visitor?.company}</div>
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>
+                        {dayjs(record.appointment_date).format('MMM D')}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#666' }}>
+                        {record.start_time} - {record.end_time}
+                    </div>
                 </div>
             ),
         },
         {
             title: 'Host',
             key: 'host',
-            render: (record: any) => record.host?.full_name || '-',
+            width: 100,
+            render: (record: any) => (
+                <Text style={{ fontSize: 12 }}>
+                    {record.host?.full_name || '-'}
+                </Text>
+            ),
         },
         {
-            title: 'Purpose',
-            dataIndex: 'purpose',
-            key: 'purpose',
-            ellipsis: true,
+            title: 'Status',
+            key: 'status',
+            width: 90,
+            render: (record: any) => (
+                <Badge
+                    status={getStatusBadge(record.status)}
+                    text={
+                        <span style={{ fontSize: 11 }}>
+                            {record.status.replace('_', ' ')}
+                        </span>
+                    }
+                />
+            ),
         },
         {
-            title: 'Pass Code',
+            title: 'Code',
             dataIndex: 'pass_code',
             key: 'pass_code',
+            width: 70,
             render: (code: string) => (
-                <Tag color="blue" style={{ fontSize: 16, padding: '4px 8px' }}>
+                <Tag
+                    color="blue"
+                    style={{
+                        fontSize: 12,
+                        padding: '2px 6px',
+                        margin: 0,
+                        borderRadius: 12
+                    }}
+                >
                     {code}
                 </Tag>
             ),
         },
         {
-            title: 'Status',
-            dataIndex: 'status',
-            key: 'status',
-            render: (status: string) => {
-                const colors: any = {
-                    pending: 'orange',
-                    approved: 'blue',
-                    checked_in: 'green',
-                    checked_out: 'default',
-                    rejected: 'red',
-                    cancelled: 'default'
-                };
-                return <Tag color={colors[status]}>{status.replace('_', ' ').toUpperCase()}</Tag>;
-            },
+            title: '',
+            key: 'actions',
+            width: 40,
+            render: (record: any) => (
+                <Dropdown
+                    dropdownRender={() => (
+                        <Menu>
+                            <Menu.Item
+                                key="view"
+                                icon={<Eye size={14} />}
+                                onClick={() => handleViewDetails(record)}
+                            >
+                                View Details
+                            </Menu.Item>
+                            <Menu.Item
+                                key="checkin"
+                                icon={<UserCheck size={14} />}
+                                disabled={record.status === 'checked_in'}
+                            >
+                                Check In
+                            </Menu.Item>
+                        </Menu>
+                    )}
+                    trigger={['click']}
+                >
+                    <Button type="text" icon={<MoreVertical size={16} />} size="small" />
+                </Dropdown>
+            ),
         },
     ];
 
+    // Mobile-friendly card view
+    const renderMobileCards = () => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {appointments.map((appointment) => (
+                <Card
+                    key={appointment.id}
+                    size="small"
+                    hoverable
+                    style={{
+                        borderRadius: 12,
+                        borderLeft: `4px solid ${getStatusColor(appointment.status)}`,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                        marginBottom: 8
+                    }}
+                    onClick={() => handleViewDetails(appointment)}
+                >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <Avatar
+                            size={40}
+                            style={{
+                                backgroundColor: getStatusColor(appointment.status) + '20',
+                                color: getStatusColor(appointment.status)
+                            }}
+                        >
+                            {appointment.visitor?.full_name?.charAt(0) || 'V'}
+                        </Avatar>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <Text strong style={{ fontSize: 14, display: 'block' }}>
+                                        {appointment.visitor?.full_name}
+                                    </Text>
+                                    <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                        {appointment.visitor?.company}
+                                    </Text>
+                                </div>
+                                <Tag
+                                    color="blue"
+                                    style={{
+                                        fontSize: 10,
+                                        padding: '2px 6px',
+                                        borderRadius: 10
+                                    }}
+                                >
+                                    {appointment.pass_code}
+                                </Tag>
+                            </div>
+
+                            <Divider style={{ margin: '8px 0' }} />
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                <div>
+                                    <Text style={{ fontSize: 11, color: '#666', display: 'block' }}>Date</Text>
+                                    <Text strong style={{ fontSize: 12 }}>
+                                        {dayjs(appointment.appointment_date).format('MMM D, YYYY')}
+                                    </Text>
+                                </div>
+                                <div>
+                                    <Text style={{ fontSize: 11, color: '#666', display: 'block' }}>Time</Text>
+                                    <Text strong style={{ fontSize: 12 }}>
+                                        {appointment.start_time} - {appointment.end_time}
+                                    </Text>
+                                </div>
+                                <div>
+                                    <Text style={{ fontSize: 11, color: '#666', display: 'block' }}>Host</Text>
+                                    <Text strong style={{ fontSize: 12 }}>
+                                        {appointment.host?.full_name || '-'}
+                                    </Text>
+                                </div>
+                                <div>
+                                    <Text style={{ fontSize: 11, color: '#666', display: 'block' }}>Status</Text>
+                                    <Badge
+                                        status={getStatusBadge(appointment.status)}
+                                        text={
+                                            <span style={{ fontSize: 11 }}>
+                                                {appointment.status.replace('_', ' ')}
+                                            </span>
+                                        }
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+            ))}
+
+            {/* Mobile pagination */}
+            <div style={{
+                marginTop: 16,
+                display: 'flex',
+                justifyContent: 'center'
+            }}>
+                <Pagination
+                    simple
+                    size="small"
+                    total={appointments.length}
+                    pageSize={10}
+                    showSizeChanger={false}
+                    showQuickJumper={false}
+                />
+            </div>
+        </div>
+    );
+
+    const isMobile = window.innerWidth < 768;
+
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: 'var(--gray-50)', padding: '16px' }}>
+        <div style={{
+            minHeight: '100vh',
+            backgroundColor: '#f8f9fa',
+            padding: isMobile ? '12px' : '16px'
+        }}>
             {/* Header */}
             <div style={{
                 background: 'white',
-                padding: '16px 24px',
+                padding: isMobile ? '16px' : '16px 24px',
                 borderRadius: '12px',
                 marginBottom: 24,
-                boxShadow: 'var(--shadow-sm)'
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
             }}>
-                <Button
-                    type="text"
-                    icon={<ArrowLeft size={24} />}
-                    onClick={() => navigate('/')}
-                    style={{ marginBottom: 16, color: 'var(--gray-600)' }}
-                />
+                <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space align="center">
+                        <Button
+                            type="text"
+                            icon={<ArrowLeft size={isMobile ? 20 : 24} />}
+                            onClick={() => navigate('/')}
+                            style={{ color: '#666' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                            <Title level={isMobile ? 4 : 3} style={{ margin: 0 }}>
+                                Visitor Management
+                            </Title>
+                            <Text type="secondary" style={{ fontSize: isMobile ? 12 : 14 }}>
+                                Manage appointments and visitor check-ins
+                            </Text>
+                        </div>
+                    </Space>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        backgroundColor: '#667eea',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}>
-                        <Users size={24} color="#fff" />
-                    </div>
-                    <div>
-                        <Title level={3} style={{ margin: 0 }}>
-                            Visitor Management
-                        </Title>
-                        <Text type="secondary">
-                            Manage appointments and visitor check-ins
-                        </Text>
-                    </div>
-                </div>
+                    {/* Stats - Mobile optimized */}
+                    <Row gutter={[8, 8]} style={{ marginTop: 16 }}>
+                        <Col xs={12} sm={6}>
+                            <Card size="small" bodyStyle={{ padding: isMobile ? '12px' : '16px' }}>
+                                <Statistic
+                                    title={<Text style={{ fontSize: isMobile ? 11 : 12 }}>Today's Appointments</Text>}
+                                    value={stats.today}
+                                    prefix={<Calendar size={isMobile ? 14 : 16} />}
+                                    valueStyle={{
+                                        color: '#667eea',
+                                        fontSize: isMobile ? 18 : 24
+                                    }}
+                                />
+                            </Card>
+                        </Col>
+                        <Col xs={12} sm={6}>
+                            <Card size="small" bodyStyle={{ padding: isMobile ? '12px' : '16px' }}>
+                                <Statistic
+                                    title={<Text style={{ fontSize: isMobile ? 11 : 12 }}>Pending</Text>}
+                                    value={stats.pending}
+                                    prefix={<Clock size={isMobile ? 14 : 16} />}
+                                    valueStyle={{
+                                        color: '#fa8c16',
+                                        fontSize: isMobile ? 18 : 24
+                                    }}
+                                />
+                            </Card>
+                        </Col>
+                        <Col xs={12} sm={6}>
+                            <Card size="small" bodyStyle={{ padding: isMobile ? '12px' : '16px' }}>
+                                <Statistic
+                                    title={<Text style={{ fontSize: isMobile ? 11 : 12 }}>Approved</Text>}
+                                    value={stats.approved}
+                                    prefix={<CheckCircle size={isMobile ? 14 : 16} />}
+                                    valueStyle={{
+                                        color: '#1890ff',
+                                        fontSize: isMobile ? 18 : 24
+                                    }}
+                                />
+                            </Card>
+                        </Col>
+                        <Col xs={12} sm={6}>
+                            <Card size="small" bodyStyle={{ padding: isMobile ? '12px' : '16px' }}>
+                                <Statistic
+                                    title={<Text style={{ fontSize: isMobile ? 11 : 12 }}>Checked In</Text>}
+                                    value={stats.checkedIn}
+                                    prefix={<Users size={isMobile ? 14 : 16} />}
+                                    valueStyle={{
+                                        color: '#52c41a',
+                                        fontSize: isMobile ? 18 : 24
+                                    }}
+                                />
+                            </Card>
+                        </Col>
+                    </Row>
+                </Space>
             </div>
 
-            {/* Stats */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={12} sm={6}>
-                    <Card>
-                        <Statistic
-                            title="Today's Appointments"
-                            value={stats.today}
-                            prefix={<Calendar size={20} />}
-                            valueStyle={{ color: '#667eea' }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card>
-                        <Statistic
-                            title="Pending"
-                            value={stats.pending}
-                            prefix={<Clock size={20} />}
-                            valueStyle={{ color: '#fa8c16' }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card>
-                        <Statistic
-                            title="Approved"
-                            value={stats.approved}
-                            prefix={<CheckCircle size={20} />}
-                            valueStyle={{ color: '#1890ff' }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card>
-                        <Statistic
-                            title="Checked In"
-                            value={stats.checkedIn}
-                            prefix={<Users size={20} />}
-                            valueStyle={{ color: '#52c41a' }}
-                        />
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Actions */}
-            <Card style={{ marginBottom: 24 }}>
-                <Space>
+            {/* Actions - Mobile optimized */}
+            <Card
+                size="small"
+                style={{ marginBottom: 24 }}
+                bodyStyle={{ padding: isMobile ? '12px' : '16px' }}
+            >
+                <div style={{
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    gap: isMobile ? 12 : 16
+                }}>
                     <Button
                         type="primary"
-                        icon={<UserPlus size={16} />}
+                        icon={<UserPlus size={isMobile ? 14 : 16} />}
                         onClick={() => setModalVisible(true)}
-                        size="large"
+                        size={isMobile ? 'middle' : 'large'}
+                        block={isMobile}
                     >
                         Book Appointment
                     </Button>
                     <Button
-                        icon={<Key size={16} />}
+                        icon={<Key size={isMobile ? 14 : 16} />}
                         onClick={() => setCheckInModalVisible(true)}
-                        size="large"
+                        size={isMobile ? 'middle' : 'large'}
+                        block={isMobile}
                     >
                         Check In Visitor
                     </Button>
-                </Space>
+                </div>
             </Card>
 
-            {/* Appointments Table */}
-            <Card>
-                <Table
-                    columns={columns}
-                    dataSource={appointments}
-                    loading={loading}
-                    rowKey="id"
-                    pagination={{ pageSize: 10 }}
-                />
+            {/* Appointments - Responsive View */}
+            <Card
+                title={<Text strong>Appointments</Text>}
+                extra={
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                        {appointments.length} total
+                    </Text>
+                }
+                bodyStyle={{
+                    padding: isMobile ? '12px 0' : '0'
+                }}
+            >
+                {isMobile ? (
+                    renderMobileCards()
+                ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                        <Table
+                            columns={columns}
+                            dataSource={appointments}
+                            loading={loading}
+                            rowKey="id"
+                            pagination={{
+                                pageSize: 10,
+                                showSizeChanger: true,
+                                showQuickJumper: true,
+                                size: 'small'
+                            }}
+                            size="small"
+                            scroll={{ x: 800 }}
+                            rowClassName="appointment-row"
+                            onRow={(record) => ({
+                                onClick: () => handleViewDetails(record),
+                                style: { cursor: 'pointer' }
+                            })}
+                        />
+                    </div>
+                )}
             </Card>
 
             {/* Book Appointment Modal */}
@@ -423,7 +684,8 @@ const VisitorManagementPage: React.FC = () => {
                 open={modalVisible}
                 onCancel={() => setModalVisible(false)}
                 footer={null}
-                width={600}
+                width={isMobile ? '90%' : 600}
+                destroyOnClose
             >
                 <Form
                     form={form}
@@ -438,13 +700,13 @@ const VisitorManagementPage: React.FC = () => {
                         <Input placeholder="Enter visitor's full name" size="large" />
                     </Form.Item>
 
-                    <Row gutter={16}>
-                        <Col span={12}>
+                    <Row gutter={isMobile ? 0 : 16}>
+                        <Col span={isMobile ? 24 : 12}>
                             <Form.Item label="Email" name="visitor_email">
                                 <Input type="email" placeholder="visitor@example.com" size="large" />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col span={isMobile ? 24 : 12}>
                             <Form.Item
                                 label="Phone"
                                 name="visitor_phone"
@@ -471,8 +733,8 @@ const VisitorManagementPage: React.FC = () => {
                         </Select>
                     </Form.Item>
 
-                    <Row gutter={16}>
-                        <Col span={8}>
+                    <Row gutter={isMobile ? 0 : 16}>
+                        <Col span={isMobile ? 24 : 8}>
                             <Form.Item
                                 label="Date"
                                 name="appointment_date"
@@ -481,7 +743,7 @@ const VisitorManagementPage: React.FC = () => {
                                 <DatePicker style={{ width: '100%' }} size="large" />
                             </Form.Item>
                         </Col>
-                        <Col span={8}>
+                        <Col span={isMobile ? 24 : 8}>
                             <Form.Item
                                 label="Start Time"
                                 name="start_time"
@@ -490,7 +752,7 @@ const VisitorManagementPage: React.FC = () => {
                                 <TimePicker format="HH:mm" style={{ width: '100%' }} size="large" />
                             </Form.Item>
                         </Col>
-                        <Col span={8}>
+                        <Col span={isMobile ? 24 : 8}>
                             <Form.Item
                                 label="End Time"
                                 name="end_time"
@@ -509,13 +771,13 @@ const VisitorManagementPage: React.FC = () => {
                         <TextArea rows={3} placeholder="Describe the purpose of visit" />
                     </Form.Item>
 
-                    <Form.Item>
-                        <Space>
-                            <Button type="primary" htmlType="submit" loading={loading} size="large">
-                                Book Appointment
-                            </Button>
+                    <Form.Item style={{ marginBottom: 0 }}>
+                        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
                             <Button onClick={() => setModalVisible(false)} size="large">
                                 Cancel
+                            </Button>
+                            <Button type="primary" htmlType="submit" loading={loading} size="large">
+                                Book Appointment
                             </Button>
                         </Space>
                     </Form.Item>
@@ -528,8 +790,9 @@ const VisitorManagementPage: React.FC = () => {
                 open={checkInModalVisible}
                 onCancel={() => setCheckInModalVisible(false)}
                 footer={null}
+                width={isMobile ? '90%' : 400}
             >
-                <Form form={form} layout="vertical" onFinish={handleCheckIn}>
+                <Form form={checkInForm} layout="vertical" onFinish={handleCheckIn}>
                     <Form.Item
                         label="Pass Code"
                         name="pass_code"
@@ -539,22 +802,165 @@ const VisitorManagementPage: React.FC = () => {
                             placeholder="Enter 6-digit pass code"
                             size="large"
                             maxLength={6}
-                            style={{ fontSize: 24, textAlign: 'center', letterSpacing: 4 }}
+                            style={{
+                                fontSize: 24,
+                                textAlign: 'center',
+                                letterSpacing: 4,
+                                height: 60
+                            }}
                         />
                     </Form.Item>
 
-                    <Form.Item>
-                        <Space>
-                            <Button type="primary" htmlType="submit" loading={loading} size="large">
-                                Check In
-                            </Button>
+                    <Form.Item style={{ marginBottom: 0 }}>
+                        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
                             <Button onClick={() => setCheckInModalVisible(false)} size="large">
                                 Cancel
+                            </Button>
+                            <Button type="primary" htmlType="submit" loading={loading} size="large">
+                                Check In
                             </Button>
                         </Space>
                     </Form.Item>
                 </Form>
             </Modal>
+
+            {/* Appointment Detail Drawer */}
+            <Drawer
+                title="Appointment Details"
+                placement="right"
+                onClose={() => setDetailDrawerVisible(false)}
+                open={detailDrawerVisible}
+                width={isMobile ? '100%' : 400}
+            >
+                {selectedAppointment && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        {/* Visitor Info */}
+                        <div style={{
+                            background: '#f8f9fa',
+                            padding: 16,
+                            borderRadius: 12,
+                            textAlign: 'center'
+                        }}>
+                            <Avatar
+                                size={64}
+                                style={{
+                                    backgroundColor: getStatusColor(selectedAppointment.status) + '20',
+                                    color: getStatusColor(selectedAppointment.status),
+                                    fontSize: 24,
+                                    marginBottom: 12
+                                }}
+                            >
+                                {selectedAppointment.visitor?.full_name?.charAt(0) || 'V'}
+                            </Avatar>
+                            <Title level={4} style={{ marginBottom: 4 }}>
+                                {selectedAppointment.visitor?.full_name}
+                            </Title>
+                            <Text type="secondary">
+                                {selectedAppointment.visitor?.company || 'No company'}
+                            </Text>
+                        </div>
+
+                        {/* Status Badge */}
+                        <div style={{ textAlign: 'center' }}>
+                            <Badge
+                                status={getStatusBadge(selectedAppointment.status)}
+                                text={
+                                    <Text strong style={{ fontSize: 14 }}>
+                                        {selectedAppointment.status.replace('_', ' ').toUpperCase()}
+                                    </Text>
+                                }
+                            />
+                            <div style={{ marginTop: 8 }}>
+                                <Tag color="blue" style={{ fontSize: 16, padding: '4px 12px' }}>
+                                    Pass Code: {selectedAppointment.pass_code}
+                                </Tag>
+                            </div>
+                        </div>
+
+                        {/* Details */}
+                        <div>
+                            <Title level={5} style={{ marginBottom: 12 }}>Appointment Details</Title>
+                            <List size="small">
+                                <List.Item>
+                                    <List.Item.Meta
+                                        avatar={<Calendar size={16} />}
+                                        title="Date"
+                                        description={dayjs(selectedAppointment.appointment_date).format('dddd, MMMM D, YYYY')}
+                                    />
+                                </List.Item>
+                                <List.Item>
+                                    <List.Item.Meta
+                                        avatar={<Clock size={16} />}
+                                        title="Time"
+                                        description={`${selectedAppointment.start_time} - ${selectedAppointment.end_time}`}
+                                    />
+                                </List.Item>
+                                <List.Item>
+                                    <List.Item.Meta
+                                        avatar={<Users size={16} />}
+                                        title="Host"
+                                        description={selectedAppointment.host?.full_name || 'Not assigned'}
+                                    />
+                                </List.Item>
+                                <List.Item>
+                                    <List.Item.Meta
+                                        avatar={<FileText size={16} />}
+                                        title="Purpose"
+                                        description={selectedAppointment.purpose}
+                                    />
+                                </List.Item>
+                            </List>
+                        </div>
+
+                        {/* Contact Info */}
+                        <div>
+                            <Title level={5} style={{ marginBottom: 12 }}>Contact Information</Title>
+                            <List size="small">
+                                {selectedAppointment.visitor?.email && (
+                                    <List.Item>
+                                        <List.Item.Meta
+                                            avatar={<Mail size={16} />}
+                                            title="Email"
+                                            description={selectedAppointment.visitor.email}
+                                        />
+                                    </List.Item>
+                                )}
+                                {selectedAppointment.visitor?.phone && (
+                                    <List.Item>
+                                        <List.Item.Meta
+                                            avatar={<Phone size={16} />}
+                                            title="Phone"
+                                            description={selectedAppointment.visitor.phone}
+                                        />
+                                    </List.Item>
+                                )}
+                            </List>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ marginTop: 'auto' }}>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                                <Button
+                                    type="primary"
+                                    block
+                                    size="large"
+                                    icon={<UserCheck size={16} />}
+                                    disabled={selectedAppointment.status === 'checked_in'}
+                                >
+                                    Check In Visitor
+                                </Button>
+                                <Button
+                                    block
+                                    size="large"
+                                    onClick={() => setDetailDrawerVisible(false)}
+                                >
+                                    Close
+                                </Button>
+                            </Space>
+                        </div>
+                    </div>
+                )}
+            </Drawer>
         </div>
     );
 };
