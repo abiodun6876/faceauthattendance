@@ -132,15 +132,46 @@ const VehicleManagementPage: React.FC = () => {
         expiringDocs: 0
     });
     const [driverLoading, setDriverLoading] = useState(false);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+    // Get current authenticated user
+    useEffect(() => {
+        const getCurrentUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Get user details from users table
+                const { data: userData } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+                setCurrentUser(userData);
+                
+                // Store in localStorage for compatibility
+                localStorage.setItem('user_id', user.id);
+                if (userData?.organization_id) {
+                    localStorage.setItem('organization_id', userData.organization_id);
+                }
+                if (userData?.branch_id) {
+                    localStorage.setItem('branch_id', userData.branch_id);
+                }
+            }
+        };
+        getCurrentUser();
+    }, []);
 
     // Load vehicles
     const loadVehicles = useCallback(async () => {
         try {
             setLoading(true);
-            const organizationId = localStorage.getItem('organization_id');
-            const branchId = localStorage.getItem('branch_id');
+            
+            if (!currentUser?.organization_id) {
+                console.error('No organization_id found for current user');
+                message.error('User is not associated with an organization');
+                return;
+            }
 
-            console.log('Loading vehicles for org:', organizationId, 'branch:', branchId);
+            console.log('Loading vehicles for org:', currentUser.organization_id, 'branch:', currentUser.branch_id);
 
             let query = supabase
                 .from('vehicles')
@@ -157,19 +188,19 @@ const VehicleManagementPage: React.FC = () => {
                         is_active
                     )
                 `)
-                .eq('organization_id', organizationId);
+                .eq('organization_id', currentUser.organization_id);
 
-            if (branchId) {
-                query = query.eq('branch_id', branchId);
+            if (currentUser.branch_id) {
+                query = query.eq('branch_id', currentUser.branch_id);
             }
 
             const { data, error } = await query.order('created_at', { ascending: false });
-            
+
             if (error) {
                 console.error('Supabase error loading vehicles:', error);
                 throw error;
             }
-            
+
             console.log('Vehicles loaded:', data?.length);
             setVehicles(data as Vehicle[] || []);
         } catch (error: any) {
@@ -178,14 +209,18 @@ const VehicleManagementPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [currentUser]);
 
     // Load trips
     const loadTrips = useCallback(async () => {
         try {
-            const organizationId = localStorage.getItem('organization_id');
-            console.log('Loading trips for org:', organizationId);
+            if (!currentUser?.organization_id) {
+                console.error('No organization_id found for current user');
+                return;
+            }
             
+            console.log('Loading trips for org:', currentUser.organization_id);
+
             const { data, error } = await supabase
                 .from('vehicle_trips')
                 .select(`
@@ -193,40 +228,43 @@ const VehicleManagementPage: React.FC = () => {
                     driver:users!vehicle_trips_driver_id_fkey(full_name, phone),
                     vehicle:vehicles!vehicle_trips_vehicle_id_fkey(vehicle_name, license_plate)
                 `)
-                .eq('organization_id', organizationId)
+                .eq('organization_id', currentUser.organization_id)
                 .order('created_at', { ascending: false });
 
             if (error) {
                 console.error('Supabase error loading trips:', error);
                 throw error;
             }
-            
+
             console.log('Trips loaded:', data?.length);
             setTrips(data as Trip[] || []);
         } catch (error: any) {
             console.error('Error loading trips:', error);
             message.error(`Failed to load trips: ${error.message || 'Unknown error'}`);
         }
-    }, []);
+    }, [currentUser]);
 
     // Load all active users (for drivers dropdown)
     const loadAllUsers = useCallback(async () => {
         try {
             setDriverLoading(true);
-            const organizationId = localStorage.getItem('organization_id');
-            const branchId = localStorage.getItem('branch_id');
             
-            console.log('Loading users for org:', organizationId, 'branch:', branchId);
+            if (!currentUser?.organization_id) {
+                console.error('No organization_id found for current user');
+                return;
+            }
+
+            console.log('Loading users for org:', currentUser.organization_id, 'branch:', currentUser.branch_id);
 
             // First, let's check what users exist
             let query = supabase
                 .from('users')
                 .select('id, full_name, email, phone, user_role, is_active, staff_id, face_photo_url')
-                .eq('organization_id', organizationId)
+                .eq('organization_id', currentUser.organization_id)
                 .eq('is_active', true);
 
-            if (branchId) {
-                query = query.eq('branch_id', branchId);
+            if (currentUser.branch_id) {
+                query = query.eq('branch_id', currentUser.branch_id);
             }
 
             const { data, error } = await query.order('full_name', { ascending: true });
@@ -235,21 +273,20 @@ const VehicleManagementPage: React.FC = () => {
                 console.error('Supabase error loading users:', error);
                 throw error;
             }
-            
+
             console.log('All users loaded:', data?.length);
             console.log('User roles:', data?.map(u => ({ name: u.full_name, role: u.user_role })));
-            
+
             setAllUsers(data || []);
-            
-            // Filter to only show users with driver role (or if no driver role, show all active users)
-            const driverUsers = data?.filter(user => 
-                user.user_role === 'driver' || 
-                user.user_role === 'staff' || // Include staff as potential drivers
-                user.user_role === 'admin' || // Include admins as potential drivers
-                !user.user_role // Include users without role
+
+            // Filter to only show users with staff, admin, or supervisor roles (potential drivers)
+            const driverUsers = data?.filter(user =>
+                user.user_role === 'staff' || 
+                user.user_role === 'admin' || 
+                user.user_role === 'supervisor'
             ) || [];
-            
-            console.log('Driver users:', driverUsers.length);
+
+            console.log('Potential drivers (staff/admin/supervisor):', driverUsers.length);
             setDrivers(driverUsers);
         } catch (error: any) {
             console.error('Error loading users:', error);
@@ -257,25 +294,28 @@ const VehicleManagementPage: React.FC = () => {
         } finally {
             setDriverLoading(false);
         }
-    }, []);
+    }, [currentUser]);
 
     // Load stats
     const loadStats = useCallback(async () => {
         try {
-            const organizationId = localStorage.getItem('organization_id');
-            const today = dayjs();
+            if (!currentUser?.organization_id) {
+                return;
+            }
             
+            const today = dayjs();
+
             // Vehicle stats
             const { data: vehiclesData, error: vehiclesError } = await supabase
                 .from('vehicles')
                 .select('status, registration_expiry, insurance_expiry, inspection_expiry')
-                .eq('organization_id', organizationId);
+                .eq('organization_id', currentUser.organization_id);
 
             if (vehiclesError) throw vehiclesError;
 
             const totalVehicles = vehiclesData?.length || 0;
             const activeVehicles = vehiclesData?.filter(v => v.status === 'active').length || 0;
-            
+
             // Count expiring documents
             let expiringDocs = 0;
             vehiclesData?.forEach(vehicle => {
@@ -294,7 +334,7 @@ const VehicleManagementPage: React.FC = () => {
             const { data: tripsData, error: tripsError } = await supabase
                 .from('vehicle_trips')
                 .select('status')
-                .eq('organization_id', organizationId);
+                .eq('organization_id', currentUser.organization_id);
 
             if (tripsError) throw tripsError;
 
@@ -311,34 +351,44 @@ const VehicleManagementPage: React.FC = () => {
         } catch (error: any) {
             console.error('Error loading stats:', error);
         }
-    }, []);
+    }, [currentUser]);
 
-    // Load all data
+    // Load all data when currentUser is available
     useEffect(() => {
-        loadVehicles();
-        loadTrips();
-        loadAllUsers();
-        loadStats();
-    }, [loadVehicles, loadTrips, loadAllUsers, loadStats]);
+        if (currentUser?.organization_id) {
+            loadVehicles();
+            loadTrips();
+            loadAllUsers();
+            loadStats();
+        }
+    }, [currentUser, loadVehicles, loadTrips, loadAllUsers, loadStats]);
 
     // Handle vehicle operations
     const handleVehicleSubmit = async (values: any) => {
         try {
             setLoading(true);
-            const organizationId = localStorage.getItem('organization_id');
-            const branchId = localStorage.getItem('branch_id');
-            const userId = localStorage.getItem('user_id');
+            
+            // Get authenticated user
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+            
+            if (!currentUser?.organization_id) {
+                throw new Error('User is not associated with an organization');
+            }
 
             console.log('Submitting vehicle with data:', {
-                organizationId,
-                branchId,
-                userId,
+                organizationId: currentUser.organization_id,
+                branchId: currentUser.branch_id,
+                userId: user.id,
                 values
             });
 
             const vehicleData = {
-                organization_id: organizationId,
-                branch_id: branchId,
+                organization_id: currentUser.organization_id,
+                branch_id: currentUser.branch_id,
                 vehicle_name: values.vehicle_name,
                 license_plate: values.license_plate,
                 vehicle_type: values.vehicle_type,
@@ -353,8 +403,8 @@ const VehicleManagementPage: React.FC = () => {
                 current_driver_id: values.current_driver_id || null,
                 status: values.status || 'active',
                 mileage: values.mileage || 0,
-                created_by: userId,
-                updated_by: userId
+                created_by: user.id,
+                updated_by: user.id
             };
 
             console.log('Vehicle data to save:', vehicleData);
@@ -422,12 +472,14 @@ const VehicleManagementPage: React.FC = () => {
     const handleTripSubmit = async (values: any) => {
         try {
             setLoading(true);
-            const organizationId = localStorage.getItem('organization_id');
-            const branchId = localStorage.getItem('branch_id');
+            
+            if (!currentUser?.organization_id) {
+                throw new Error('User is not associated with an organization');
+            }
 
             const tripData = {
-                organization_id: organizationId,
-                branch_id: branchId,
+                organization_id: currentUser.organization_id,
+                branch_id: currentUser.branch_id,
                 vehicle_id: values.vehicle_id,
                 driver_id: values.driver_id,
                 trip_name: values.trip_name,
@@ -522,7 +574,7 @@ const VehicleManagementPage: React.FC = () => {
 
     const getExpiryStatus = (expiryDate: string) => {
         if (!expiryDate) return { color: 'default', text: 'Not set' };
-        
+
         const today = dayjs();
         const expiry = dayjs(expiryDate);
         const daysUntilExpiry = expiry.diff(today, 'day');
@@ -552,14 +604,14 @@ const VehicleManagementPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <Avatar
                         size={40}
-                        style={{ 
+                        style={{
                             backgroundColor: record.status === 'active' ? '#52c41a20' : '#fa8c1620',
                             fontSize: 16
                         }}
                     >
-                        {record.vehicle_type === 'car' ? '🚗' : 
-                         record.vehicle_type === 'truck' ? '🚚' : 
-                         record.vehicle_type === 'van' ? '🚐' : '🚌'}
+                        {record.vehicle_type === 'car' ? '🚗' :
+                            record.vehicle_type === 'truck' ? '🚚' :
+                                record.vehicle_type === 'van' ? '🚐' : '🚌'}
                     </Avatar>
                     <div>
                         <Text strong style={{ display: 'block' }}>
@@ -605,11 +657,11 @@ const VehicleManagementPage: React.FC = () => {
                         const status = getExpiryStatus(expiry);
                         return (
                             <Tooltip key={doc} title={`${doc}: ${expiry ? dayjs(expiry).format('MMM D, YYYY') : 'Not set'}`}>
-                                <Badge 
+                                <Badge
                                     status={
                                         status.color === 'red' ? 'error' :
-                                        status.color === 'orange' ? 'warning' :
-                                        status.color === 'blue' ? 'processing' : 'success'
+                                            status.color === 'orange' ? 'warning' :
+                                                status.color === 'blue' ? 'processing' : 'success'
                                     }
                                 />
                             </Tooltip>
@@ -793,6 +845,16 @@ const VehicleManagementPage: React.FC = () => {
         },
     ];
 
+    // Show loading if user data not yet loaded
+    if (!currentUser) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <Spin size="large" />
+                <Text style={{ marginLeft: 16 }}>Loading user data...</Text>
+            </div>
+        );
+    }
+
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa', padding: 16 }}>
             {/* Header */}
@@ -897,7 +959,7 @@ const VehicleManagementPage: React.FC = () => {
                                     onClick={() => {
                                         setSelectedVehicle(null);
                                         form.resetFields();
-                                        form.setFieldsValue({ 
+                                        form.setFieldsValue({
                                             vehicle_type: 'car',
                                             status: 'active'
                                         });
@@ -923,7 +985,16 @@ const VehicleManagementPage: React.FC = () => {
                     }
                 >
                     <TabPane tab="Vehicles" key="vehicles">
-                        {vehicles.length === 0 && !loading && (
+                        {!currentUser?.organization_id && (
+                            <Alert
+                                message="No Organization"
+                                description="You are not associated with an organization. Please contact your administrator."
+                                type="warning"
+                                showIcon
+                                style={{ marginBottom: 16 }}
+                            />
+                        )}
+                        {vehicles.length === 0 && !loading && currentUser?.organization_id && (
                             <Alert
                                 message="No Vehicles Found"
                                 description="Add your first vehicle by clicking the 'Add Vehicle' button"
@@ -934,8 +1005,8 @@ const VehicleManagementPage: React.FC = () => {
                         )}
                         <Table
                             columns={vehicleColumns}
-                            dataSource={vehicles.filter(v => 
-                                !searchText || 
+                            dataSource={vehicles.filter(v =>
+                                !searchText ||
                                 v.vehicle_name.toLowerCase().includes(searchText.toLowerCase()) ||
                                 v.license_plate.toLowerCase().includes(searchText.toLowerCase()) ||
                                 v.current_driver?.full_name?.toLowerCase().includes(searchText.toLowerCase())
@@ -957,8 +1028,8 @@ const VehicleManagementPage: React.FC = () => {
                         )}
                         <Table
                             columns={tripColumns}
-                            dataSource={trips.filter(t => 
-                                !searchText || 
+                            dataSource={trips.filter(t =>
+                                !searchText ||
                                 t.trip_name.toLowerCase().includes(searchText.toLowerCase()) ||
                                 t.vehicle?.vehicle_name?.toLowerCase().includes(searchText.toLowerCase()) ||
                                 t.driver?.full_name?.toLowerCase().includes(searchText.toLowerCase())
@@ -1051,7 +1122,7 @@ const VehicleManagementPage: React.FC = () => {
                                 name="year"
                                 rules={[{ required: true, message: 'Required' }]}
                             >
-                                <InputNumber 
+                                <InputNumber
                                     style={{ width: '100%' }}
                                     min={1900}
                                     max={new Date().getFullYear() + 1}
@@ -1109,8 +1180,8 @@ const VehicleManagementPage: React.FC = () => {
                                 name="current_driver_id"
                                 extra={driverLoading ? "Loading users..." : `${drivers.length} users available`}
                             >
-                                <Select 
-                                    placeholder={driverLoading ? "Loading users..." : "Select driver"} 
+                                <Select
+                                    placeholder={driverLoading ? "Loading users..." : "Select driver"}
                                     size="large"
                                     allowClear
                                     loading={driverLoading}
@@ -1124,8 +1195,8 @@ const VehicleManagementPage: React.FC = () => {
                                             <div style={{ padding: 16, textAlign: 'center' }}>
                                                 <Text type="secondary">No users found</Text>
                                                 <div style={{ marginTop: 8 }}>
-                                                    <Button 
-                                                        type="link" 
+                                                    <Button
+                                                        type="link"
                                                         size="small"
                                                         onClick={() => navigate('/users')}
                                                     >
@@ -1161,7 +1232,7 @@ const VehicleManagementPage: React.FC = () => {
                                 label="Mileage"
                                 name="mileage"
                             >
-                                <InputNumber 
+                                <InputNumber
                                     style={{ width: '100%' }}
                                     min={0}
                                     size="large"
@@ -1191,8 +1262,8 @@ const VehicleManagementPage: React.FC = () => {
                             showIcon
                             style={{ marginBottom: 16 }}
                             action={
-                                <Button 
-                                    type="link" 
+                                <Button
+                                    type="link"
                                     size="small"
                                     onClick={() => navigate('/users')}
                                 >
@@ -1204,20 +1275,20 @@ const VehicleManagementPage: React.FC = () => {
 
                     <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
                         <Space>
-                            <Button 
+                            <Button
                                 onClick={() => {
                                     setModalVisible(false);
                                     setSelectedVehicle(null);
                                     form.resetFields();
-                                }} 
+                                }}
                                 size="large"
                             >
                                 Cancel
                             </Button>
-                            <Button 
-                                type="primary" 
-                                htmlType="submit" 
-                                loading={loading} 
+                            <Button
+                                type="primary"
+                                htmlType="submit"
+                                loading={loading}
                                 size="large"
                             >
                                 {selectedVehicle ? 'Update' : 'Add'} Vehicle
@@ -1251,8 +1322,8 @@ const VehicleManagementPage: React.FC = () => {
                                 name="vehicle_id"
                                 rules={[{ required: true, message: 'Required' }]}
                             >
-                                <Select 
-                                    placeholder="Select vehicle" 
+                                <Select
+                                    placeholder="Select vehicle"
                                     size="large"
                                     showSearch
                                     loading={vehicles.length === 0 && loading}
@@ -1271,8 +1342,8 @@ const VehicleManagementPage: React.FC = () => {
                                 name="driver_id"
                                 rules={[{ required: true, message: 'Required' }]}
                             >
-                                <Select 
-                                    placeholder="Select driver" 
+                                <Select
+                                    placeholder="Select driver"
                                     size="large"
                                     showSearch
                                     loading={driverLoading}
@@ -1313,7 +1384,7 @@ const VehicleManagementPage: React.FC = () => {
                         name="google_maps_link"
                         extra="Driver will share their Google Maps trip link"
                     >
-                        <Input 
+                        <Input
                             placeholder="https://www.google.com/maps/dir/..."
                             size="large"
                         />
@@ -1345,7 +1416,7 @@ const VehicleManagementPage: React.FC = () => {
                                 name="scheduled_start_time"
                                 rules={[{ required: true, message: 'Required' }]}
                             >
-                                <DatePicker 
+                                <DatePicker
                                     showTime
                                     style={{ width: '100%' }}
                                     size="large"
@@ -1357,7 +1428,7 @@ const VehicleManagementPage: React.FC = () => {
                                 label="Scheduled End Time"
                                 name="scheduled_end_time"
                             >
-                                <DatePicker 
+                                <DatePicker
                                     showTime
                                     style={{ width: '100%' }}
                                     size="large"
@@ -1370,7 +1441,7 @@ const VehicleManagementPage: React.FC = () => {
                         label="Estimated Duration (minutes)"
                         name="estimated_duration_minutes"
                     >
-                        <InputNumber 
+                        <InputNumber
                             style={{ width: '100%' }}
                             min={1}
                             size="large"
@@ -1379,20 +1450,20 @@ const VehicleManagementPage: React.FC = () => {
 
                     <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
                         <Space>
-                            <Button 
+                            <Button
                                 onClick={() => {
                                     setTripModalVisible(false);
                                     setSelectedTrip(null);
                                     tripForm.resetFields();
-                                }} 
+                                }}
                                 size="large"
                             >
                                 Cancel
                             </Button>
-                            <Button 
-                                type="primary" 
-                                htmlType="submit" 
-                                loading={loading} 
+                            <Button
+                                type="primary"
+                                htmlType="submit"
+                                loading={loading}
                                 size="large"
                             >
                                 {selectedTrip ? 'Update' : 'Schedule'} Trip
@@ -1463,23 +1534,23 @@ const VehicleManagementPage: React.FC = () => {
                                 {selectedTrip.distance_km ? `${selectedTrip.distance_km} km` : 'Not recorded'}
                             </Descriptions.Item>
                             <Descriptions.Item label="Driver Check-in">
-                                {selectedTrip.driver_check_in_time ? 
-                                    dayjs(selectedTrip.driver_check_in_time).format('MMM D, YYYY HH:mm') : 
+                                {selectedTrip.driver_check_in_time ?
+                                    dayjs(selectedTrip.driver_check_in_time).format('MMM D, YYYY HH:mm') :
                                     'Not checked in'}
                             </Descriptions.Item>
                             <Descriptions.Item label="Driver Check-out">
-                                {selectedTrip.driver_check_out_time ? 
-                                    dayjs(selectedTrip.driver_check_out_time).format('MMM D, YYYY HH:mm') : 
+                                {selectedTrip.driver_check_out_time ?
+                                    dayjs(selectedTrip.driver_check_out_time).format('MMM D, YYYY HH:mm') :
                                     'Not checked out'}
                             </Descriptions.Item>
                             <Descriptions.Item label="Security Check-in">
-                                {selectedTrip.security_check_in_time ? 
-                                    dayjs(selectedTrip.security_check_in_time).format('MMM D, YYYY HH:mm') : 
+                                {selectedTrip.security_check_in_time ?
+                                    dayjs(selectedTrip.security_check_in_time).format('MMM D, YYYY HH:mm') :
                                     'Not checked'}
                             </Descriptions.Item>
                             <Descriptions.Item label="Security Check-out">
-                                {selectedTrip.security_check_out_time ? 
-                                    dayjs(selectedTrip.security_check_out_time).format('MMM D, YYYY HH:mm') : 
+                                {selectedTrip.security_check_out_time ?
+                                    dayjs(selectedTrip.security_check_out_time).format('MMM D, YYYY HH:mm') :
                                     'Not checked'}
                             </Descriptions.Item>
                         </Descriptions>
