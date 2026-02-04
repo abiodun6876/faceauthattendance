@@ -899,6 +899,37 @@ const AttendancePage: React.FC = () => {
     };
   }, [deviceInfo?.organization_id, loadStats, loadRecentAttendance]);
 
+  // Real-time face enrollment subscription
+  useEffect(() => {
+    if (!deviceInfo?.organization_id) return;
+
+    console.log('📡 Setting up real-time face enrollment listener for org:', deviceInfo.organization_id);
+
+    const enrollmentChannel = supabase.channel('enrollment-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'face_enrollments',
+          filter: `organization_id=eq.${deviceInfo.organization_id}`
+        },
+        (payload) => {
+          console.log('👤 Real-time face enrollment update received:', payload);
+          // Refresh user count and potentially reload enrollment data if needed
+          loadUserCount();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 Enrollment subscription status:', status);
+      });
+
+    return () => {
+      console.log('🔌 Removing real-time face enrollment listener');
+      supabase.removeChannel(enrollmentChannel);
+    };
+  }, [deviceInfo?.organization_id, loadUserCount]);
+
   if (!deviceInfo) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
