@@ -137,7 +137,14 @@ const BranchSelectionPage: React.FC = () => {
       await loadBranches();
       setSelectedBranch(newBranch.id);
     } catch (err: any) {
-      antdMessage.error(err.message || 'Failed to create branch');
+      if (err.message?.includes('row-level security')) {
+        Modal.error({
+          title: 'Database Security Violation',
+          content: 'Supabase RLS is blocking branch creation. Ensure you have enabled public access to the branches table for initial setup.',
+        });
+      } else {
+        antdMessage.error(err.message || 'Failed to create branch');
+      }
     } finally {
       setCreating(false);
     }

@@ -16,7 +16,8 @@ import {
   Divider,
   QRCode,
   message,
-  Radio
+  Radio,
+  Modal
 } from 'antd';
 import {
   Smartphone,
@@ -112,7 +113,14 @@ const DeviceSetupPage: React.FC = () => {
         form.setFieldValue('organization_code', result.organization.subdomain);
         setOrgMode('join');
       } else {
-        message.error(result.error || 'Failed to create organization');
+        if (result.error?.includes('row-level security')) {
+          Modal.error({
+            title: 'Database Security Violation',
+            content: 'Your Supabase RLS policies are blocking branch creation. Please run the SQL fix in your Supabase Editor to allow anonymous registration.',
+          });
+        } else {
+          message.error(result.error || 'Failed to create organization');
+        }
       }
     } catch (err) {
       // Form validation error
