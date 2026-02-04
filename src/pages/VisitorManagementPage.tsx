@@ -35,12 +35,9 @@ import {
     Clock,
     CheckCircle,
     Key,
-    MapPin,
     Phone,
     Mail,
-    Building,
     MoreVertical,
-    ChevronRight,
     UserCheck,
     Eye,
     FileText

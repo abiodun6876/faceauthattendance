@@ -19,40 +19,30 @@ import {
     Statistic,
     Avatar,
     Badge,
-    Alert,
     Popconfirm,
     Divider,
     Tooltip,
     Tabs,
     InputNumber,
-    List,
     Descriptions,
-    Collapse
 } from 'antd';
 import {
     Truck,
     Calendar,
     AlertTriangle,
-    CheckCircle,
-    User,
-    Wrench,
-    FileText,
     Plus,
     ArrowLeft,
     Eye,
     Edit,
     Delete,
     Search,
-    Filter,
     MapPin,
     ExternalLink,
-    Clock,
     Play,
-    StopCircle,
     Copy,
     CheckSquare,
-    Send
 } from 'lucide-react';
+
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -61,9 +51,7 @@ dayjs.extend(relativeTime);
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { TextArea } = Input;
 const { TabPane } = Tabs;
-const { Panel } = Collapse;
 
 interface Vehicle {
     id: string;
@@ -364,7 +352,6 @@ const VehicleManagementPage: React.FC = () => {
             setLoading(true);
             const organizationId = localStorage.getItem('organization_id');
             const branchId = localStorage.getItem('branch_id');
-            const userId = localStorage.getItem('user_id');
 
             const tripData = {
                 organization_id: organizationId,

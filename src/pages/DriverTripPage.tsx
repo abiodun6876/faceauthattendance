@@ -17,19 +17,13 @@ import {
     List,
     Alert,
     Modal,
-    Descriptions,
-    Timeline
 } from 'antd';
 import {
     MapPin,
-    Calendar,
-    Clock,
-    User,
     Truck,
     ExternalLink,
     Copy,
     Send,
-    CheckCircle,
     AlertCircle,
     Play,
     StopCircle
