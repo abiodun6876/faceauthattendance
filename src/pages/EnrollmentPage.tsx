@@ -39,7 +39,8 @@ import {
   GraduationCap,
   Shield,
   AlertCircle,
-  Zap
+  Zap,
+  Home
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase, deviceService } from '../lib/supabase';
@@ -232,7 +233,7 @@ const EnrollmentPage: React.FC = () => {
         department_id: formData.department_id || null,
         organization_id: deviceInfo?.organization_id,
         is_active: true,
-        enrollment_status: 'pending',
+        enrollment_status: 'enrolled',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -346,13 +347,37 @@ const EnrollmentPage: React.FC = () => {
         quality: faceResult.quality
       };
 
-      setEnrollmentResult(result);
       // ✅ SUCCESS - CLEAR DRAFT
       localStorage.removeItem('pending_enrollment_draft');
       console.log('🗑️ Enrollment draft cleared');
 
+      // Get role display name - FIXED: Proper ternary chain
+      const getRoleDisplayName = (role: string) => {
+        switch (role) {
+          case 'student': return 'Student';
+          case 'estate_member': return 'Estate Member';
+          case 'event_attendee': return 'Event Attendee';
+          case 'hotel_user': return 'Hotel User';
+          case 'visitor': return 'Visitor';
+          case 'tenant': return 'Tenant';
+          case 'landlord': return 'Landlord';
+          case 'vendor': return 'Vendor';
+          case 'contractor': return 'Contractor';
+          case 'security': return 'Security';
+          case 'other': return 'Other';
+          default: return 'Staff';
+        }
+      };
+
+      const roleDisplayName = getRoleDisplayName(formData.user_role);
+
+      // Set all states at once to avoid multiple re-renders
+      setEnrollmentResult(result);
       setCurrentStep(2);
-      message.success(`${formData.user_role === 'student' ? 'Student' : 'Staff'} enrolled with biometrics!`);
+      message.success(`${roleDisplayName} enrolled with biometrics!`);
+
+      // Only reset form and states when user clicks "Enroll Another User"
+      // Don't reset them here to show the success screen
 
     } catch (error: any) {
       console.error('Enrollment error:', error);
@@ -448,6 +473,14 @@ const EnrollmentPage: React.FC = () => {
 
     try {
       const { userData, faceResult, photoData } = JSON.parse(draft);
+
+      // Check if this draft is too old (more than 1 hour)
+      const draftAge = dayjs().diff(dayjs(JSON.parse(draft).timestamp), 'hour');
+      if (draftAge > 1) {
+        localStorage.removeItem('pending_enrollment_draft');
+        return;
+      }
+
       Modal.confirm({
         title: 'Unsynced Enrollment Found',
         content: `We found a pending enrollment for ${userData.full_name}. Would you like to try syncing it now?`,
@@ -459,10 +492,15 @@ const EnrollmentPage: React.FC = () => {
           };
           setFormData(userData); // Set form data so handleEnrollment works correctly
           await handleEnrollment(photoData, reconstructedFaceResult);
+        },
+        onCancel: () => {
+          // Keep the draft for later
+          console.log('User chose to sync later');
         }
       });
     } catch (e) {
       console.error('Failed to parse draft:', e);
+      localStorage.removeItem('pending_enrollment_draft');
     }
   }, [handleEnrollment]);
 
@@ -541,6 +579,37 @@ const EnrollmentPage: React.FC = () => {
                   <Option value="admin" label="Admin">
                     <Space><Shield size={14} />Admin</Space>
                   </Option>
+                  <Option value="estate_member" label="Estate Member">
+                    <Space><Home size={14} />Estate Member</Space>
+                  </Option>
+                  <Option value="event_attendee" label="Event Attendee">
+                    <Space><Home size={14} />Event Attendee</Space>
+                  </Option>
+                  <Option value="hotel_user" label="Hotel User">
+                    <Space><Home size={14} />Hotel User</Space>
+                  </Option>
+                  <Option value="visitor" label="Visitor">
+                    <Space><Home size={14} />Visitor</Space>
+                  </Option>
+                  <Option value="tenant" label="Tenant">
+                    <Space><Home size={14} />Tenant</Space>
+                  </Option>
+                  <Option value="landlord" label="Landlord">
+                    <Space><Home size={14} />Landlord</Space>
+                  </Option>
+                  <Option value="vendor" label="Vendor">
+                    <Space><Home size={14} />Vendor</Space>
+                  </Option>
+                  <Option value="contractor" label="Contractor">
+                    <Space><Home size={14} />Contractor</Space>
+                  </Option>
+                  <Option value="security" label="Security">
+                    <Space><Home size={14} />Security</Space>
+                  </Option>
+                  <Option value="other" label="Other">
+                    <Space><Home size={14} />Other</Space>
+                  </Option>
+
                 </Select>
               </Form.Item>
             </Col>
@@ -811,15 +880,19 @@ const EnrollmentPage: React.FC = () => {
               </Card>
 
               <Space style={{ width: '100%', justifyContent: 'center' }} size="large">
+
                 <Button
                   type="primary"
                   size="large"
                   onClick={() => {
+                    // Reset everything properly
                     form.resetFields();
                     setFormData({});
                     setPhotoData('');
                     setPhotoPreview('');
                     setFaceProcessingResult(null);
+                    setFaceProcessing(false);
+                    setProcessingProgress(0);
                     setEnrollmentResult(null);
                     setCurrentStep(0);
                     initializeForm();
