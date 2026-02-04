@@ -57,10 +57,11 @@ interface UserRecord {
   organization_id: string | null;
   branch_id: string | null;
   department_id: string | null;
-  face_embedding_stored: boolean | null;
-  face_enrolled_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  // Make these optional since they might not always be selected
+  face_embedding_stored?: boolean | null;
+  face_enrolled_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface AttendanceRecord {
@@ -161,7 +162,7 @@ const AttendanceManagementPage: React.FC = () => {
     });
   }, [fetchActiveUsers]);
 
- // Fetch attendance data for the current device's branch
+// Fetch attendance data for the current device's branch
 const fetchAttendanceData = useCallback(async () => {
   setLoading(true);
   try {
@@ -216,11 +217,10 @@ const fetchAttendanceData = useCallback(async () => {
           department_id
         )
       `)
-      .eq('branch_id', deviceInfo.branch_id)  // ✅ Filter by device's branch
+      .eq('branch_id', deviceInfo.branch_id)
       .order('created_at', { ascending: false })
       .limit(1000);
 
-    // Also filter by device_id if you want only this device's records
     const { data: attendance, error: attendanceError } = await query;
 
     if (attendanceError) {
@@ -260,9 +260,53 @@ const fetchAttendanceData = useCallback(async () => {
     } else {
       if (attendance) {
         console.log(`✅ Loaded ${attendance.length} attendance records for branch ${deviceInfo.branch_id}`);
-        setAttendanceData(attendance as any);
-        setFilteredData(attendance as any);
-        await calculateStats(attendance);
+        
+        // Fix TypeScript error by properly casting the attendance data
+        const typedAttendance: AttendanceRecord[] = attendance.map((record: any) => {
+          const attendanceRecord: AttendanceRecord = {
+            id: record.id,
+            user_id: record.user_id,
+            device_id: record.device_id,
+            organization_id: record.organization_id,
+            branch_id: record.branch_id,
+            department_id: record.department_id,
+            shift_id: record.shift_id,
+            date: record.date,
+            clock_in: record.clock_in,
+            clock_out: record.clock_out,
+            status: record.status,
+            confidence_score: record.confidence_score,
+            face_match_score: record.face_match_score,
+            photo_url: record.photo_url,
+            verification_method: record.verification_method,
+            synced: record.synced,
+            created_at: record.created_at,
+            updated_at: record.updated_at,
+            user: record.user ? {
+              id: record.user.id,
+              staff_id: record.user.staff_id,
+              full_name: record.user.full_name,
+              email: record.user.email,
+              phone: record.user.phone,
+              user_role: record.user.user_role,
+              enrollment_status: record.user.enrollment_status,
+              is_active: record.user.is_active,
+              organization_id: record.user.organization_id,
+              branch_id: record.user.branch_id,
+              department_id: record.user.department_id,
+              // Add optional fields with null defaults
+              face_embedding_stored: record.user.face_embedding_stored ?? null,
+              face_enrolled_at: record.user.face_enrolled_at ?? null,
+              created_at: record.user.created_at ?? null,
+              updated_at: record.user.updated_at ?? null
+            } : undefined
+          };
+          return attendanceRecord;
+        });
+        
+        setAttendanceData(typedAttendance);
+        setFilteredData(typedAttendance);
+        await calculateStats(typedAttendance);
       }
     }
 
@@ -298,7 +342,28 @@ const fetchAttendanceData = useCallback(async () => {
 
     if (usersData) {
       console.log(`✅ Loaded ${usersData.length} active users for current branch`);
-      setUsers(usersData as UserRecord[]);
+      
+      // Fix UserRecord type casting with all required fields
+      const typedUsers: UserRecord[] = usersData.map((user: any) => ({
+        id: user.id,
+        staff_id: user.staff_id,
+        full_name: user.full_name,
+        email: user.email,
+        phone: user.phone,
+        user_role: user.user_role,
+        enrollment_status: user.enrollment_status,
+        is_active: user.is_active,
+        organization_id: user.organization_id,
+        branch_id: user.branch_id,
+        department_id: user.department_id,
+        // Add missing optional fields
+        face_embedding_stored: user.face_embedding_stored ?? null,
+        face_enrolled_at: user.face_enrolled_at ?? null,
+        created_at: user.created_at ?? null,
+        updated_at: user.updated_at ?? null
+      }));
+      
+      setUsers(typedUsers);
     }
 
   } catch (error: any) {
@@ -327,6 +392,7 @@ const fetchAttendanceData = useCallback(async () => {
     setLoading(false);
   }
 }, [calculateStats]);
+
 
   // Apply filters
   const applyFilters = useCallback(() => {

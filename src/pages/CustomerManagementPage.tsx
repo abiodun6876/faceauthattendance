@@ -1,4 +1,4 @@
-// pages/CustomerManagementPage.tsx
+// pages/CustomerManagementPage.tsx - SIMPLIFIED VERSION (FIXED)
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -8,7 +8,6 @@ import {
     Modal,
     Form,
     Input,
-    Select,
     message,
     Tag,
     Space,
@@ -16,22 +15,26 @@ import {
     Row,
     Col,
     Statistic,
-    Avatar
+    Avatar,
+    Tooltip,
+    Select
 } from 'antd';
 import {
     Users,
     UserPlus,
     ArrowLeft,
-    Building,
     Mail,
     Phone,
-    Edit
+    Edit,
+    MapPin,
+    FileText,
+    Search
 } from 'lucide-react';
+import { SearchOutlined } from '@ant-design/icons'; // Fixed import
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 const { TextArea } = Input;
 
 const CustomerManagementPage: React.FC = () => {
@@ -43,12 +46,11 @@ const CustomerManagementPage: React.FC = () => {
     const [modalVisible, setModalVisible] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<any>(null);
     const [searchText, setSearchText] = useState('');
-    const [typeFilter, setTypeFilter] = useState('all');
     const [stats, setStats] = useState({
         total: 0,
+        active: 0,
         individual: 0,
-        corporate: 0,
-        active: 0
+        corporate: 0
     });
 
     useEffect(() => {
@@ -57,31 +59,38 @@ const CustomerManagementPage: React.FC = () => {
 
     useEffect(() => {
         filterCustomers();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [customers, searchText, typeFilter]);
+    }, [customers, searchText]);
 
     const loadCustomers = async () => {
         try {
             setLoading(true);
             const organizationId = localStorage.getItem('organization_id');
+            const branchId = localStorage.getItem('branch_id');
 
-            const { data, error } = await supabase
-                .from('customers' as any)
+            let query = supabase
+                .from('customers')
                 .select('*')
                 .eq('organization_id', organizationId)
                 .order('created_at', { ascending: false });
 
+            if (branchId) {
+                // If you want branch-specific customers, add this filter
+                // query = query.eq('branch_id', branchId);
+            }
+
+            const { data, error } = await query;
+
             if (error) throw error;
-            const customerData = data as any[];
-            setCustomers(customerData || []);
+            
+            setCustomers(data || []);
 
             // Calculate stats
-            const total = customerData?.length || 0;
-            const individual = customerData?.filter(c => c.customer_type === 'individual').length || 0;
-            const corporate = customerData?.filter(c => c.customer_type === 'corporate').length || 0;
-            const active = customerData?.filter(c => c.status === 'active').length || 0;
+            const total = data?.length || 0;
+            const active = data?.filter(c => c.status === 'active').length || 0;
+            const individual = data?.filter(c => c.customer_type === 'individual').length || 0;
+            const corporate = data?.filter(c => c.customer_type === 'corporate').length || 0;
 
-            setStats({ total, individual, corporate, active });
+            setStats({ total, active, individual, corporate });
         } catch (error: any) {
             console.error('Error loading customers:', error);
             message.error('Failed to load customers');
@@ -96,14 +105,10 @@ const CustomerManagementPage: React.FC = () => {
         if (searchText) {
             filtered = filtered.filter(customer =>
                 customer.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
-                customer.company_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+                customer.phone?.includes(searchText) ||
                 customer.email?.toLowerCase().includes(searchText.toLowerCase()) ||
-                customer.phone?.includes(searchText)
+                customer.address?.toLowerCase().includes(searchText.toLowerCase())
             );
-        }
-
-        if (typeFilter !== 'all') {
-            filtered = filtered.filter(customer => customer.customer_type === typeFilter);
         }
 
         setFilteredCustomers(filtered);
@@ -116,13 +121,19 @@ const CustomerManagementPage: React.FC = () => {
 
             const customerData = {
                 organization_id: organizationId,
-                ...values
+                full_name: values.full_name,
+                phone: values.phone,
+                address: values.address,
+                notes: values.notes,
+                customer_type: values.customer_type || 'individual',
+                status: 'active',
+                updated_at: new Date().toISOString()
             };
 
             if (editingCustomer) {
                 // Update existing customer
                 const { error } = await supabase
-                    .from('customers' as any)
+                    .from('customers')
                     .update(customerData)
                     .eq('id', editingCustomer.id);
 
@@ -131,7 +142,7 @@ const CustomerManagementPage: React.FC = () => {
             } else {
                 // Create new customer
                 const { error } = await supabase
-                    .from('customers' as any)
+                    .from('customers')
                     .insert(customerData);
 
                 if (error) throw error;
@@ -152,215 +163,225 @@ const CustomerManagementPage: React.FC = () => {
 
     const handleEdit = (customer: any) => {
         setEditingCustomer(customer);
-        form.setFieldsValue(customer);
+        form.setFieldsValue({
+            full_name: customer.full_name,
+            phone: customer.phone,
+            address: customer.address,
+            notes: customer.notes,
+            customer_type: customer.customer_type || 'individual'
+        });
         setModalVisible(true);
     };
 
     const handleAdd = () => {
         setEditingCustomer(null);
         form.resetFields();
-        form.setFieldsValue({ customer_type: 'individual', status: 'active' });
+        form.setFieldsValue({ customer_type: 'individual' });
         setModalVisible(true);
     };
 
     const columns = [
         {
-            title: 'Customer',
-            key: 'customer',
+            title: 'Customer Name',
+            key: 'name',
             render: (record: any) => (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <Avatar
-                        size={48}
-                        src={record.photo_url}
-                        style={{ backgroundColor: '#667eea' }}
+                        size={40}
+                        style={{ 
+                            backgroundColor: record.customer_type === 'corporate' ? '#1890ff' : '#52c41a',
+                            fontSize: 16
+                        }}
                     >
                         {record.full_name?.charAt(0).toUpperCase()}
                     </Avatar>
                     <div>
-                        <div><strong>{record.full_name}</strong></div>
-                        {record.company_name && (
-                            <div style={{ fontSize: 12, color: '#666' }}>{record.company_name}</div>
-                        )}
+                        <div style={{ fontWeight: 500 }}>{record.full_name}</div>
+                        <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                            <Tag 
+                                color={record.customer_type === 'corporate' ? 'blue' : 'green'}
+                                style={{ fontSize: '10px', padding: '1px 6px' }} // Fixed: using style instead of size prop
+                            >
+                                {record.customer_type?.toUpperCase()}
+                            </Tag>
+                        </div>
                     </div>
                 </div>
             ),
         },
         {
-            title: 'Type',
-            dataIndex: 'customer_type',
-            key: 'type',
-            render: (type: string) => (
-                <Tag color={type === 'corporate' ? 'blue' : 'green'}>
-                    {type?.toUpperCase()}
-                </Tag>
+            title: 'Phone Number',
+            dataIndex: 'phone',
+            key: 'phone',
+            render: (phone: string) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Phone size={14} color="#666" />
+                    <Text style={{ fontSize: 14 }}>{phone || '-'}</Text>
+                </div>
             ),
         },
         {
-            title: 'Contact',
-            key: 'contact',
+            title: 'Address',
+            key: 'address',
             render: (record: any) => (
-                <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Mail size={14} />
-                        <span style={{ fontSize: 12 }}>{record.email || '-'}</span>
+                <Tooltip title={record.address}>
+                    <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 8,
+                        maxWidth: 200,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        <MapPin size={14} color="#666" />
+                        <Text style={{ fontSize: 12 }} type="secondary">
+                            {record.address ? 
+                                (record.address.length > 30 ? record.address.substring(0, 30) + '...' : record.address)
+                                : 'No address'}
+                        </Text>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Phone size={14} />
-                        <span style={{ fontSize: 12 }}>{record.phone}</span>
-                    </div>
-                </div>
+                </Tooltip>
             ),
         },
         {
-            title: 'Location',
-            key: 'location',
+            title: 'Description',
+            key: 'notes',
             render: (record: any) => (
-                <div style={{ fontSize: 12 }}>
-                    {record.city && record.country ? `${record.city}, ${record.country}` : '-'}
-                </div>
-            ),
-        },
-        {
-            title: 'Status',
-            dataIndex: 'status',
-            key: 'status',
-            render: (status: string) => (
-                <Tag color={status === 'active' ? 'success' : 'default'}>
-                    {status?.toUpperCase()}
-                </Tag>
+                <Tooltip title={record.notes}>
+                    <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 8,
+                        maxWidth: 200,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        <FileText size={14} color="#666" />
+                        <Text style={{ fontSize: 12 }} type="secondary">
+                            {record.notes ? 
+                                (record.notes.length > 30 ? record.notes.substring(0, 30) + '...' : record.notes)
+                                : 'No description'}
+                        </Text>
+                    </div>
+                </Tooltip>
             ),
         },
         {
             title: 'Created',
             dataIndex: 'created_at',
             key: 'created',
-            render: (date: string) => dayjs(date).format('MMM D, YYYY'),
+            width: 120,
+            render: (date: string) => (
+                <div style={{ fontSize: 12 }}>
+                    {dayjs(date).format('MMM D')}
+                    <div style={{ color: '#999' }}>{dayjs(date).format('YYYY')}</div>
+                </div>
+            ),
         },
         {
             title: 'Actions',
             key: 'actions',
+            width: 100,
             render: (record: any) => (
-                <Space>
-                    <Button
-                        type="text"
-                        icon={<Edit size={16} />}
-                        onClick={() => handleEdit(record)}
-                    >
-                        Edit
-                    </Button>
-                </Space>
+                <Button
+                    type="text"
+                    icon={<Edit size={16} />}
+                    onClick={() => handleEdit(record)}
+                    size="small"
+                >
+                    Edit
+                </Button>
             ),
         },
     ];
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: 'var(--gray-50)', padding: '16px' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: 16 }}>
             {/* Header */}
             <div style={{
                 background: 'white',
-                padding: '16px 24px',
-                borderRadius: '12px',
+                padding: '24px',
+                borderRadius: 8,
                 marginBottom: 24,
-                boxShadow: 'var(--shadow-sm)'
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
             }}>
-                <Button
-                    type="text"
-                    icon={<ArrowLeft size={24} />}
-                    onClick={() => navigate('/')}
-                    style={{ marginBottom: 16, color: 'var(--gray-600)' }}
-                />
+                <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space>
+                        <Button
+                            type="text"
+                            icon={<ArrowLeft size={20} />}
+                            onClick={() => navigate('/')}
+                            style={{ color: '#666' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                            <Title level={3} style={{ margin: 0 }}>
+                                Customer Management
+                            </Title>
+                            <Text type="secondary">
+                                Manage your customers with basic information
+                            </Text>
+                        </div>
+                    </Space>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        backgroundColor: '#52c41a',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}>
-                        <Building size={24} color="#fff" />
-                    </div>
-                    <div>
-                        <Title level={3} style={{ margin: 0 }}>
-                            Customer Management
-                        </Title>
-                        <Text type="secondary">
-                            Manage your customers and clients
-                        </Text>
-                    </div>
-                </div>
+                    {/* Stats */}
+                    <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                        <Col xs={12} sm={6}>
+                            <Card size="small" style={{ textAlign: 'center' }}>
+                                <Statistic
+                                    title="Total Customers"
+                                    value={stats.total}
+                                    prefix={<Users size={16} />}
+                                    valueStyle={{ color: '#1890ff', fontSize: 24 }}
+                                />
+                            </Card>
+                        </Col>
+                        <Col xs={12} sm={6}>
+                            <Card size="small" style={{ textAlign: 'center' }}>
+                                <Statistic
+                                    title="Active"
+                                    value={stats.active}
+                                    valueStyle={{ color: '#52c41a', fontSize: 24 }}
+                                />
+                            </Card>
+                        </Col>
+                        <Col xs={12} sm={6}>
+                            <Card size="small" style={{ textAlign: 'center' }}>
+                                <Statistic
+                                    title="Individual"
+                                    value={stats.individual}
+                                    valueStyle={{ color: '#722ed1', fontSize: 24 }}
+                                />
+                            </Card>
+                        </Col>
+                        <Col xs={12} sm={6}>
+                            <Card size="small" style={{ textAlign: 'center' }}>
+                                <Statistic
+                                    title="Corporate"
+                                    value={stats.corporate}
+                                    valueStyle={{ color: '#fa8c16', fontSize: 24 }}
+                                />
+                            </Card>
+                        </Col>
+                    </Row>
+                </Space>
             </div>
 
-            {/* Stats */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={12} sm={6}>
-                    <Card>
-                        <Statistic
-                            title="Total Customers"
-                            value={stats.total}
-                            prefix={<Users size={20} />}
-                            valueStyle={{ color: '#667eea' }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card>
-                        <Statistic
-                            title="Individual"
-                            value={stats.individual}
-                            prefix={<Users size={20} />}
-                            valueStyle={{ color: '#52c41a' }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card>
-                        <Statistic
-                            title="Corporate"
-                            value={stats.corporate}
-                            prefix={<Building size={20} />}
-                            valueStyle={{ color: '#1890ff' }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={12} sm={6}>
-                    <Card>
-                        <Statistic
-                            title="Active"
-                            value={stats.active}
-                            valueStyle={{ color: '#fa8c16' }}
-                        />
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Filters and Actions */}
+            {/* Search and Add Button */}
             <Card style={{ marginBottom: 24 }}>
                 <Row gutter={[16, 16]} align="middle">
-                    <Col xs={24} sm={12} md={8}>
+                    <Col xs={18} sm={20}>
                         <Input
-                            placeholder="Search customers..."
+                            placeholder="Search customers by name, phone, or address..."
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
-                            prefix={<Users size={16} />}
+                            prefix={<SearchOutlined />} 
                             size="large"
+                            allowClear
                         />
                     </Col>
-                    <Col xs={12} sm={6} md={4}>
-                        <Select
-                            value={typeFilter}
-                            onChange={setTypeFilter}
-                            style={{ width: '100%' }}
-                            size="large"
-                        >
-                            <Option value="all">All Types</Option>
-                            <Option value="individual">Individual</Option>
-                            <Option value="corporate">Corporate</Option>
-                        </Select>
-                    </Col>
-                    <Col xs={12} sm={6} md={4}>
+                    <Col xs={6} sm={4}>
                         <Button
                             type="primary"
                             icon={<UserPlus size={16} />}
@@ -368,7 +389,7 @@ const CustomerManagementPage: React.FC = () => {
                             size="large"
                             block
                         >
-                            Add Customer
+                            Add
                         </Button>
                     </Col>
                 </Row>
@@ -381,7 +402,12 @@ const CustomerManagementPage: React.FC = () => {
                     dataSource={filteredCustomers}
                     loading={loading}
                     rowKey="id"
-                    pagination={{ pageSize: 10 }}
+                    pagination={{ 
+                        pageSize: 10,
+                        showSizeChanger: true,
+                        showTotal: (total) => `Total ${total} customers`
+                    }}
+                    scroll={{ x: 800 }}
                 />
             </Card>
 
@@ -392,115 +418,108 @@ const CustomerManagementPage: React.FC = () => {
                 onCancel={() => {
                     setModalVisible(false);
                     setEditingCustomer(null);
+                    form.resetFields();
                 }}
                 footer={null}
-                width={700}
+                width={600}
+                destroyOnClose
             >
                 <Form
                     form={form}
                     layout="vertical"
                     onFinish={handleSubmit}
-                    initialValues={{ customer_type: 'individual', status: 'active' }}
+                    initialValues={{ customer_type: 'individual' }}
                 >
                     <Form.Item
                         label="Customer Type"
                         name="customer_type"
-                        rules={[{ required: true }]}
+                        rules={[{ required: true, message: 'Please select customer type' }]}
                     >
                         <Select size="large">
-                            <Option value="individual">Individual</Option>
-                            <Option value="corporate">Corporate</Option>
+                            <Select.Option value="individual">Individual</Select.Option>
+                            <Select.Option value="corporate">Corporate</Select.Option>
                         </Select>
                     </Form.Item>
 
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item
-                                label="Full Name"
-                                name="full_name"
-                                rules={[{ required: true, message: 'Please enter name' }]}
-                            >
-                                <Input placeholder="John Doe" size="large" />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item label="Company Name" name="company_name">
-                                <Input placeholder="Company Inc." size="large" />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item label="Email" name="email">
-                                <Input type="email" placeholder="customer@example.com" size="large" />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item
-                                label="Phone"
-                                name="phone"
-                                rules={[{ required: true, message: 'Please enter phone' }]}
-                            >
-                                <Input placeholder="+1234567890" size="large" />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Form.Item label="Address" name="address">
-                        <TextArea rows={2} placeholder="Street address" />
+                    <Form.Item
+                        label="Full Name"
+                        name="full_name"
+                        rules={[
+                            { required: true, message: 'Please enter customer name' },
+                            { min: 2, message: 'Name must be at least 2 characters' }
+                        ]}
+                    >
+                        <Input 
+                            placeholder="Enter customer full name" 
+                            size="large" 
+                            prefix={<Users size={16} />}
+                        />
                     </Form.Item>
 
-                    <Row gutter={16}>
-                        <Col span={8}>
-                            <Form.Item label="City" name="city">
-                                <Input placeholder="City" size="large" />
-                            </Form.Item>
-                        </Col>
-                        <Col span={8}>
-                            <Form.Item label="State/Province" name="state">
-                                <Input placeholder="State" size="large" />
-                            </Form.Item>
-                        </Col>
-                        <Col span={8}>
-                            <Form.Item label="Country" name="country">
-                                <Input placeholder="Country" size="large" />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item label="Postal Code" name="postal_code">
-                                <Input placeholder="12345" size="large" />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item label="Tax ID" name="tax_id">
-                                <Input placeholder="Tax ID / VAT Number" size="large" />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Form.Item label="Status" name="status">
-                        <Select size="large">
-                            <Option value="active">Active</Option>
-                            <Option value="inactive">Inactive</Option>
-                            <Option value="blocked">Blocked</Option>
-                        </Select>
+                    <Form.Item
+                        label="Phone Number"
+                        name="phone"
+                        rules={[
+                            { required: true, message: 'Please enter phone number' },
+                            { pattern: /^[+]?[0-9\s\-()]+$/, message: 'Please enter valid phone number' }
+                        ]}
+                    >
+                        <Input 
+                            placeholder="+1234567890 or (123) 456-7890" 
+                            size="large" 
+                            prefix={<Phone size={16} />}
+                        />
                     </Form.Item>
 
-                    <Form.Item label="Notes" name="notes">
-                        <TextArea rows={3} placeholder="Additional notes..." />
+                    <Form.Item
+                        label="Address"
+                        name="address"
+                        rules={[
+                            { required: true, message: 'Please enter address' },
+                            { min: 5, message: 'Address must be at least 5 characters' }
+                        ]}
+                    >
+                        <TextArea 
+                            rows={3} 
+                            placeholder="Enter complete address (street, city, state, country)" 
+                            size="large"
+                            showCount
+                            maxLength={500}
+                        />
                     </Form.Item>
 
-                    <Form.Item>
+                    <Form.Item
+                        label="Description / Notes"
+                        name="notes"
+                    >
+                        <TextArea 
+                            rows={4} 
+                            placeholder="Additional notes about the customer..." 
+                            size="large"
+                            showCount
+                            maxLength={1000}
+                        />
+                    </Form.Item>
+
+                    <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
                         <Space>
-                            <Button type="primary" htmlType="submit" loading={loading} size="large">
-                                {editingCustomer ? 'Update' : 'Add'} Customer
-                            </Button>
-                            <Button onClick={() => setModalVisible(false)} size="large">
+                            <Button 
+                                onClick={() => {
+                                    setModalVisible(false);
+                                    setEditingCustomer(null);
+                                    form.resetFields();
+                                }} 
+                                size="large"
+                            >
                                 Cancel
+                            </Button>
+                            <Button 
+                                type="primary" 
+                                htmlType="submit" 
+                                loading={loading} 
+                                size="large"
+                            >
+                                {editingCustomer ? 'Update' : 'Add'} Customer
                             </Button>
                         </Space>
                     </Form.Item>

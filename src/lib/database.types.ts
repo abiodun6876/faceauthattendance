@@ -39,9 +39,117 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointments: {
+        Row: {
+          appointment_date: string
+          approved_at: string | null
+          approved_by: string | null
+          branch_id: string | null
+          checked_in_at: string | null
+          checked_in_by: string | null
+          checked_out_at: string | null
+          created_at: string | null
+          end_time: string
+          host_user_id: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          pass_code: string
+          purpose: string
+          start_time: string
+          status: string | null
+          updated_at: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          appointment_date: string
+          approved_at?: string | null
+          approved_by?: string | null
+          branch_id?: string | null
+          checked_in_at?: string | null
+          checked_in_by?: string | null
+          checked_out_at?: string | null
+          created_at?: string | null
+          end_time: string
+          host_user_id?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          pass_code: string
+          purpose: string
+          start_time: string
+          status?: string | null
+          updated_at?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          appointment_date?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          branch_id?: string | null
+          checked_in_at?: string | null
+          checked_in_by?: string | null
+          checked_out_at?: string | null
+          created_at?: string | null
+          end_time?: string
+          host_user_id?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          pass_code?: string
+          purpose?: string
+          start_time?: string
+          status?: string | null
+          updated_at?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_checked_in_by_fkey"
+            columns: ["checked_in_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_host_user_id_fkey"
+            columns: ["host_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_visitor_id_fkey"
+            columns: ["visitor_id"]
+            isOneToOne: false
+            referencedRelation: "visitors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance: {
         Row: {
-          user: any
           branch_id: string | null
           clock_in: string
           clock_out: string | null
@@ -239,6 +347,154 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "branches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_appointments: {
+        Row: {
+          appointment_date: string
+          assigned_staff_id: string | null
+          branch_id: string | null
+          created_at: string | null
+          customer_id: string
+          end_time: string
+          id: string
+          notes: string | null
+          organization_id: string
+          service_type: string | null
+          start_time: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_date: string
+          assigned_staff_id?: string | null
+          branch_id?: string | null
+          created_at?: string | null
+          customer_id: string
+          end_time: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          service_type?: string | null
+          start_time: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_date?: string
+          assigned_staff_id?: string | null
+          branch_id?: string | null
+          created_at?: string | null
+          customer_id?: string
+          end_time?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          service_type?: string | null
+          start_time?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_appointments_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_appointments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_appointments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_appointments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          address: string | null
+          city: string | null
+          company_name: string | null
+          country: string | null
+          created_at: string | null
+          customer_type: string | null
+          email: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          organization_id: string
+          phone: string
+          photo_url: string | null
+          postal_code: string | null
+          state: string | null
+          status: string | null
+          tax_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          company_name?: string | null
+          country?: string | null
+          created_at?: string | null
+          customer_type?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          phone: string
+          photo_url?: string | null
+          postal_code?: string | null
+          state?: string | null
+          status?: string | null
+          tax_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          company_name?: string | null
+          country?: string | null
+          created_at?: string | null
+          customer_type?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          phone?: string
+          photo_url?: string | null
+          postal_code?: string | null
+          state?: string | null
+          status?: string | null
+          tax_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -490,6 +746,79 @@ export type Database = {
           },
         ]
       }
+      leave_requests: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          end_date: string
+          id: string
+          leave_type: string
+          organization_id: string
+          reason: string
+          rejection_reason: string | null
+          start_date: string
+          status: string | null
+          total_days: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          end_date: string
+          id?: string
+          leave_type: string
+          organization_id: string
+          reason: string
+          rejection_reason?: string | null
+          start_date: string
+          status?: string | null
+          total_days: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          leave_type?: string
+          organization_id?: string
+          reason?: string
+          rejection_reason?: string | null
+          start_date?: string
+          status?: string | null
+          total_days?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           branding: Json | null
@@ -699,6 +1028,7 @@ export type Database = {
           face_enrolled_at: string | null
           face_photo_url: string | null
           full_name: string
+          gender: string | null
           id: string
           is_active: boolean | null
           organization_id: string | null
@@ -718,6 +1048,7 @@ export type Database = {
           face_enrolled_at?: string | null
           face_photo_url?: string | null
           full_name: string
+          gender?: string | null
           id?: string
           is_active?: boolean | null
           organization_id?: string | null
@@ -737,6 +1068,7 @@ export type Database = {
           face_enrolled_at?: string | null
           face_photo_url?: string | null
           full_name?: string
+          gender?: string | null
           id?: string
           is_active?: boolean | null
           organization_id?: string | null
@@ -762,6 +1094,56 @@ export type Database = {
           },
           {
             foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visitors: {
+        Row: {
+          company: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string
+          id: string
+          id_number: string | null
+          id_type: string | null
+          organization_id: string
+          phone: string | null
+          photo_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          id_number?: string | null
+          id_type?: string | null
+          organization_id: string
+          phone?: string | null
+          photo_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          id_number?: string | null
+          id_type?: string | null
+          organization_id?: string
+          phone?: string | null
+          photo_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitors_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -843,6 +1225,7 @@ export type Database = {
     Functions: {
       generate_device_token: { Args: never; Returns: string }
       generate_pairing_code: { Args: never; Returns: string }
+      generate_pass_code: { Args: never; Returns: string }
       match_users_by_face: {
         Args: {
           filter_organization_id: string

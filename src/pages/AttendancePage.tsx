@@ -1061,50 +1061,6 @@ const AttendancePage: React.FC = () => {
       <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
         {/* Stats Row */}
         <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-          <Col xs={24} sm={12} md={6}>
-            <Card style={{ borderRadius: 12 }}>
-              <Statistic
-                title="Total Users"
-                value={stats.total_users}
-                prefix={<Users size={20} />}
-                valueStyle={{ color: '#1890ff' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card style={{ borderRadius: 12 }}>
-              <Statistic
-                title="Present Today"
-                value={stats.present_today}
-                prefix={<CheckCircle size={20} />}
-                valueStyle={{ color: '#52c41a' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card style={{ borderRadius: 12 }}>
-              <Statistic
-                title="Late Today"
-                value={stats.late_today}
-                prefix={<Clock size={20} />}
-                valueStyle={{ color: '#fa8c16' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card style={{ borderRadius: 12 }}>
-              <Statistic
-                title="Attendance Rate"
-                value={stats.attendance_rate.toFixed(1)}
-                suffix="%"
-                prefix={<BarChart3 size={20} />}
-                valueStyle={{ color: '#722ed1' }}
-              />
-            </Card>
-          </Col>
-        </Row>
-
-        <Row gutter={[24, 24]}>
           {/* Main Camera Column */}
           <Col xs={24} lg={16}>
             <Card
@@ -1208,11 +1164,9 @@ const AttendancePage: React.FC = () => {
                         border: 'none'
                       }}
                     >
-                      START SCANNING
+                      START
                     </Button>
-                    <Text style={{ color: '#fff', marginTop: 16, fontSize: 16, textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                      Click to begin automatic face detection
-                    </Text>
+                    
                   </div>
                 )}
               </div>
@@ -1249,231 +1203,19 @@ const AttendancePage: React.FC = () => {
                 </Text>
               </Card>
 
-              {/* Connection Status */}
-              <Alert
-                message={connectionStatus === 'online' ? 'Online Mode' : 'Offline Mode'}
-                description={
-                  connectionStatus === 'online'
-                    ? 'Attendance records are syncing in real-time'
-                    : 'Records are being stored locally and will sync when connection is restored'
-                }
-                type={connectionStatus === 'online' ? 'success' : 'warning'}
-                showIcon
-                style={{ marginTop: 16 }}
-                action={
-                  <Button size="small" onClick={checkConnection}>
-                    Check Connection
-                  </Button>
-                }
-              />
+              
+            
             </Card>
 
-            {/* Recent Activity */}
-            <Card
-              title={
-                <Space>
-                  <History size={20} />
-                  <span>Recent Activity</span>
-                </Space>
-              }
-              style={{ borderRadius: 12 }}
-              extra={
-                <Button
-                  type="link"
-                  onClick={() => navigate('/attendance-management')}
-                  icon={<ChevronRight size={16} />}
-                >
-                  View All
-                </Button>
-              }
-            >
-              {recentAttendance.length === 0 ? (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="No attendance recorded yet"
-                />
-              ) : (
-                <List
-                  dataSource={recentAttendance}
-                  renderItem={(record) => (
-                    <List.Item>
-                      <List.Item.Meta
-                        avatar={
-                          <Avatar
-                            src={record.user?.face_photo_url}
-                            icon={<User />}
-                            style={{ backgroundColor: getStatusColor(record.status) }}
-                          />
-                        }
-                        title={
-                          <Space>
-                            <Text strong>{record.user?.full_name}</Text>
-                            <Tag color={getStatusColor(record.status)}>
-                              {record.status?.toUpperCase()}
-                            </Tag>
-                          </Space>
-                        }
-                        description={
-                          <Space direction="vertical" size={0}>
-                            <Text type="secondary">
-                              ID: {record.user?.staff_id}
-                            </Text>
-                            <Text type="secondary">
-                              In: {formatTime(record.clock_in)} • {getTimeAgo(record.clock_in)}
-                            </Text>
-                            {record.clock_out && (
-                              <Text type="secondary">
-                                Out: {formatTime(record.clock_out)}
-                              </Text>
-                            )}
-                            {record.confidence_score && (
-                              <Text type="secondary">
-                                Confidence: {record.confidence_score.toFixed(1)}%
-                              </Text>
-                            )}
-                          </Space>
-                        }
-                      />
-                      <div style={{ textAlign: 'right' }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          {record.branch?.name}
-                        </Text>
-                      </div>
-                    </List.Item>
-                  )}
-                />
-              )}
-            </Card>
+            
           </Col>
 
           {/* Right Column */}
           <Col xs={24} lg={8}>
-            {/* Device & Mode Info */}
-            <Card
-              title="Device Information"
-              style={{ marginBottom: 24, borderRadius: 12 }}
-              extra={<Settings size={16} />}
-            >
-              <Descriptions column={1} size="small">
-                <Descriptions.Item label="Device">
-                  {deviceInfo.device_name}
-                </Descriptions.Item>
-                <Descriptions.Item label="Code">
-                  <Tag color="blue">{deviceInfo.device_code}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="Branch">
-                  {deviceInfo.branch?.name}
-                </Descriptions.Item>
-                <Descriptions.Item label="Organization">
-                  {deviceInfo.organization?.name}
-                </Descriptions.Item>
-                <Descriptions.Item label="Mode">
-                  <Tag color={attendanceMode === 'toggle' ? 'blue' :
-                    attendanceMode === 'explicit' ? 'purple' : 'orange'}>
-                    {attendanceMode === 'toggle' ? 'Auto Toggle' :
-                      attendanceMode === 'explicit' ? 'Manual Button' : 'Event Based'}
-                  </Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="Last Active">
-                  {dayjs(deviceInfo.last_seen).fromNow()}
-                </Descriptions.Item>
-                <Descriptions.Item label="Status">
-                  <Tag color={deviceInfo.status === 'active' ? 'green' : 'red'}>
-                    {deviceInfo.status?.toUpperCase()}
-                  </Tag>
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
+           
+            
 
-            {/* Screen Pairing */}
-            <Card
-              title={
-                <Space>
-                  <Monitor size={20} />
-                  <span>Large Screen Pairing</span>
-                </Space>
-              }
-              style={{ marginBottom: 24, borderRadius: 12 }}
-            >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    placeholder="Enter pair code"
-                    value={screenPairCode}
-                    onChange={(e) => setScreenPairCode(e.target.value)}
-                    size="large"
-                    prefix={<QrCode size={16} />}
-                  />
-                  <Button
-                    type="primary"
-                    onClick={handlePairScreen}
-                    loading={pairingLoading}
-                  >
-                    Pair
-                  </Button>
-                </Space.Compact>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Enter the code displayed on your large screen monitor
-                </Text>
-              </Space>
-
-              <Divider style={{ margin: '16px 0' }} />
-
-              <Alert
-                message="Live Display"
-                description="Pair with a large screen to show real-time attendance updates"
-                type="info"
-                showIcon
-              />
-            </Card>
-
-            {/* Quick Actions */}
-            <Card
-              title="Quick Actions"
-              style={{ borderRadius: 12 }}
-            >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Button
-                  icon={<User size={16} />}
-                  onClick={() => navigate('/enroll')}
-                  block
-                  size="large"
-                  type="primary"
-                >
-                  Enroll New User
-                </Button>
-                <Button
-                  icon={<TrendingUp size={16} />}
-                  onClick={() => navigate('/attendance-management')}
-                  block
-                  size="large"
-                >
-                  View Reports
-                </Button>
-                <Button
-                  icon={<Bell size={16} />}
-                  onClick={() => {
-                    message.info('Late notifications would be sent here');
-                  }}
-                  block
-                  size="large"
-                >
-                  Notify Late Users
-                </Button>
-                <Button
-                  icon={<Power size={16} />}
-                  onClick={() => {
-                    deviceService.unregisterDevice();
-                    navigate('/device-setup');
-                  }}
-                  block
-                  size="large"
-                  danger
-                >
-                  Unregister Device
-                </Button>
-              </Space>
-            </Card>
+            
           </Col>
         </Row>
       </div>
@@ -1547,7 +1289,7 @@ const AttendancePage: React.FC = () => {
                   setShowResultModal(false);
                 }}
               >
-                Try Manual Entry
+                Try Manual 
               </Button>
             ]}
           />
