@@ -701,19 +701,32 @@ export const deviceService = {
       let organization_id = null;
 
       if (deviceData.organization_code) {
-        const { data: org } = await supabase
+        // Try subdomain first
+        let { data: org } = await supabase
           .from('organizations')
           .select('id')
           .ilike('subdomain', deviceData.organization_code)
           .eq('is_active', true)
           .maybeSingle();
 
+        // Fallback to searching by name
+        if (!org) {
+          const { data: orgByName } = await supabase
+            .from('organizations')
+            .select('id')
+            .ilike('name', deviceData.organization_code)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+          org = orgByName;
+        }
+
         if (org) {
           organization_id = org.id;
         } else {
           return {
             success: false,
-            error: 'Organization not found or inactive'
+            error: `Organization '${deviceData.organization_code}' not found or inactive`
           };
         }
       } else {

@@ -30,7 +30,7 @@ import {
   ArrowLeft,
   MapPin
 } from 'lucide-react';
-import supabase, { deviceService, organizationService } from '../lib/supabase';
+import { supabase, deviceService, organizationService } from '../lib/supabase';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -72,6 +72,21 @@ const DeviceSetupPage: React.FC = () => {
   useEffect(() => {
     generateDeviceCode();
     generatePairingCode();
+
+    // Subscribe to organization changes (as requested)
+    const orgSubscription = supabase.channel('org-setup-watcher')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'organizations' },
+        (payload) => {
+          console.log('New organization detected via Realtime:', payload);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(orgSubscription);
+    };
   }, [generateDeviceCode, generatePairingCode]);
 
   // Handle Device Login
@@ -148,14 +163,28 @@ const DeviceSetupPage: React.FC = () => {
       pairing_code: values.pairing_code
     });
 
-    // Debug: Check what organizations exist
-    try {
-      const { data: orgs } = await supabase
-        .from('organizations')
-        .select('id, name, is_active');
-      console.log('📊 Available organizations:', orgs);
-    } catch (err) {
-      console.error('❌ Failed to fetch organizations:', err);
+    // If in Create mode and organization hasn't been created yet, do it now
+    if (orgMode === 'create' && !values.organization_code) {
+      try {
+        const createResult = await organizationService.createOrganization({
+          name: values.new_org_name,
+          type: values.new_org_type,
+          branchName: values.new_branch_name
+        });
+
+        if (createResult.success && createResult.organization) {
+          values.organization_code = createResult.organization.subdomain;
+          message.success('Organization created automatically!');
+        } else {
+          message.error(createResult.error || 'Failed to auto-create organization');
+          setLoading(false);
+          return;
+        }
+      } catch (err: any) {
+        message.error('Failed to validate organization details');
+        setLoading(false);
+        return;
+      }
     }
 
     try {
