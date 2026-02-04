@@ -671,9 +671,18 @@ export const deviceService = {
         .single();
 
       if (error || !device) {
+        // Fallback to cache if network fails but we had a token
+        const cachedDevice = localStorage.getItem('cached_device_info');
+        if (cachedDevice) {
+          console.log('🌐 Network failed, using cached device info');
+          return { isRegistered: true, device: JSON.parse(cachedDevice) };
+        }
         localStorage.removeItem('device_token');
         return { isRegistered: false, device: null };
       }
+
+      // Save to cache
+      localStorage.setItem('cached_device_info', JSON.stringify(device));
 
       await supabase
         .from('devices')
@@ -683,6 +692,10 @@ export const deviceService = {
       return { isRegistered: true, device };
     } catch (error) {
       console.error('Error checking device registration:', error);
+      const cachedDevice = localStorage.getItem('cached_device_info');
+      if (cachedDevice) {
+        return { isRegistered: true, device: JSON.parse(cachedDevice) };
+      }
       return { isRegistered: false, device: null };
     }
   },
@@ -699,6 +712,8 @@ export const deviceService = {
       }
 
       let organization_id = null;
+
+      let branch_id = null;
 
       if (deviceData.organization_code) {
         // Try subdomain first
@@ -723,14 +738,43 @@ export const deviceService = {
 
         if (org) {
           organization_id = org.id;
+          // Try to get the first branch of this organization to auto-assign if possible
+          const { data: branch } = await supabase
+            .from('branches')
+            .select('id')
+            .eq('organization_id', organization_id)
+            .limit(1)
+            .maybeSingle();
+          if (branch) branch_id = branch.id;
         } else {
-          return {
-            success: false,
-            error: `Organization '${deviceData.organization_code}' not found or inactive`
-          };
+          // AUTO-CREATE organization if not found (Guest/New Org flow)
+          console.log(`Organization '${deviceData.organization_code}' not found. Creating it now...`);
+          const createResult = await organizationService.createOrganization({
+            name: deviceData.organization_code,
+            type: 'company',
+            branchName: 'Main Office'
+          });
+
+          if (createResult.success && createResult.organization) {
+            organization_id = createResult.organization.id;
+            // Fetch the newly created branch
+            const { data: newBranch } = await supabase
+              .from('branches')
+              .select('id')
+              .eq('organization_id', organization_id)
+              .limit(1)
+              .maybeSingle();
+            if (newBranch) branch_id = newBranch.id;
+            console.log('✅ Auto-created organization and branch:', organization_id, branch_id);
+          } else {
+            return {
+              success: false,
+              error: `Failed to create organization '${deviceData.organization_code}': ${createResult.error}`
+            };
+          }
         }
       } else {
-        // If no code provided, use the first active organization (default)
+        // ... (existing default org logic)
         const { data: defaultOrg } = await supabase
           .from('organizations')
           .select('id')
@@ -740,6 +784,13 @@ export const deviceService = {
 
         if (defaultOrg) {
           organization_id = defaultOrg.id;
+          const { data: branch } = await supabase
+            .from('branches')
+            .select('id')
+            .eq('organization_id', organization_id)
+            .limit(1)
+            .maybeSingle();
+          if (branch) branch_id = branch.id;
         } else {
           return {
             success: false,
@@ -775,6 +826,7 @@ export const deviceService = {
           pairing_code: deviceData.pairing_code,
           device_token: deviceToken,
           organization_id,
+          branch_id, // AUTO-ASSIGNED
           device_ip: deviceIp,
           is_active: true,
           status: 'active',
@@ -795,6 +847,7 @@ export const deviceService = {
       }
 
       localStorage.setItem('device_token', deviceToken);
+      localStorage.setItem('cached_device_info', JSON.stringify(device));
 
       return { success: true, device };
     } catch (error: any) {

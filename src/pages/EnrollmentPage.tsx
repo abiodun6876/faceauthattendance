@@ -134,11 +134,6 @@ const EnrollmentPage: React.FC = () => {
     form.setFieldsValue(initialValues);
   }, [form, deviceInfo?.branch_id]);
 
-  useEffect(() => {
-    loadDeviceInfo();
-    initializeForm();
-  }, [loadDeviceInfo, initializeForm]);
-
   const generateUserId = (userRole: string) => {
     const prefix = userRole === 'student' ? 'STU' : 'EMP';
     const year = dayjs().format('YYYY');
@@ -146,7 +141,7 @@ const EnrollmentPage: React.FC = () => {
     return `${prefix}${year}${random}`;
   };
 
-  const goToFaceCapture = async () => {
+  const goToFaceCapture = useCallback(async () => {
     try {
       const values = await form.validateFields();
 
@@ -179,59 +174,9 @@ const EnrollmentPage: React.FC = () => {
       console.error('Form validation error:', error);
       message.error(error.message || 'Please fill in all required fields correctly');
     }
-  };
+  }, [form, deviceInfo?.organization_id]);
 
-  const processFaceImage = async (capturedPhotoData: string) => {
-    setFaceProcessing(true);
-    setProcessingProgress(10);
-
-    try {
-      // Initialize face models
-      setProcessingProgress(20);
-      const initialized = await faceService.initializeModels();
-      if (!initialized) {
-        throw new Error('Face recognition models failed to load');
-      }
-
-      // Process face
-      setProcessingProgress(40);
-      const result = await faceService.processImage(capturedPhotoData);
-      setFaceProcessingResult(result);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Face processing failed');
-      }
-
-      if (!result.embedding) {
-        throw new Error('Could not extract face embedding');
-      }
-
-      // Check for duplicate face
-      setProcessingProgress(60);
-      const duplicateCheck = await checkDuplicateFace(result.embedding);
-      if (duplicateCheck.exists) {
-        throw new Error(`This face is already enrolled as ${duplicateCheck.userName} (${duplicateCheck.userId})`);
-      }
-
-      setPhotoData(capturedPhotoData);
-      setPhotoPreview(capturedPhotoData);
-      setProcessingProgress(100);
-
-      // Auto-proceed to enrollment after successful face capture
-      if (formData.full_name) {
-        await handleEnrollment(capturedPhotoData, result);
-      }
-
-    } catch (error: any) {
-      console.error('Face processing error:', error);
-      message.error(error.message || 'Face processing failed');
-    } finally {
-      setFaceProcessing(false);
-      setProcessingProgress(0);
-    }
-  };
-
-  const checkDuplicateFace = async (embedding: Float32Array) => {
+  const checkDuplicateFace = useCallback(async (embedding: Float32Array) => {
     try {
       // Convert to array for Supabase function
       const embeddingArray = Array.from(embedding);
@@ -265,34 +210,9 @@ const EnrollmentPage: React.FC = () => {
       console.error('Duplicate check error:', error);
       return { exists: false };
     }
-  };
+  }, [deviceInfo?.organization_id]);
 
-  const handleFaceCapture = async (capturedPhotoData: string) => {
-    console.log('Face captured, processing...');
-
-    if (!formData.full_name) {
-      message.error('Please fill in user information first');
-      setCurrentStep(0);
-      return;
-    }
-
-    await processFaceImage(capturedPhotoData);
-  };
-
-  const handlePhotoUpload = (file: File) => {
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const result = e.target?.result as string;
-        await processFaceImage(result);
-        resolve(result);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleEnrollment = async (photoData: string, faceResult: FaceProcessingResult) => {
+  const handleEnrollment = useCallback(async (photoData: string, faceResult: FaceProcessingResult) => {
     setLoading(true);
 
     try {
@@ -322,6 +242,19 @@ const EnrollmentPage: React.FC = () => {
         userData['level'] = formData.level || 100;
         userData['program_code'] = formData.department_name || 'General';
       }
+
+      // 💾 SAVE DRAFT TO LOCAL STORAGE FIRST (Reliability requirement)
+      const enrollmentDraft = {
+        userData,
+        faceResult: {
+          ...faceResult,
+          embedding: Array.from(faceResult.embedding) // Must convert Float32Array to regular array for JSON
+        },
+        photoData,
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem('pending_enrollment_draft', JSON.stringify(enrollmentDraft));
+      console.log('📝 Enrollment draft saved to local storage');
 
       // Insert user into the users table
       const { data: user, error: userError } = await supabase
@@ -414,6 +347,10 @@ const EnrollmentPage: React.FC = () => {
       };
 
       setEnrollmentResult(result);
+      // ✅ SUCCESS - CLEAR DRAFT
+      localStorage.removeItem('pending_enrollment_draft');
+      console.log('🗑️ Enrollment draft cleared');
+
       setCurrentStep(2);
       message.success(`${formData.user_role === 'student' ? 'Student' : 'Staff'} enrolled with biometrics!`);
 
@@ -428,7 +365,112 @@ const EnrollmentPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [formData, deviceInfo]);
+
+  const processFaceImage = useCallback(async (capturedPhotoData: string) => {
+    setFaceProcessing(true);
+    setProcessingProgress(10);
+
+    try {
+      // Initialize face models
+      setProcessingProgress(20);
+      const initialized = await faceService.initializeModels();
+      if (!initialized) {
+        throw new Error('Face recognition models failed to load');
+      }
+
+      // Process face
+      setProcessingProgress(40);
+      const result = await faceService.processImage(capturedPhotoData);
+      setFaceProcessingResult(result);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Face processing failed');
+      }
+
+      if (!result.embedding) {
+        throw new Error('Could not extract face embedding');
+      }
+
+      // Check for duplicate face
+      setProcessingProgress(60);
+      const duplicateCheck = await checkDuplicateFace(result.embedding);
+      if (duplicateCheck.exists) {
+        throw new Error(`This face is already enrolled as ${duplicateCheck.userName} (${duplicateCheck.userId})`);
+      }
+
+      setPhotoData(capturedPhotoData);
+      setPhotoPreview(capturedPhotoData);
+      setProcessingProgress(100);
+
+      // Auto-proceed to enrollment after successful face capture
+      if (formData.full_name) {
+        await handleEnrollment(capturedPhotoData, result);
+      }
+
+    } catch (error: any) {
+      console.error('Face processing error:', error);
+      message.error(error.message || 'Face processing failed');
+    } finally {
+      setFaceProcessing(false);
+      setProcessingProgress(0);
+    }
+  }, [formData, checkDuplicateFace, handleEnrollment]);
+
+  const handleFaceCapture = useCallback(async (capturedPhotoData: string) => {
+    console.log('Face captured, processing...');
+
+    if (!formData.full_name) {
+      message.error('Please fill in user information first');
+      setCurrentStep(0);
+      return;
+    }
+
+    await processFaceImage(capturedPhotoData);
+  }, [formData, processFaceImage]);
+
+  const handlePhotoUpload = useCallback((file: File) => {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const result = e.target?.result as string;
+        await processFaceImage(result);
+        resolve(result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, [processFaceImage]);
+
+  const syncPendingDraft = useCallback(async () => {
+    const draft = localStorage.getItem('pending_enrollment_draft');
+    if (!draft) return;
+
+    try {
+      const { userData, faceResult, photoData } = JSON.parse(draft);
+      Modal.confirm({
+        title: 'Unsynced Enrollment Found',
+        content: `We found a pending enrollment for ${userData.full_name}. Would you like to try syncing it now?`,
+        onOk: async () => {
+          // Re-convert regular array back to Float32Array
+          const reconstructedFaceResult = {
+            ...faceResult,
+            embedding: new Float32Array(faceResult.embedding)
+          };
+          setFormData(userData); // Set form data so handleEnrollment works correctly
+          await handleEnrollment(photoData, reconstructedFaceResult);
+        }
+      });
+    } catch (e) {
+      console.error('Failed to parse draft:', e);
+    }
+  }, [handleEnrollment]);
+
+  useEffect(() => {
+    loadDeviceInfo();
+    initializeForm();
+    syncPendingDraft(); // Check for drafts on mount
+  }, [loadDeviceInfo, initializeForm, syncPendingDraft]);
 
   const uploadProps = {
     beforeUpload: (file: File) => {
