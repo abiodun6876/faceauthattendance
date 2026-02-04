@@ -1,5 +1,5 @@
 // pages/DeviceSetupPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -48,31 +48,31 @@ const DeviceSetupPage: React.FC = () => {
   const [orgMode, setOrgMode] = useState<'join' | 'create'>('join');
   const [createOrgLoading, setCreateOrgLoading] = useState(false);
 
-  // Auto-generate codes on mount
-  useEffect(() => {
-    generateDeviceCode();
-    generatePairingCode();
-  }, []);
-
   // Generate a unique device code
-  const generateDeviceCode = () => {
+  const generateDeviceCode = useCallback(() => {
     const prefix = 'DEV';
     const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
     const random = Math.random().toString(36).slice(2, 6).toUpperCase();
     const code = `${prefix}-${timestamp}-${random}`;
     setDeviceCode(code);
     form.setFieldValue('device_code', code);
-  };
+  }, [form]);
 
   // Generate a pairing code
-  const generatePairingCode = () => {
+  const generatePairingCode = useCallback(() => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
     for (let i = 0; i < 6; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     form.setFieldValue('pairing_code', code);
-  };
+  }, [form]);
+
+  // Auto-generate codes on mount
+  useEffect(() => {
+    generateDeviceCode();
+    generatePairingCode();
+  }, [generateDeviceCode, generatePairingCode]);
 
   // Handle Device Login
   const handleLogin = async (values: any) => {
