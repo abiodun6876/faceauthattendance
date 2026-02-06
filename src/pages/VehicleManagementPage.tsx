@@ -102,6 +102,8 @@ interface Trip {
         vehicle_name: string;
         license_plate: string;
     };
+    security_notes?: string;
+    actual_duration_minutes?: number;
 }
 
 const { useBreakpoint } = Grid;
@@ -1329,45 +1331,81 @@ const VehicleManagementPage: React.FC = () => {
                 title="Trip Details"
                 open={tripDetailModalVisible}
                 onCancel={() => setTripDetailModalVisible(false)}
-                width={600}
-                footer={null}
+                footer={[
+                    <Button key="close" onClick={() => setTripDetailModalVisible(false)}>
+                        Close
+                    </Button>
+                ]}
+                width={800}
             >
                 {selectedTrip && (
-                    <div>
-                        <Descriptions column={1} bordered>
-                            <Descriptions.Item label="Trip Name">
-                                {selectedTrip.trip_name}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Purpose">
-                                {selectedTrip.purpose}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Vehicle">
-                                {selectedTrip.vehicle?.vehicle_name} ({selectedTrip.vehicle?.license_plate})
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Driver">
-                                {selectedTrip.driver?.full_name} ({selectedTrip.driver?.phone})
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Status">
-                                <Tag color={getTripStatusColor(selectedTrip.status)}>
-                                    {selectedTrip.status.replace('_', ' ').toUpperCase()}
-                                </Tag>
-                            </Descriptions.Item>
-                            <Descriptions.Item label="Start Location">
-                                {selectedTrip.start_location || 'Not specified'}
-                            </Descriptions.Item>
-                            <Descriptions.Item label="End Location">
-                                {selectedTrip.end_location || 'Not specified'}
-                            </Descriptions.Item>
-                        </Descriptions>
+                    <Descriptions bordered column={{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }} size="small">
+                        <Descriptions.Item label="Trip Name" span={2}>{selectedTrip.trip_name}</Descriptions.Item>
+                        <Descriptions.Item label="Purpose" span={2}>{selectedTrip.purpose}</Descriptions.Item>
+                        <Descriptions.Item label="Status">
+                            <Tag color={getTripStatusColor(selectedTrip.status)}>
+                                {selectedTrip.status.replace('_', ' ').toUpperCase()}
+                            </Tag>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Vehicle">
+                            {selectedTrip.vehicle?.vehicle_name} ({selectedTrip.vehicle?.license_plate})
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Driver">
+                            {selectedTrip.driver?.full_name} ({selectedTrip.driver?.phone})
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Distance">
+                            {selectedTrip.distance_km ? `${selectedTrip.distance_km} km` : '-'}
+                        </Descriptions.Item>
 
-                        <div style={{ marginTop: 24, textAlign: 'right' }}>
-                            <Space>
-                                <Button onClick={() => setTripDetailModalVisible(false)}>
-                                    Close
-                                </Button>
-                            </Space>
-                        </div>
-                    </div>
+                        <Descriptions.Item label="Scheduled Start">
+                            {selectedTrip.scheduled_start_time ? dayjs(selectedTrip.scheduled_start_time).format('MMM D, YYYY h:mm A') : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Scheduled End">
+                            {selectedTrip.scheduled_end_time ? dayjs(selectedTrip.scheduled_end_time).format('MMM D, YYYY h:mm A') : '-'}
+                        </Descriptions.Item>
+
+                        <Descriptions.Item label="Actual Start">
+                            {selectedTrip.actual_start_time ? dayjs(selectedTrip.actual_start_time).format('MMM D, YYYY h:mm A') : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Actual End">
+                            {selectedTrip.actual_end_time ? dayjs(selectedTrip.actual_end_time).format('MMM D, YYYY h:mm A') : '-'}
+                        </Descriptions.Item>
+
+                        <Descriptions.Item label="Driver Check In">
+                            {selectedTrip.driver_check_in_time ? dayjs(selectedTrip.driver_check_in_time).format('h:mm A') : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Driver Check Out">
+                            {selectedTrip.driver_check_out_time ? dayjs(selectedTrip.driver_check_out_time).format('h:mm A') : '-'}
+                        </Descriptions.Item>
+
+                        <Descriptions.Item label="Security Check In">
+                            {selectedTrip.security_check_in_time ? dayjs(selectedTrip.security_check_in_time).format('h:mm A') : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Security Check Out">
+                            {selectedTrip.security_check_out_time ? dayjs(selectedTrip.security_check_out_time).format('h:mm A') : '-'}
+                        </Descriptions.Item>
+
+                        <Descriptions.Item label="Start Location" span={2}>
+                            {selectedTrip.start_location || '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="End Location" span={2}>
+                            {selectedTrip.end_location || '-'}
+                        </Descriptions.Item>
+
+                        {selectedTrip.google_maps_link && (
+                            <Descriptions.Item label="Map Link" span={2}>
+                                <a href={selectedTrip.google_maps_link} target="_blank" rel="noopener noreferrer">
+                                    Open in Google Maps
+                                </a>
+                            </Descriptions.Item>
+                        )}
+
+                        {selectedTrip.security_notes && (
+                            <Descriptions.Item label="Security Notes" span={2}>
+                                {selectedTrip.security_notes}
+                            </Descriptions.Item>
+                        )}
+                    </Descriptions>
                 )}
             </Modal>
         </div>
