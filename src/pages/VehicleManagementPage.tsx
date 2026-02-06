@@ -39,6 +39,7 @@ import {
     MapPin,
     Play,
     CheckSquare,
+    ExternalLink
 } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
@@ -703,6 +704,19 @@ const VehicleManagementPage: React.FC = () => {
                             Complete
                         </Button>
                     )}
+
+                    {record.google_maps_link && (
+                        <Button
+                            type="default"
+                            icon={<MapPin size={14} />}
+                            href={record.google_maps_link}
+                            target="_blank"
+                            size="small"
+                        >
+                            Track
+                        </Button>
+                    )}
+
                     <Button
                         type="text"
                         icon={<Eye size={14} />}
@@ -975,6 +989,9 @@ const VehicleManagementPage: React.FC = () => {
                                                 ),
                                                 trip.status === 'in_progress' && (
                                                     <Button type="text" style={{ color: '#52c41a' }} icon={<CheckSquare size={16} />} onClick={() => handleTripAction(trip.id, 'complete')}>Done</Button>
+                                                ),
+                                                trip.google_maps_link && (
+                                                    <Button type="link" icon={<ExternalLink size={16} />} href={trip.google_maps_link} target="_blank">Track</Button>
                                                 ),
                                                 <Button type="text" icon={<Eye size={16} />} onClick={() => {
                                                     setSelectedTrip(trip);
