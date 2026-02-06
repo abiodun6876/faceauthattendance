@@ -32,6 +32,7 @@ import {
 import FaceCamera from '../components/FaceCamera';
 import { supabase, deviceService } from '../lib/supabase';
 import faceService from '../utils/faceService';
+import { speak } from '../utils/speechSynthesis';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -125,7 +126,7 @@ const AttendancePage: React.FC = () => {
     attendance_rate: 0,
     average_confidence: 0
   });
-  
+
   const [showResultModal, setShowResultModal] = useState(false);
   const [attendanceResult, setAttendanceResult] = useState<{
     success: boolean;
@@ -272,7 +273,7 @@ const AttendancePage: React.FC = () => {
         .limit(limit);
 
       if (error) throw error;
-     
+
     } catch (error) {
       console.error('Error loading recent attendance:', error);
     }
@@ -630,6 +631,10 @@ const AttendancePage: React.FC = () => {
       setShowResultModal(true);
       message.success(`${action === 'clock_in' ? 'Clocked in' : 'Clocked out'} successfully!`);
 
+      // Speak the result
+      const speechText = `Hello ${matchedUser.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`;
+      speak(speechText);
+
       // Refresh data
       await Promise.all([
         loadStats(),
@@ -726,6 +731,8 @@ const AttendancePage: React.FC = () => {
       ]);
 
       message.success(`Manual ${action} recorded for ${user.full_name}`);
+      // Speak the result
+      speak(`Hello ${user.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`);
       setManualId('');
 
     } catch (error: any) {
@@ -1080,7 +1087,7 @@ const AttendancePage: React.FC = () => {
                     >
                       START
                     </Button>
-                    
+
                   </div>
                 )}
               </div>
@@ -1117,19 +1124,19 @@ const AttendancePage: React.FC = () => {
                 </Text>
               </Card>
 
-              
-            
+
+
             </Card>
 
-            
+
           </Col>
 
           {/* Right Column */}
           <Col xs={24} lg={8}>
-           
-            
 
-            
+
+
+
           </Col>
         </Row>
       </div>
@@ -1203,7 +1210,7 @@ const AttendancePage: React.FC = () => {
                   setShowResultModal(false);
                 }}
               >
-                Try Manual 
+                Try Manual
               </Button>
             ]}
           />
