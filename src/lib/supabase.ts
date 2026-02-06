@@ -684,6 +684,14 @@ export const deviceService = {
       // Save to cache
       localStorage.setItem('cached_device_info', JSON.stringify(device));
 
+      // Ensure critical IDs are in localStorage to support pages that rely on them
+      if (device.organization_id) {
+        localStorage.setItem('organization_id', device.organization_id);
+      }
+      if (device.branch_id) {
+        localStorage.setItem('branch_id', device.branch_id);
+      }
+
       await supabase
         .from('devices')
         .update({ last_seen: new Date().toISOString() })
@@ -694,7 +702,15 @@ export const deviceService = {
       console.error('Error checking device registration:', error);
       const cachedDevice = localStorage.getItem('cached_device_info');
       if (cachedDevice) {
-        return { isRegistered: true, device: JSON.parse(cachedDevice) };
+        const device = JSON.parse(cachedDevice);
+        // Ensure critical IDs are available even when offline
+        if (device.organization_id) {
+          localStorage.setItem('organization_id', device.organization_id);
+        }
+        if (device.branch_id) {
+          localStorage.setItem('branch_id', device.branch_id);
+        }
+        return { isRegistered: true, device };
       }
       return { isRegistered: false, device: null };
     }

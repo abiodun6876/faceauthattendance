@@ -82,13 +82,14 @@ const OrganizationSettingsPage: React.FC = () => {
             });
         } catch (error: any) {
             console.error('Error loading settings:', error);
-            message.error('Failed to load settings');
+            message.error(`Failed to load settings: ${error.message || 'Unknown error'}`);
         }
     };
 
     const loadTodayStats = async () => {
         try {
             const organizationId = localStorage.getItem('organization_id');
+            if (!organizationId) return;
             const today = dayjs().format('YYYY-MM-DD');
 
             // Get all users
