@@ -650,13 +650,13 @@ const VehicleManagementPage: React.FC = () => {
             render: (record: Trip) => (
                 <div>
                     <Text strong style={{ display: 'block' }}>
-                        {record.trip_name}
+                        {record.trip_name || 'Unnamed Trip'}
                     </Text>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                        {record.purpose}
+                        {record.purpose || '-'}
                     </Text>
                     <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
-                        <Text>{record.vehicle?.vehicle_name} ({record.vehicle?.license_plate})</Text>
+                        <Text>{record.vehicle?.vehicle_name || 'Unknown Vehicle'} ({record.vehicle?.license_plate || '-'})</Text>
                     </div>
                 </div>
             ),
@@ -664,9 +664,10 @@ const VehicleManagementPage: React.FC = () => {
         {
             title: 'Status',
             key: 'status',
-            render: (record: Trip) => (
-                <Tag color={getTripStatusColor(record.status)}>
-                    {record.status.replace('_', ' ').toUpperCase()}
+            dataIndex: 'status',
+            render: (status: string) => (
+                <Tag color={getTripStatusColor(status)}>
+                    {status ? status.replace('_', ' ').toUpperCase() : 'UNKNOWN'}
                 </Tag>
             ),
         },
@@ -703,7 +704,9 @@ const VehicleManagementPage: React.FC = () => {
                             setTripDetailModalVisible(true);
                         }}
                         size="small"
-                    />
+                    >
+                        View
+                    </Button>
                 </Space>
             ),
         },
