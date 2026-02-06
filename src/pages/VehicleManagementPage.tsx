@@ -23,7 +23,9 @@ import {
     Tabs,
     InputNumber,
     Descriptions,
-    Alert
+    Alert,
+    Grid,
+    List
 } from 'antd';
 import {
     Truck,
@@ -102,7 +104,10 @@ interface Trip {
     };
 }
 
+const { useBreakpoint } = Grid;
+
 const VehicleManagementPage: React.FC = () => {
+    const screens = useBreakpoint();
     const navigate = useNavigate();
     const [form] = Form.useForm();
     const [tripForm] = Form.useForm();
@@ -841,18 +846,103 @@ const VehicleManagementPage: React.FC = () => {
                                 style={{ marginBottom: 16 }}
                             />
                         )}
-                        <Table
-                            columns={vehicleColumns}
-                            dataSource={vehicles.filter(v =>
-                                !searchText ||
-                                v.vehicle_name.toLowerCase().includes(searchText.toLowerCase()) ||
-                                v.license_plate.toLowerCase().includes(searchText.toLowerCase()) ||
-                                v.current_driver?.full_name?.toLowerCase().includes(searchText.toLowerCase())
-                            )}
-                            loading={loading}
-                            rowKey="id"
-                            pagination={{ pageSize: 10 }}
-                        />
+                        {!screens.md ? (
+                            // Mobile View for Vehicles
+                            <List
+                                dataSource={vehicles.filter(v =>
+                                    !searchText ||
+                                    v.vehicle_name.toLowerCase().includes(searchText.toLowerCase()) ||
+                                    v.license_plate.toLowerCase().includes(searchText.toLowerCase())
+                                )}
+                                renderItem={(vehicle) => (
+                                    <List.Item>
+                                        <Card
+                                            size="small"
+                                            style={{ width: '100%' }}
+                                            actions={[
+                                                <Button type="text" icon={<Calendar size={16} />} onClick={() => {
+                                                    setSelectedVehicle(vehicle);
+                                                    tripForm.setFieldsValue({
+                                                        vehicle_id: vehicle.id,
+                                                        driver_id: vehicle.current_driver_id
+                                                    });
+                                                    setTripModalVisible(true);
+                                                }}>Trip</Button>,
+                                                <Button type="text" icon={<Edit size={16} />} onClick={() => {
+                                                    setSelectedVehicle(vehicle);
+                                                    form.setFieldsValue({
+                                                        ...vehicle,
+                                                        registration_expiry: vehicle.registration_expiry ? dayjs(vehicle.registration_expiry) : null,
+                                                        insurance_expiry: vehicle.insurance_expiry ? dayjs(vehicle.insurance_expiry) : null,
+                                                        inspection_expiry: vehicle.inspection_expiry ? dayjs(vehicle.inspection_expiry) : null,
+                                                    });
+                                                    setModalVisible(true);
+                                                }}>Edit</Button>,
+                                                <Popconfirm
+                                                    title="Delete this vehicle?"
+                                                    onConfirm={() => handleDeleteVehicle(vehicle.id)}
+                                                    okText="Delete"
+                                                    cancelText="Cancel"
+                                                >
+                                                    <Button type="text" danger icon={<Delete size={16} />}>Delete</Button>
+                                                </Popconfirm>
+                                            ]}
+                                        >
+                                            <Card.Meta
+                                                avatar={
+                                                    <Avatar
+                                                        size={40}
+                                                        style={{
+                                                            backgroundColor: vehicle.status === 'active' ? '#52c41a20' : '#fa8c1620',
+                                                            fontSize: 16
+                                                        }}
+                                                    >
+                                                        {vehicle.vehicle_type === 'car' ? '🚗' :
+                                                            vehicle.vehicle_type === 'truck' ? '🚚' :
+                                                                vehicle.vehicle_type === 'van' ? '🚐' : '🚌'}
+                                                    </Avatar>
+                                                }
+                                                title={
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span>{vehicle.vehicle_name}</span>
+                                                        <Tag color={vehicle.status === 'active' ? 'green' : 'orange'}>
+                                                            {vehicle.status.toUpperCase()}
+                                                        </Tag>
+                                                    </div>
+                                                }
+                                                description={
+                                                    <Space direction="vertical" style={{ width: '100%', fontSize: '13px' }}>
+                                                        <Text type="secondary">{vehicle.license_plate} • {vehicle.make} {vehicle.model}</Text>
+                                                        {vehicle.current_driver && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                                                                <Avatar size={24} src={vehicle.current_driver.face_photo_url}>
+                                                                    {vehicle.current_driver.full_name?.charAt(0)}
+                                                                </Avatar>
+                                                                <Text>{vehicle.current_driver.full_name}</Text>
+                                                            </div>
+                                                        )}
+                                                    </Space>
+                                                }
+                                            />
+                                        </Card>
+                                    </List.Item>
+                                )}
+                            />
+                        ) : (
+                            // Desktop Table View for Vehicles
+                            <Table
+                                columns={vehicleColumns}
+                                dataSource={vehicles.filter(v =>
+                                    !searchText ||
+                                    v.vehicle_name.toLowerCase().includes(searchText.toLowerCase()) ||
+                                    v.license_plate.toLowerCase().includes(searchText.toLowerCase()) ||
+                                    v.current_driver?.full_name?.toLowerCase().includes(searchText.toLowerCase())
+                                )}
+                                loading={loading}
+                                rowKey="id"
+                                pagination={{ pageSize: 10 }}
+                            />
+                        )}
                     </TabPane>
                     <TabPane tab="Trips" key="trips">
                         {trips.length === 0 && !loading && (
@@ -864,17 +954,73 @@ const VehicleManagementPage: React.FC = () => {
                                 style={{ marginBottom: 16 }}
                             />
                         )}
-                        <Table
-                            columns={tripColumns}
-                            dataSource={trips.filter(t =>
-                                !searchText ||
-                                t.trip_name.toLowerCase().includes(searchText.toLowerCase()) ||
-                                t.vehicle?.vehicle_name?.toLowerCase().includes(searchText.toLowerCase())
-                            )}
-                            loading={loading}
-                            rowKey="id"
-                            pagination={{ pageSize: 10 }}
-                        />
+                        {!screens.md ? (
+                            // Mobile View for Trips
+                            <List
+                                dataSource={trips.filter(t =>
+                                    !searchText ||
+                                    t.trip_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+                                    t.purpose?.toLowerCase().includes(searchText.toLowerCase())
+                                )}
+                                renderItem={(trip) => (
+                                    <List.Item>
+                                        <Card
+                                            size="small"
+                                            style={{ width: '100%' }}
+                                            actions={[
+                                                trip.status === 'scheduled' && (
+                                                    <Button type="text" style={{ color: '#1890ff' }} icon={<Play size={16} />} onClick={() => handleTripAction(trip.id, 'start')}>Start</Button>
+                                                ),
+                                                trip.status === 'in_progress' && (
+                                                    <Button type="text" style={{ color: '#52c41a' }} icon={<CheckSquare size={16} />} onClick={() => handleTripAction(trip.id, 'complete')}>Done</Button>
+                                                ),
+                                                <Button type="text" icon={<Eye size={16} />} onClick={() => {
+                                                    setSelectedTrip(trip);
+                                                    setTripDetailModalVisible(true);
+                                                }}>View</Button>
+                                            ].filter(Boolean)}
+                                        >
+                                            <Card.Meta
+                                                avatar={
+                                                    <Avatar style={{ backgroundColor: getTripStatusColor(trip.status) }}>
+                                                        <MapPin size={16} />
+                                                    </Avatar>
+                                                }
+                                                title={
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span>{trip.trip_name || 'Unnamed Trip'}</span>
+                                                        <Tag color={getTripStatusColor(trip.status)}>
+                                                            {trip.status?.replace('_', ' ').toUpperCase()}
+                                                        </Tag>
+                                                    </div>
+                                                }
+                                                description={
+                                                    <Space direction="vertical" style={{ width: '100%', fontSize: '13px' }}>
+                                                        <Text type="secondary">{trip.purpose}</Text>
+                                                        <Text style={{ fontSize: '12px' }}>
+                                                            {trip.vehicle?.vehicle_name} ({trip.vehicle?.license_plate})
+                                                        </Text>
+                                                    </Space>
+                                                }
+                                            />
+                                        </Card>
+                                    </List.Item>
+                                )}
+                            />
+                        ) : (
+                            // Desktop Table View for Trips
+                            <Table
+                                columns={tripColumns}
+                                dataSource={trips.filter(t =>
+                                    !searchText ||
+                                    t.trip_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+                                    t.purpose?.toLowerCase().includes(searchText.toLowerCase())
+                                )}
+                                loading={loading}
+                                rowKey="id"
+                                pagination={{ pageSize: 10 }}
+                            />
+                        )}
                     </TabPane>
                 </Tabs>
             </Card>
