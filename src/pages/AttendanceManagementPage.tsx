@@ -12,7 +12,6 @@ import {
   Tag,
   Row,
   Col,
-  Statistic,
   Alert,
   message,
   Modal,
@@ -28,18 +27,24 @@ import {
   DownloadOutlined,
   EyeOutlined,
   CalendarOutlined,
-  BookOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   ReloadOutlined,
-  TeamOutlined,
   BranchesOutlined,
   ApartmentOutlined
 } from '@ant-design/icons';
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
+import {
+  TrendingUp,
+  TrendingDown,
+  Users,
+  UserCheck,
+  UserX,
+  AlertCircle
+} from 'lucide-react';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -93,14 +98,6 @@ const AttendanceManagementPage: React.FC = () => {
   const [branches, setBranches] = useState<{ id: string, name: string }[]>([]);
   const [departments, setDepartments] = useState<{ id: string, name: string }[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    present: 0,
-    today: 0,
-    faceVerified: 0,
-    manual: 0,
-    activeUsers: 0
-  });
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [filters, setFilters] = useState({
@@ -114,94 +111,126 @@ const AttendanceManagementPage: React.FC = () => {
   });
 
 
-  // Fetch active users count - UPDATED
-  const fetchActiveUsers = useCallback(async () => {
+  const [todayStats, setTodayStats] = useState({
+    total: 0,
+    present: 0,
+    late: 0,
+    absent: 0,
+    punctual: 0
+  });
+
+  // Load Today's Stats (Logic from OrganizationSettingsPage)
+  const loadTodayStats = useCallback(async () => {
     try {
       const organizationId = localStorage.getItem('organization_id');
-      const branchId = localStorage.getItem('branch_id');
+      if (!organizationId) return;
+      const today = dayjs().format('YYYY-MM-DD');
 
-      if (!organizationId) {
-        console.warn('No organization_id found in localStorage');
-        return 0;
-      }
-
-      let query = supabase
+      // Get all users
+      const { data: users, error: usersError } = await supabase
         .from('users')
-        .select('*', { count: 'exact', head: true })
+        .select('id') // Only need count really, but logic uses length
         .eq('organization_id', organizationId)
         .eq('is_active', true);
 
-      if (branchId) {
-        query = query.eq('branch_id', branchId);
-      }
+      if (usersError) throw usersError;
 
-      const { count } = await query;
-      return count || 0;
-    } catch (error) {
-      console.error('Error fetching active users:', error);
-      return 0;
+      const totalUsers = users?.length || 0;
+
+      // Get today's attendance
+      const { data: attendance, error: attendanceError } = await supabase
+        .from('attendance')
+        .select('clock_in')
+        .eq('organization_id', organizationId)
+        .eq('date', today);
+
+      if (attendanceError) throw attendanceError;
+
+      const presentCount = attendance?.length || 0;
+      const absentCount = totalUsers - presentCount;
+
+      // Calculate late and punctual based on resume time
+      const org = await supabase
+        .from('organizations')
+        .select('settings')
+        .eq('id', organizationId)
+        .single();
+
+      const resumeTime = (org.data?.settings as any)?.resume_time || '09:00';
+      const lateThreshold = (org.data?.settings as any)?.late_threshold_minutes || 15;
+
+      let lateCount = 0;
+      let punctualCount = 0;
+
+      attendance?.forEach((record: any) => {
+        if (record.clock_in) {
+          const clockInTime = dayjs(record.clock_in);
+          const resumeDateTime = dayjs(`${today} ${resumeTime}`);
+          const lateThresholdTime = resumeDateTime.add(lateThreshold, 'minute');
+
+          if (clockInTime.isAfter(lateThresholdTime)) {
+            lateCount++;
+          } else {
+            punctualCount++;
+          }
+        }
+      });
+
+      setTodayStats({
+        total: totalUsers,
+        present: presentCount,
+        late: lateCount,
+        absent: absentCount,
+        punctual: punctualCount
+      });
+
+    } catch (error: any) {
+      console.error('Error loading today stats:', error);
     }
   }, []);
 
-  // Calculate statistics
-  const calculateStats = useCallback(async (data: AttendanceRecord[]) => {
-    const today = dayjs().format('YYYY-MM-DD');
-    const present = data.filter(record => record.status === 'present').length;
-    const todayCount = data.filter(record => record.date === today).length;
-    const faceVerified = data.filter(record => record.verification_method === 'face').length;
-    const manual = data.filter(record => record.verification_method === 'manual').length;
-    const activeUsers = await fetchActiveUsers();
 
-    setStats({
-      total: data.length,
-      present,
-      today: todayCount,
-      faceVerified,
-      manual,
-      activeUsers
-    });
-  }, [fetchActiveUsers]);
 
-// Fetch attendance data for the current device's branch
-const fetchAttendanceData = useCallback(async () => {
-  setLoading(true);
-  try {
-    // Get device info from localStorage or device registration
-    const deviceInfoStr = localStorage.getItem('device_info');
-    let deviceInfo: any = null;
-    
-    if (deviceInfoStr) {
-      try {
-        deviceInfo = JSON.parse(deviceInfoStr);
-      } catch (e) {
-        console.error('Error parsing device info:', e);
+  // Fetch attendance data for the current device's branch
+  const fetchAttendanceData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Get device info from localStorage or device registration
+      const deviceInfoStr = localStorage.getItem('device_info');
+      let deviceInfo: any = null;
+
+      if (deviceInfoStr) {
+        try {
+          deviceInfo = JSON.parse(deviceInfoStr);
+        } catch (e) {
+          console.error('Error parsing device info:', e);
+        }
       }
-    }
 
-    // If no device info in localStorage, try to get current device
-    if (!deviceInfo) {
-      const { data: currentDevice } = await supabase
-        .from('devices')
-        .select('id, branch_id, organization_id, device_name')
-        .eq('device_code', localStorage.getItem('device_code') || '')
-        .single();
-      
-      if (currentDevice) {
-        deviceInfo = currentDevice;
-        localStorage.setItem('device_info', JSON.stringify(currentDevice));
+      // If no device info in localStorage, try to get current device
+      if (!deviceInfo) {
+        const { data: currentDevice } = await supabase
+          .from('devices')
+          .select('id, branch_id, organization_id, device_name')
+          .eq('device_code', localStorage.getItem('device_code') || '')
+          .single();
+
+        if (currentDevice) {
+          deviceInfo = currentDevice;
+          localStorage.setItem('device_info', JSON.stringify(currentDevice));
+        }
       }
-    }
 
-    console.log('📊 Fetching attendance data for device:', deviceInfo);
-    
-    if (!deviceInfo?.branch_id) {
-      throw new Error('Device not registered to a branch. Please setup device first.');
-    }
+      console.log('📊 Fetching attendance data for device:', deviceInfo);
 
-    // Fetch attendance for this device's branch
-    let query = supabase
-      .from('attendance')
-      .select(`
+      if (!deviceInfo?.branch_id) {
+        throw new Error('Device not registered to a branch. Please setup device first.');
+      }
+
+      // Fetch attendance for this device's branch
+      let query = supabase
+        .from('attendance')
+        .select(`
         *,
         user:users!attendance_user_id_fkey(
           id, 
@@ -217,181 +246,179 @@ const fetchAttendanceData = useCallback(async () => {
           department_id
         )
       `)
-      .eq('branch_id', deviceInfo.branch_id)
-      .order('created_at', { ascending: false })
-      .limit(1000);
-
-    const { data: attendance, error: attendanceError } = await query;
-
-    if (attendanceError) {
-      console.error('Attendance query error:', attendanceError);
-      
-      // Fallback: Try without JOIN
-      console.log('🔄 Trying fallback query without JOIN...');
-      const { data: simpleData } = await supabase
-        .from('attendance')
-        .select('*')
         .eq('branch_id', deviceInfo.branch_id)
         .order('created_at', { ascending: false })
         .limit(1000);
 
-      if (simpleData) {
-        // Manually fetch user data
-        const enhancedData = await Promise.all(
-          simpleData.map(async (record) => {
-            const { data: userData } = await supabase
-              .from('users')
-              .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
-              .eq('id', record.user_id)
-              .single();
+      const { data: attendance, error: attendanceError } = await query;
 
-            return {
-              ...record,
-              user: userData || null
-            } as AttendanceRecord;
-          })
-        );
+      if (attendanceError) {
+        console.error('Attendance query error:', attendanceError);
 
-        setAttendanceData(enhancedData);
-        setFilteredData(enhancedData);
-        await calculateStats(enhancedData);
-        console.log(`✅ Loaded ${enhancedData.length} attendance records`);
+        // Fallback: Try without JOIN
+        console.log('🔄 Trying fallback query without JOIN...');
+        const { data: simpleData } = await supabase
+          .from('attendance')
+          .select('*')
+          .eq('branch_id', deviceInfo.branch_id)
+          .order('created_at', { ascending: false })
+          .limit(1000);
+
+        if (simpleData) {
+          // Manually fetch user data
+          const enhancedData = await Promise.all(
+            simpleData.map(async (record) => {
+              const { data: userData } = await supabase
+                .from('users')
+                .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
+                .eq('id', record.user_id)
+                .single();
+
+              return {
+                ...record,
+                user: userData || null
+              } as AttendanceRecord;
+            })
+          );
+
+          setAttendanceData(enhancedData);
+          setFilteredData(enhancedData);
+          console.log(`✅ Loaded ${enhancedData.length} attendance records`);
+        }
+      } else {
+        if (attendance) {
+          console.log(`✅ Loaded ${attendance.length} attendance records for branch ${deviceInfo.branch_id}`);
+
+          // Fix TypeScript error by properly casting the attendance data
+          const typedAttendance: AttendanceRecord[] = attendance.map((record: any) => {
+            const attendanceRecord: AttendanceRecord = {
+              id: record.id,
+              user_id: record.user_id,
+              device_id: record.device_id,
+              organization_id: record.organization_id,
+              branch_id: record.branch_id,
+              department_id: record.department_id,
+              shift_id: record.shift_id,
+              date: record.date,
+              clock_in: record.clock_in,
+              clock_out: record.clock_out,
+              status: record.status,
+              confidence_score: record.confidence_score,
+              face_match_score: record.face_match_score,
+              photo_url: record.photo_url,
+              verification_method: record.verification_method,
+              synced: record.synced,
+              created_at: record.created_at,
+              updated_at: record.updated_at,
+              user: record.user ? {
+                id: record.user.id,
+                staff_id: record.user.staff_id,
+                full_name: record.user.full_name,
+                email: record.user.email,
+                phone: record.user.phone,
+                user_role: record.user.user_role,
+                enrollment_status: record.user.enrollment_status,
+                is_active: record.user.is_active,
+                organization_id: record.user.organization_id,
+                branch_id: record.user.branch_id,
+                department_id: record.user.department_id,
+                // Add optional fields with null defaults
+                face_embedding_stored: record.user.face_embedding_stored ?? null,
+                face_enrolled_at: record.user.face_enrolled_at ?? null,
+                created_at: record.user.created_at ?? null,
+                updated_at: record.user.updated_at ?? null
+              } : undefined
+            };
+            return attendanceRecord;
+          });
+
+          setAttendanceData(typedAttendance);
+          setFilteredData(typedAttendance);
+        }
       }
-    } else {
-      if (attendance) {
-        console.log(`✅ Loaded ${attendance.length} attendance records for branch ${deviceInfo.branch_id}`);
-        
-        // Fix TypeScript error by properly casting the attendance data
-        const typedAttendance: AttendanceRecord[] = attendance.map((record: any) => {
-          const attendanceRecord: AttendanceRecord = {
-            id: record.id,
-            user_id: record.user_id,
-            device_id: record.device_id,
-            organization_id: record.organization_id,
-            branch_id: record.branch_id,
-            department_id: record.department_id,
-            shift_id: record.shift_id,
-            date: record.date,
-            clock_in: record.clock_in,
-            clock_out: record.clock_out,
-            status: record.status,
-            confidence_score: record.confidence_score,
-            face_match_score: record.face_match_score,
-            photo_url: record.photo_url,
-            verification_method: record.verification_method,
-            synced: record.synced,
-            created_at: record.created_at,
-            updated_at: record.updated_at,
-            user: record.user ? {
-              id: record.user.id,
-              staff_id: record.user.staff_id,
-              full_name: record.user.full_name,
-              email: record.user.email,
-              phone: record.user.phone,
-              user_role: record.user.user_role,
-              enrollment_status: record.user.enrollment_status,
-              is_active: record.user.is_active,
-              organization_id: record.user.organization_id,
-              branch_id: record.user.branch_id,
-              department_id: record.user.department_id,
-              // Add optional fields with null defaults
-              face_embedding_stored: record.user.face_embedding_stored ?? null,
-              face_enrolled_at: record.user.face_enrolled_at ?? null,
-              created_at: record.user.created_at ?? null,
-              updated_at: record.user.updated_at ?? null
-            } : undefined
-          };
-          return attendanceRecord;
-        });
-        
-        setAttendanceData(typedAttendance);
-        setFilteredData(typedAttendance);
-        await calculateStats(typedAttendance);
+
+      // Fetch branches for filter (only current branch)
+      const { data: branchesData } = await supabase
+        .from('branches')
+        .select('id, name')
+        .eq('id', deviceInfo.branch_id);
+
+      if (branchesData) {
+        console.log(`✅ Loaded current branch:`, branchesData[0]?.name);
+        setBranches(branchesData);
       }
+
+      // Fetch departments for filter (only for current branch)
+      const { data: departmentsData } = await supabase
+        .from('departments')
+        .select('id, name')
+        .eq('branch_id', deviceInfo.branch_id)
+        .eq('is_active', true);
+
+      if (departmentsData) {
+        console.log(`✅ Loaded ${departmentsData.length} departments for current branch`);
+        setDepartments(departmentsData);
+      }
+
+      // Fetch users for filter (only for current branch)
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
+        .eq('branch_id', deviceInfo.branch_id)
+        .eq('is_active', true);
+
+      if (usersData) {
+        console.log(`✅ Loaded ${usersData.length} active users for current branch`);
+
+        // Fix UserRecord type casting with all required fields
+        const typedUsers: UserRecord[] = usersData.map((user: any) => ({
+          id: user.id,
+          staff_id: user.staff_id,
+          full_name: user.full_name,
+          email: user.email,
+          phone: user.phone,
+          user_role: user.user_role,
+          enrollment_status: user.enrollment_status,
+          is_active: user.is_active,
+          organization_id: user.organization_id,
+          branch_id: user.branch_id,
+          department_id: user.department_id,
+          // Add missing optional fields
+          face_embedding_stored: user.face_embedding_stored ?? null,
+          face_enrolled_at: user.face_enrolled_at ?? null,
+          created_at: user.created_at ?? null,
+          updated_at: user.updated_at ?? null
+        }));
+
+        setUsers(typedUsers);
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error fetching attendance:', error);
+
+      let errorMessage = 'Failed to fetch attendance data';
+      if (error.message.includes('Device not registered')) {
+        errorMessage = 'Device not setup. Please register device first.';
+      } else if (error.message.includes('JWT')) {
+        errorMessage = 'Authentication error. Please restart the app.';
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Network error. Please check connection.';
+      }
+
+      message.error(errorMessage);
+
+      // Check if we need to redirect to device setup
+      if (error.message.includes('Device not registered')) {
+        setTimeout(() => window.location.href = '/device-setup', 2000);
+      }
+
+      setAttendanceData([]);
+      setFilteredData([]);
+
+    } finally {
+      setLoading(false);
     }
-
-    // Fetch branches for filter (only current branch)
-    const { data: branchesData } = await supabase
-      .from('branches')
-      .select('id, name')
-      .eq('id', deviceInfo.branch_id);
-
-    if (branchesData) {
-      console.log(`✅ Loaded current branch:`, branchesData[0]?.name);
-      setBranches(branchesData);
-    }
-
-    // Fetch departments for filter (only for current branch)
-    const { data: departmentsData } = await supabase
-      .from('departments')
-      .select('id, name')
-      .eq('branch_id', deviceInfo.branch_id)
-      .eq('is_active', true);
-
-    if (departmentsData) {
-      console.log(`✅ Loaded ${departmentsData.length} departments for current branch`);
-      setDepartments(departmentsData);
-    }
-
-    // Fetch users for filter (only for current branch)
-    const { data: usersData } = await supabase
-      .from('users')
-      .select('id, staff_id, full_name, email, phone, user_role, enrollment_status, is_active, organization_id, branch_id, department_id')
-      .eq('branch_id', deviceInfo.branch_id)
-      .eq('is_active', true);
-
-    if (usersData) {
-      console.log(`✅ Loaded ${usersData.length} active users for current branch`);
-      
-      // Fix UserRecord type casting with all required fields
-      const typedUsers: UserRecord[] = usersData.map((user: any) => ({
-        id: user.id,
-        staff_id: user.staff_id,
-        full_name: user.full_name,
-        email: user.email,
-        phone: user.phone,
-        user_role: user.user_role,
-        enrollment_status: user.enrollment_status,
-        is_active: user.is_active,
-        organization_id: user.organization_id,
-        branch_id: user.branch_id,
-        department_id: user.department_id,
-        // Add missing optional fields
-        face_embedding_stored: user.face_embedding_stored ?? null,
-        face_enrolled_at: user.face_enrolled_at ?? null,
-        created_at: user.created_at ?? null,
-        updated_at: user.updated_at ?? null
-      }));
-      
-      setUsers(typedUsers);
-    }
-
-  } catch (error: any) {
-    console.error('❌ Error fetching attendance:', error);
-    
-    let errorMessage = 'Failed to fetch attendance data';
-    if (error.message.includes('Device not registered')) {
-      errorMessage = 'Device not setup. Please register device first.';
-    } else if (error.message.includes('JWT')) {
-      errorMessage = 'Authentication error. Please restart the app.';
-    } else if (error.message.includes('network')) {
-      errorMessage = 'Network error. Please check connection.';
-    }
-    
-    message.error(errorMessage);
-    
-    // Check if we need to redirect to device setup
-    if (error.message.includes('Device not registered')) {
-      setTimeout(() => window.location.href = '/device-setup', 2000);
-    }
-    
-    setAttendanceData([]);
-    setFilteredData([]);
-    
-  } finally {
-    setLoading(false);
-  }
-}, [calculateStats]);
+  }, []);
 
 
   // Apply filters
@@ -444,8 +471,7 @@ const fetchAttendanceData = useCallback(async () => {
     }
 
     setFilteredData(filtered);
-    calculateStats(filtered);
-  }, [attendanceData, filters, calculateStats]);
+  }, [attendanceData, filters]);
 
   // Reset filters
   const resetFilters = useCallback(() => {
@@ -459,8 +485,7 @@ const fetchAttendanceData = useCallback(async () => {
       dateRange: null
     });
     setFilteredData(attendanceData);
-    calculateStats(attendanceData);
-  }, [attendanceData, calculateStats]);
+  }, [attendanceData]);
 
   // View record details
   const viewRecordDetails = (record: AttendanceRecord) => {
@@ -661,7 +686,8 @@ const fetchAttendanceData = useCallback(async () => {
   // Initialize on component mount
   useEffect(() => {
     fetchAttendanceData();
-  }, [fetchAttendanceData]);
+    loadTodayStats();
+  }, [fetchAttendanceData, loadTodayStats]);
 
   // Apply filters whenever they change
   useEffect(() => {
@@ -677,59 +703,172 @@ const fetchAttendanceData = useCallback(async () => {
         View, search, and filter attendance records for all users
       </Text>
 
-      {/* Statistics Cards */}
-      <Row gutter={[16, 16]} style={{ marginTop: 24, marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={4}>
-          <Card size="small">
-            <Statistic
-              title="Total Records"
-              value={stats.total}
-              prefix={<BookOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={4}>
-          <Card size="small">
-            <Statistic
-              title="Present"
-              value={stats.present}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={4}>
-          <Card size="small">
-            <Statistic
-              title="Today's Records"
-              value={stats.today}
-              prefix={<CalendarOutlined />}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card size="small">
-            <Statistic
-              title="Face Verified"
-              value={stats.faceVerified}
-              suffix={`/ ${stats.total}`}
-              prefix={<TeamOutlined />}
-              valueStyle={{ color: '#fa8c16' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card size="small">
-            <Statistic
-              title="Active Users"
-              value={stats.activeUsers}
-              valueStyle={{ color: '#13c2c2' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      {/* Today's Stats - Compact Circular Cards */}
+      <div style={{
+        display: 'flex',
+        gap: '12px',
+        marginBottom: 24,
+        flexWrap: 'wrap',
+        justifyContent: 'center'
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '12px',
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: 'var(--shadow-sm)',
+          minWidth: '100px'
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 8
+          }}>
+            <Users size={28} color="#fff" />
+          </div>
+          <Text strong style={{ fontSize: 24, color: '#667eea' }}>{todayStats.total}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>Total Users</Text>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '12px',
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: 'var(--shadow-sm)',
+          minWidth: '100px'
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #52c41a 0%, #73d13d 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 8
+          }}>
+            <UserCheck size={28} color="#fff" />
+          </div>
+          <Text strong style={{ fontSize: 24, color: '#52c41a' }}>{todayStats.present}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>Present</Text>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '12px',
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: 'var(--shadow-sm)',
+          minWidth: '100px'
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 8
+          }}>
+            <TrendingUp size={28} color="#fff" />
+          </div>
+          <Text strong style={{ fontSize: 24, color: '#1890ff' }}>{todayStats.punctual}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>Punctual</Text>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '12px',
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: 'var(--shadow-sm)',
+          minWidth: '100px'
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #fa8c16 0%, #ffa940 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 8
+          }}>
+            <TrendingDown size={28} color="#fff" />
+          </div>
+          <Text strong style={{ fontSize: 24, color: '#fa8c16' }}>{todayStats.late}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>Late</Text>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '12px',
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: 'var(--shadow-sm)',
+          minWidth: '100px'
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 8
+          }}>
+            <UserX size={28} color="#fff" />
+          </div>
+          <Text strong style={{ fontSize: 24, color: '#ff4d4f' }}>{todayStats.absent}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>Absent</Text>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '12px',
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: 'var(--shadow-sm)',
+          minWidth: '100px'
+        }}>
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #13c2c2 0%, #5cdbd3 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 8
+          }}>
+            <AlertCircle size={28} color="#fff" />
+          </div>
+          <Text strong style={{ fontSize: 24, color: '#13c2c2' }}>
+            {todayStats.total > 0 ? Math.round((todayStats.present / todayStats.total) * 100) : 0}%
+          </Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>Attendance Rate</Text>
+        </div>
+      </div>
 
       {/* Filters Card */}
       <Card

@@ -20,13 +20,7 @@ import {
 import {
     Settings,
     ArrowLeft,
-    Save,
-    TrendingUp,
-    TrendingDown,
-    Users,
-    UserCheck,
-    UserX,
-    AlertCircle
+    Save
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
@@ -38,13 +32,6 @@ const OrganizationSettingsPage: React.FC = () => {
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [organization, setOrganization] = useState<any>(null);
-    const [todayStats, setTodayStats] = useState({
-        total: 0,
-        present: 0,
-        late: 0,
-        absent: 0,
-        punctual: 0
-    });
     const [lateUsers, setLateUsers] = useState<any[]>([]);
 
     useEffect(() => {
@@ -93,7 +80,7 @@ const OrganizationSettingsPage: React.FC = () => {
             const today = dayjs().format('YYYY-MM-DD');
 
             // Get all users
-            const { data: users, error: usersError } = await supabase
+            const { error: usersError } = await supabase
                 .from('users')
                 .select('id, full_name, staff_id, student_id')
                 .eq('organization_id', organizationId)
@@ -101,7 +88,6 @@ const OrganizationSettingsPage: React.FC = () => {
 
             if (usersError) throw usersError;
 
-            const totalUsers = users?.length || 0;
 
             // Get today's attendance
             const { data: attendance, error: attendanceError } = await supabase
@@ -115,8 +101,6 @@ const OrganizationSettingsPage: React.FC = () => {
 
             if (attendanceError) throw attendanceError;
 
-            const presentCount = attendance?.length || 0;
-            const absentCount = totalUsers - presentCount;
 
             // Calculate late and punctual based on resume time
             const org = await supabase
@@ -128,8 +112,6 @@ const OrganizationSettingsPage: React.FC = () => {
             const resumeTime = (org.data?.settings as any)?.resume_time || '09:00';
             const lateThreshold = (org.data?.settings as any)?.late_threshold_minutes || 15;
 
-            let lateCount = 0;
-            let punctualCount = 0;
             const lateUsersList: any[] = [];
 
             attendance?.forEach((record: any) => {
@@ -139,23 +121,12 @@ const OrganizationSettingsPage: React.FC = () => {
                     const lateThresholdTime = resumeDateTime.add(lateThreshold, 'minute');
 
                     if (clockInTime.isAfter(lateThresholdTime)) {
-                        lateCount++;
                         lateUsersList.push({
                             ...record,
                             minutesLate: clockInTime.diff(resumeDateTime, 'minute')
                         });
-                    } else {
-                        punctualCount++;
                     }
                 }
-            });
-
-            setTodayStats({
-                total: totalUsers,
-                present: presentCount,
-                late: lateCount,
-                absent: absentCount,
-                punctual: punctualCount
             });
 
             setLateUsers(lateUsersList);
@@ -263,172 +234,7 @@ const OrganizationSettingsPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Today's Stats - Compact Circular Cards */}
-            <div style={{
-                display: 'flex',
-                gap: '12px',
-                marginBottom: 24,
-                flexWrap: 'wrap',
-                justifyContent: 'center'
-            }}>
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    padding: '12px',
-                    background: 'white',
-                    borderRadius: '12px',
-                    boxShadow: 'var(--shadow-sm)',
-                    minWidth: '100px'
-                }}>
-                    <div style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 8
-                    }}>
-                        <Users size={28} color="#fff" />
-                    </div>
-                    <Text strong style={{ fontSize: 24, color: '#667eea' }}>{todayStats.total}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Total</Text>
-                </div>
 
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    padding: '12px',
-                    background: 'white',
-                    borderRadius: '12px',
-                    boxShadow: 'var(--shadow-sm)',
-                    minWidth: '100px'
-                }}>
-                    <div style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #52c41a 0%, #73d13d 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 8
-                    }}>
-                        <UserCheck size={28} color="#fff" />
-                    </div>
-                    <Text strong style={{ fontSize: 24, color: '#52c41a' }}>{todayStats.present}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Present</Text>
-                </div>
-
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    padding: '12px',
-                    background: 'white',
-                    borderRadius: '12px',
-                    boxShadow: 'var(--shadow-sm)',
-                    minWidth: '100px'
-                }}>
-                    <div style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #1890ff 0%, #36cfc9 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 8
-                    }}>
-                        <TrendingUp size={28} color="#fff" />
-                    </div>
-                    <Text strong style={{ fontSize: 24, color: '#1890ff' }}>{todayStats.punctual}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Punctual</Text>
-                </div>
-
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    padding: '12px',
-                    background: 'white',
-                    borderRadius: '12px',
-                    boxShadow: 'var(--shadow-sm)',
-                    minWidth: '100px'
-                }}>
-                    <div style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #fa8c16 0%, #ffa940 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 8
-                    }}>
-                        <TrendingDown size={28} color="#fff" />
-                    </div>
-                    <Text strong style={{ fontSize: 24, color: '#fa8c16' }}>{todayStats.late}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Late</Text>
-                </div>
-
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    padding: '12px',
-                    background: 'white',
-                    borderRadius: '12px',
-                    boxShadow: 'var(--shadow-sm)',
-                    minWidth: '100px'
-                }}>
-                    <div style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 8
-                    }}>
-                        <UserX size={28} color="#fff" />
-                    </div>
-                    <Text strong style={{ fontSize: 24, color: '#ff4d4f' }}>{todayStats.absent}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Absent</Text>
-                </div>
-
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    padding: '12px',
-                    background: 'white',
-                    borderRadius: '12px',
-                    boxShadow: 'var(--shadow-sm)',
-                    minWidth: '100px'
-                }}>
-                    <div style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #13c2c2 0%, #5cdbd3 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 8
-                    }}>
-                        <AlertCircle size={28} color="#fff" />
-                    </div>
-                    <Text strong style={{ fontSize: 24, color: '#13c2c2' }}>
-                        {todayStats.total > 0 ? Math.round((todayStats.present / todayStats.total) * 100) : 0}%
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Rate</Text>
-                </div>
-            </div>
 
             {/* Late Users Table */}
             {lateUsers.length > 0 && (

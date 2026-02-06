@@ -137,7 +137,7 @@ const VehicleManagementPage: React.FC = () => {
             }
         `;
         document.head.appendChild(style);
-        
+
         return () => {
             document.head.removeChild(style);
         };
@@ -147,28 +147,57 @@ const VehicleManagementPage: React.FC = () => {
     const loadVehicles = useCallback(async () => {
         try {
             setLoading(true);
-            
-            // Get authenticated user
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                message.error('Please log in to access this page');
-                navigate('/');
+
+            // Get organization from local storage
+            const organizationId = localStorage.getItem('organization_id');
+
+            if (!organizationId) {
+                // Try to get from user if not in local storage (fallback)
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('organization_id')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (userData?.organization_id) {
+                        // found it
+                    } else {
+                        message.error('No organization found');
+                        return;
+                    }
+                } else {
+                    message.error('No organization found. Please register device.');
+                    return;
+                }
+            }
+
+            // Using the organizationId from local storage or fallback logic would be complex. 
+            // Let's simplify: Prefer local storage, if not, try auth user.
+
+            let targetOrgId = localStorage.getItem('organization_id');
+
+            if (!targetOrgId) {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('organization_id')
+                        .eq('id', user.id)
+                        .single();
+                    targetOrgId = userData?.organization_id;
+                }
+            }
+
+            if (!targetOrgId) {
+                // message.error('Organization ID missing');
+                // navigate('/'); 
+                // If this page "shouldn't need login", maybe just show empty or return
                 return;
             }
 
-            // Get user's organization from users table
-            const { data: userData } = await supabase
-                .from('users')
-                .select('organization_id, branch_id')
-                .eq('id', user.id)
-                .single();
-
-            if (!userData?.organization_id) {
-                message.error('User is not associated with an organization');
-                return;
-            }
-
-            console.log('Loading vehicles for org:', userData.organization_id);
+            console.log('Loading vehicles for org:', targetOrgId);
 
             const { data, error } = await supabase
                 .from('vehicles')
@@ -185,7 +214,7 @@ const VehicleManagementPage: React.FC = () => {
                         is_active
                     )
                 `)
-                .eq('organization_id', userData.organization_id)
+                .eq('organization_id', targetOrgId)
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -196,11 +225,11 @@ const VehicleManagementPage: React.FC = () => {
 
             console.log('Vehicles loaded:', data?.length);
             setVehicles(data as Vehicle[] || []);
-            
+
             // Load stats
             const totalVehicles = data?.length || 0;
             const activeVehicles = data?.filter(v => v.status === 'active').length || 0;
-            
+
             // Count expiring documents
             const today = dayjs();
             let expiringDocs = 0;
@@ -220,7 +249,7 @@ const VehicleManagementPage: React.FC = () => {
             const { data: tripsData } = await supabase
                 .from('vehicle_trips')
                 .select('status')
-                .eq('organization_id', userData.organization_id);
+                .eq('organization_id', targetOrgId);
 
             const totalTrips = tripsData?.length || 0;
             const activeTrips = tripsData?.filter(t => t.status === 'in_progress').length || 0;
@@ -237,7 +266,7 @@ const VehicleManagementPage: React.FC = () => {
             const { data: usersData } = await supabase
                 .from('users')
                 .select('id, full_name, email, phone, user_role, is_active, staff_id, face_photo_url')
-                .eq('organization_id', userData.organization_id)
+                .eq('organization_id', targetOrgId)
                 .eq('is_active', true)
                 .in('user_role', ['staff', 'admin', 'supervisor']);
 
@@ -249,22 +278,27 @@ const VehicleManagementPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [navigate]);
+    }, []);
 
     // Load trips
     const loadTrips = useCallback(async () => {
         try {
-            // Get authenticated user's organization
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            // Get organization from local storage or auth
+            let targetOrgId = localStorage.getItem('organization_id');
 
-            const { data: userData } = await supabase
-                .from('users')
-                .select('organization_id')
-                .eq('id', user.id)
-                .single();
+            if (!targetOrgId) {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('organization_id')
+                        .eq('id', user.id)
+                        .single();
+                    targetOrgId = userData?.organization_id;
+                }
+            }
 
-            if (!userData?.organization_id) return;
+            if (!targetOrgId) return;
 
             const { data, error } = await supabase
                 .from('vehicle_trips')
@@ -273,7 +307,7 @@ const VehicleManagementPage: React.FC = () => {
                     driver:users!vehicle_trips_driver_id_fkey(full_name, phone),
                     vehicle:vehicles!vehicle_trips_vehicle_id_fkey(vehicle_name, license_plate)
                 `)
-                .eq('organization_id', userData.organization_id)
+                .eq('organization_id', targetOrgId)
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -297,29 +331,22 @@ const VehicleManagementPage: React.FC = () => {
     const handleVehicleSubmit = async (values: any) => {
         try {
             setLoading(true);
-            
-            // Get authenticated user
+
+            // Use device org/branch logic
+            const organizationId = localStorage.getItem('organization_id');
+            const branchId = localStorage.getItem('branch_id');
+
+            // Get optional user text for auditing
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                message.error('User not authenticated');
-                return;
-            }
 
-            // Get user's organization
-            const { data: userData } = await supabase
-                .from('users')
-                .select('organization_id, branch_id')
-                .eq('id', user.id)
-                .single();
-
-            if (!userData?.organization_id) {
-                message.error('User is not associated with an organization');
+            if (!organizationId) {
+                message.error('Organization info missing. Please register device.');
                 return;
             }
 
             const vehicleData = {
-                organization_id: userData.organization_id,
-                branch_id: userData.branch_id,
+                organization_id: organizationId,
+                branch_id: branchId || null,
                 vehicle_name: values.vehicle_name,
                 license_plate: values.license_plate,
                 vehicle_type: values.vehicle_type,
@@ -334,8 +361,8 @@ const VehicleManagementPage: React.FC = () => {
                 current_driver_id: values.current_driver_id || null,
                 status: values.status || 'active',
                 mileage: values.mileage || 0,
-                created_by: user.id,
-                updated_by: user.id
+                created_by: user?.id || null,
+                updated_by: user?.id || null
             };
 
             if (selectedVehicle) {
@@ -389,28 +416,20 @@ const VehicleManagementPage: React.FC = () => {
     const handleTripSubmit = async (values: any) => {
         try {
             setLoading(true);
-            
+
             // Get authenticated user's organization
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                message.error('User not authenticated');
-                return;
-            }
+            // Use device org/branch logic
+            const organizationId = localStorage.getItem('organization_id');
+            const branchId = localStorage.getItem('branch_id');
 
-            const { data: userData } = await supabase
-                .from('users')
-                .select('organization_id, branch_id')
-                .eq('id', user.id)
-                .single();
-
-            if (!userData?.organization_id) {
-                message.error('User is not associated with an organization');
+            if (!organizationId) {
+                message.error('Organization ID missing');
                 return;
             }
 
             const tripData = {
-                organization_id: userData.organization_id,
-                branch_id: userData.branch_id,
+                organization_id: organizationId,
+                branch_id: branchId || null,
                 vehicle_id: values.vehicle_id,
                 driver_id: values.driver_id,
                 trip_name: values.trip_name,
