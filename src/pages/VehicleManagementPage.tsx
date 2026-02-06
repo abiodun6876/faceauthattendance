@@ -398,7 +398,11 @@ const VehicleManagementPage: React.FC = () => {
             loadVehicles();
         } catch (error: any) {
             console.error('Error saving vehicle:', error);
-            message.error(`Failed to save vehicle: ${error.message}`);
+            if (error.code === '23505') {
+                message.error('A vehicle with this license plate already exists.');
+            } else {
+                message.error(`Failed to save vehicle: ${error.message}`);
+            }
         } finally {
             setLoading(false);
         }
@@ -666,6 +670,20 @@ const VehicleManagementPage: React.FC = () => {
                     <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
                         <Text>{record.vehicle?.vehicle_name || 'Unknown Vehicle'} ({record.vehicle?.license_plate || '-'})</Text>
                     </div>
+                </div>
+            ),
+        },
+        {
+            title: 'Schedule',
+            key: 'schedule',
+            render: (record: Trip) => (
+                <div style={{ fontSize: 13 }}>
+                    {record.scheduled_start_time ? (
+                        <Space direction="vertical" size={0}>
+                            <Text strong>{dayjs(record.scheduled_start_time).format('MMM D')}</Text>
+                            <Text type="secondary">{dayjs(record.scheduled_start_time).format('h:mm A')}</Text>
+                        </Space>
+                    ) : '-'}
                 </div>
             ),
         },
@@ -1019,6 +1037,12 @@ const VehicleManagementPage: React.FC = () => {
                                                         <Text style={{ fontSize: '12px' }}>
                                                             {trip.vehicle?.vehicle_name} ({trip.vehicle?.license_plate})
                                                         </Text>
+                                                        {trip.scheduled_start_time && (
+                                                            <Space size={4} style={{ fontSize: '12px', color: '#666' }}>
+                                                                <Calendar size={12} />
+                                                                {dayjs(trip.scheduled_start_time).format('MMM D, h:mm A')}
+                                                            </Space>
+                                                        )}
                                                     </Space>
                                                 }
                                             />
