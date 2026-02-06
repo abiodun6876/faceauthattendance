@@ -74,7 +74,7 @@ const Dashboard = () => {
   const testConnection = async () => {
     try {
       console.log('Testing database connection...');
-      
+
       // Try to query organizations table
       const { data, error } = await supabase
         .from('organizations') // ✅ This table exists
@@ -83,23 +83,23 @@ const Dashboard = () => {
 
       if (error) {
         console.error('Connection test failed:', error);
-        setConnectionTest({ 
-          success: false, 
-          message: `Database error: ${error.message}` 
+        setConnectionTest({
+          success: false,
+          message: `Database error: ${error.message}`
         });
         return;
       }
 
       console.log('✅ Connection test passed');
-      setConnectionTest({ 
-        success: true, 
-        message: `Connected successfully. Found ${data?.length || 0} organizations.` 
+      setConnectionTest({
+        success: true,
+        message: `Connected successfully. Found ${data?.length || 0} organizations.`
       });
     } catch (error: any) {
       console.error('Connection test exception:', error);
-      setConnectionTest({ 
-        success: false, 
-        message: `Connection failed: ${error.message}` 
+      setConnectionTest({
+        success: false,
+        message: `Connection failed: ${error.message}`
       });
     }
   };
@@ -184,7 +184,7 @@ const Dashboard = () => {
 
         if (!attendanceError && attendanceData) {
           todayPresent = attendanceData.length;
-          
+
           // Calculate late arrivals (if shift info is available)
           // This is a simplified calculation
           attendanceData.forEach(record => {
@@ -268,7 +268,7 @@ const Dashboard = () => {
   return (
     <div style={{ padding: '24px' }}>
       <Title level={2}>Dashboard</Title>
-      
+
       {error && (
         <Alert
           message="Error Loading Dashboard"
@@ -295,13 +295,13 @@ const Dashboard = () => {
       )}
 
       {/* Connection Test Section */}
-      <Card 
-        title="Database Connection Test" 
+      <Card
+        title="Database Connection Test"
         style={{ marginBottom: '24px' }}
         extra={
-          <Button 
-            type="primary" 
-            icon={<ReloadOutlined />} 
+          <Button
+            type="primary"
+            icon={<ReloadOutlined />}
             onClick={testConnection}
             loading={loading}
           >
@@ -338,10 +338,10 @@ const Dashboard = () => {
             </Card>
           </Col>
         </Row>
-        
+
         <div style={{ marginTop: '16px', textAlign: 'center' }}>
-          <Button 
-            type="dashed" 
+          <Button
+            type="dashed"
             onClick={handleTestInsert}
             style={{ marginRight: '8px' }}
           >
@@ -367,7 +367,7 @@ const Dashboard = () => {
             <Text type="secondary">Active users in system</Text>
           </Card>
         </Col>
-        
+
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
@@ -379,7 +379,7 @@ const Dashboard = () => {
             <Text type="secondary">Users with biometrics</Text>
           </Card>
         </Col>
-        
+
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
@@ -391,7 +391,7 @@ const Dashboard = () => {
             <Text type="secondary">Attendance sessions today</Text>
           </Card>
         </Col>
-        
+
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
@@ -410,7 +410,7 @@ const Dashboard = () => {
       <Card title="Today's Attendance" style={{ marginTop: '24px' }}>
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={8}>
-            <Card size="small" style={{ background: '#f6ffed', borderColor: '#b7eb8f' }}>
+            <Card size="small" style={{ background: 'rgba(82, 196, 26, 0.1)', borderColor: '#52c41a' }}>
               <Statistic
                 title="Present"
                 value={stats.todayAttendance.present}
@@ -420,7 +420,7 @@ const Dashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={8}>
-            <Card size="small" style={{ background: '#fff7e6', borderColor: '#ffd591' }}>
+            <Card size="small" style={{ background: 'rgba(250, 140, 22, 0.1)', borderColor: '#fa8c16' }}>
               <Statistic
                 title="Absent"
                 value={stats.todayAttendance.absent}
@@ -430,7 +430,7 @@ const Dashboard = () => {
             </Card>
           </Col>
           <Col xs={24} sm={8}>
-            <Card size="small" style={{ background: '#fff1f0', borderColor: '#ffa39e' }}>
+            <Card size="small" style={{ background: 'rgba(255, 77, 79, 0.1)', borderColor: '#ff4d4f' }}>
               <Statistic
                 title="Late"
                 value={stats.todayAttendance.late}
@@ -440,13 +440,13 @@ const Dashboard = () => {
             </Card>
           </Col>
         </Row>
-        
+
         <div style={{ marginTop: '16px' }}>
           <Text type="secondary">
             Last updated: {format(new Date(), 'PPpp')}
           </Text>
-          <Button 
-            type="link" 
+          <Button
+            type="link"
             onClick={fetchDashboardData}
             style={{ float: 'right' }}
             icon={<ReloadOutlined />}

@@ -921,13 +921,14 @@ const AttendancePage: React.FC = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--gray-50)' }}>
+    <div style={{ minHeight: '100vh', background: 'transparent' }}>
       {/* Header */}
       <div style={{
-        background: 'white',
+        background: 'rgba(255, 255, 255, 0.05)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         padding: '16px 24px',
-        borderBottom: '1px solid var(--gray-200)',
-        boxShadow: 'var(--shadow-sm)',
+        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
         marginBottom: 32
       }}>
         <Row align="middle" justify="space-between">
@@ -937,13 +938,13 @@ const AttendancePage: React.FC = () => {
                 type="text"
                 icon={<ArrowLeft size={24} />}
                 onClick={() => navigate('/')}
-                style={{ color: 'var(--gray-600)' }}
+                style={{ color: 'white' }}
               />
               <div>
-                <Title level={4} style={{ color: 'var(--gray-900)', margin: 0, fontWeight: 700 }}>
+                <Title level={4} style={{ color: 'white', margin: 0, fontWeight: 700 }}>
                   {deviceInfo.organization?.type === 'school' ? 'Take Attendance' : 'Clock In/Out'}
                 </Title>
-                <Text style={{ color: 'var(--gray-500)', fontSize: '0.9rem' }}>
+                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.9rem' }}>
                   {deviceInfo.branch?.name} • {deviceInfo.device_name}
                 </Text>
               </div>

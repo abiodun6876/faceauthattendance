@@ -716,25 +716,28 @@ const AttendanceManagementPage: React.FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           padding: '12px',
-          background: 'white',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           minWidth: '100px'
         }}>
           <div style={{
             width: 56,
             height: 56,
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)',
+            border: '1px solid rgba(162, 155, 254, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: 8
           }}>
-            <Users size={28} color="#fff" />
+            <Users size={28} color="#a29bfe" />
           </div>
-          <Text strong style={{ fontSize: 24, color: '#667eea' }}>{todayStats.total}</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>Total Users</Text>
+          <Text strong style={{ fontSize: 24, color: '#a29bfe' }}>{todayStats.total}</Text>
+          <Text style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.7)' }}>Total Users</Text>
         </div>
 
         <div style={{
@@ -742,9 +745,11 @@ const AttendanceManagementPage: React.FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           padding: '12px',
-          background: 'white',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           minWidth: '100px'
         }}>
           <div style={{

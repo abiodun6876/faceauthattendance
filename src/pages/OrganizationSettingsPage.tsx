@@ -195,20 +195,22 @@ const OrganizationSettingsPage: React.FC = () => {
     ];
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: 'var(--gray-50)', padding: '16px' }}>
+        <div style={{ minHeight: '100vh', background: 'transparent', padding: '16px' }}>
             {/* Header */}
             <div style={{
-                background: 'white',
+                background: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
                 padding: '16px 24px',
                 borderRadius: '12px',
                 marginBottom: 24,
-                boxShadow: 'var(--shadow-sm)'
+                boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)'
             }}>
                 <Button
                     type="text"
                     icon={<ArrowLeft size={24} />}
                     onClick={() => navigate('/')}
-                    style={{ marginBottom: 16, color: 'var(--gray-600)' }}
+                    style={{ marginBottom: 16, color: 'white' }}
                 />
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -216,18 +218,19 @@ const OrganizationSettingsPage: React.FC = () => {
                         width: 48,
                         height: 48,
                         borderRadius: '50%',
-                        backgroundColor: '#667eea',
+                        backgroundColor: 'rgba(0, 243, 255, 0.2)',
+                        border: '1px solid #00f3ff',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                     }}>
-                        <Settings size={24} color="#fff" />
+                        <Settings size={24} color="#00f3ff" />
                     </div>
                     <div>
-                        <Title level={3} style={{ margin: 0 }}>
+                        <Title level={3} style={{ margin: 0, color: 'white' }}>
                             Organization Settings
                         </Title>
-                        <Text type="secondary">
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                             Configure attendance times and rules
                         </Text>
                     </div>

@@ -752,14 +752,16 @@ const VehicleManagementPage: React.FC = () => {
     ];
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa', padding: 16 }}>
+        <div style={{ minHeight: '100vh', background: 'transparent', padding: 16 }}>
             {/* Header */}
             <div style={{
-                background: 'white',
+                background: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
                 padding: '24px',
                 borderRadius: 12,
                 marginBottom: 24,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+                boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)'
             }}>
                 <Space direction="vertical" style={{ width: '100%' }}>
                     <Space>
@@ -767,7 +769,7 @@ const VehicleManagementPage: React.FC = () => {
                             type="text"
                             icon={<ArrowLeft size={20} />}
                             onClick={() => navigate('/')}
-                            style={{ color: '#666' }}
+                            style={{ color: 'white' }}
                         />
                         <div style={{ flex: 1 }}>
                             <Title level={3} style={{ margin: 0 }}>
