@@ -1,7 +1,7 @@
 // components/FaceCamera.tsx - Multi-tenant Version
 import React, { useRef, useState, useEffect, useCallback } from 'react'; // Added useCallback
 import Webcam from 'react-webcam';
-import { Button, Spin, message, Typography, Alert, Tag } from 'antd';
+import { Button, message, Typography, Alert, Tag } from 'antd';
 import { Camera, AlertCircle, User, Zap } from 'lucide-react';
 
 const { Text } = Typography;
