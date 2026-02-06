@@ -137,7 +137,7 @@ const DeviceSetupPage: React.FC = () => {
         if (result.error?.includes('row-level security')) {
           Modal.error({
             title: 'Database Security Violation',
-            content: 'Your Supabase RLS policies are blocking branch creation. Please run the SQL fix in your Supabase Editor to allow anonymous registration.',
+            content: 'Your Supabase RLS policies are blocking branch creation.',
           });
         } else {
           message.error(result.error || 'Failed to create organization');
