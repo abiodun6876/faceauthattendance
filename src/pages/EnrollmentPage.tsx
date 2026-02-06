@@ -695,7 +695,7 @@ const EnrollmentPage: React.FC = () => {
           <Title level={4} style={{ marginBottom: 16 }}>Face Biometric Capture</Title>
 
           {formData.full_name && (
-            <Card size="small" style={{ marginBottom: 24, backgroundColor: '#f0f9ff' }}>
+            <Card size="small" style={{ marginBottom: 24, background: 'rgba(24, 144, 255, 0.1)', borderColor: 'rgba(24, 144, 255, 0.3)' }}>
               <Row align="middle" justify="space-between">
                 <Col>
                   <Space align="center">
@@ -715,10 +715,11 @@ const EnrollmentPage: React.FC = () => {
                 </Col>
               </Row>
             </Card>
-          )}
+          )
+          }
 
           {faceProcessing && (
-            <Card style={{ marginBottom: 24, backgroundColor: '#f6ffed' }}>
+            <Card style={{ marginBottom: 24, background: 'rgba(82, 196, 26, 0.1)', borderColor: 'rgba(82, 196, 26, 0.3)' }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Text strong>Processing Face Biometrics...</Text>
                 <Progress percent={processingProgress} status="active" />
@@ -748,7 +749,7 @@ const EnrollmentPage: React.FC = () => {
           )}
 
           {faceProcessingResult?.success && (
-            <Card style={{ marginBottom: 24, backgroundColor: '#f6ffed' }}>
+            <Card style={{ marginBottom: 24, background: 'rgba(82, 196, 26, 0.1)', borderColor: 'rgba(82, 196, 26, 0.3)' }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Space>
                   <CheckCircle size={20} color="#52c41a" />
@@ -793,7 +794,7 @@ const EnrollmentPage: React.FC = () => {
           </div>
 
           {captureMethod === 'camera' ? (
-            <div style={{ height: 400, marginBottom: 24, borderRadius: 8, overflow: 'hidden', backgroundColor: '#000' }}>
+            <div style={{ height: 400, marginBottom: 24, borderRadius: 8, overflow: 'hidden', background: 'rgba(0, 0, 0, 0.3)', border: '1px solid rgba(0, 243, 255, 0.2)' }}>
               <FaceCamera
                 mode="enrollment"
                 onEnrollmentComplete={handleFaceCapture}
@@ -953,7 +954,7 @@ const EnrollmentPage: React.FC = () => {
                 Enrollment Failed
               </Title>
 
-              <Card style={{ marginBottom: 32, maxWidth: 500, margin: '0 auto', backgroundColor: '#fff2f0' }}>
+              <Card style={{ marginBottom: 32, maxWidth: 500, margin: '0 auto', background: 'rgba(255, 77, 79, 0.1)', borderColor: 'rgba(255, 77, 79, 0.3)' }}>
                 <Text style={{ color: '#ff4d4f' }}>
                   {enrollmentResult.error}
                 </Text>
@@ -1045,8 +1046,11 @@ const EnrollmentPage: React.FC = () => {
         <Card
           bordered={false}
           style={{
-            borderRadius: 24,
-            boxShadow: 'var(--shadow-xl)',
+            background: 'rgba(255, 255, 255, 0.05)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.36)',
+            borderRadius: 16,
             overflow: 'hidden'
           }}
           bodyStyle={{ padding: 48 }}

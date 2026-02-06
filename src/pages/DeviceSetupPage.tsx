@@ -446,14 +446,16 @@ const DeviceSetupPage: React.FC = () => {
       justifyContent: 'center',
       alignItems: 'center',
       padding: '16px',
-      background: 'var(--gray-50)'
+      background: 'transparent'
     }}>
       <Card
         style={{
           maxWidth: 900,
           width: '100%',
-          border: 'none',
-          boxShadow: 'var(--shadow-xl)',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.36)',
           overflow: 'hidden'
         }}
         bodyStyle={{ padding: '24px' }}

@@ -168,3 +168,140 @@ div {
 ::-webkit-scrollbar-thumb:hover {
   background: #556;
 }
+
+/* --- COMPONENT SPECIFIC FIXES --- */
+
+/* Alerts */
+.ant-alert {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--glass-border) !important;
+  backdrop-filter: blur(10px);
+}
+
+.ant-alert-info {
+  border-color: rgba(24, 144, 255, 0.4) !important;
+  background: rgba(24, 144, 255, 0.1) !important;
+}
+
+.ant-alert-success {
+  border-color: rgba(82, 196, 26, 0.4) !important;
+  background: rgba(82, 196, 26, 0.1) !important;
+}
+
+.ant-alert-warning {
+  border-color: rgba(250, 173, 20, 0.4) !important;
+  background: rgba(250, 173, 20, 0.1) !important;
+}
+
+.ant-alert-error {
+  border-color: rgba(255, 77, 79, 0.4) !important;
+  background: rgba(255, 77, 79, 0.1) !important;
+}
+
+.ant-alert-message {
+  color: var(--text-primary) !important;
+  font-weight: 600;
+}
+
+.ant-alert-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Steps */
+.ant-steps-item-title {
+  color: var(--text-primary) !important;
+}
+
+.ant-steps-item-description {
+  color: var(--text-secondary) !important;
+}
+
+.ant-steps-item-process .ant-steps-item-icon {
+  background: var(--neon-blue) !important;
+  border-color: var(--neon-blue) !important;
+}
+
+.ant-steps-item-wait .ant-steps-item-icon {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  background: transparent !important;
+}
+
+.ant-steps-item-wait .ant-steps-item-icon>.ant-steps-icon {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.ant-statistic-title {
+  color: var(--text-secondary) !important;
+}
+
+.ant-statistic-content {
+  color: var(--text-primary) !important;
+}
+
+/* Pagination */
+.ant-pagination-item a {
+  color: var(--text-primary) !important;
+}
+
+.ant-pagination-item-active {
+  background: transparent !important;
+  border-color: var(--neon-blue) !important;
+}
+
+.ant-pagination-item-active a {
+  color: var(--neon-blue) !important;
+}
+
+/* Ensure icons in Buttons are visible */
+.ant-btn .lucide,
+.ant-btn .anticon {
+  vertical-align: middle;
+}
+
+/* Menu */
+.ant-menu {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  border-right: none !important;
+}
+
+.ant-menu-item a,
+.ant-menu-item {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.ant-menu-item-selected {
+  background: rgba(0, 243, 255, 0.1) !important;
+  color: var(--neon-blue) !important;
+}
+
+.ant-menu-item-selected a {
+  color: var(--neon-blue) !important;
+}
+
+.ant-menu-item:hover {
+  color: #fff !important;
+}
+
+.ant-menu-item::after {
+  border-right: 3px solid var(--neon-blue) !important;
+}
+
+/* Drawer */
+.ant-drawer-content {
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(10px);
+}
+
+.ant-drawer-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.ant-drawer-title {
+  color: white !important;
+}
+
+.ant-drawer-close {
+  color: white !important;
+}

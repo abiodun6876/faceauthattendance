@@ -168,7 +168,7 @@ const BranchSelectionPage: React.FC = () => {
   }
 
   return (
-    <Layout style={{ minHeight: '100vh', backgroundColor: '#f0f2f5' }}>
+    <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
       <Content style={{
         padding: 24,
         maxWidth: 800,
@@ -237,9 +237,9 @@ const BranchSelectionPage: React.FC = () => {
               alignItems: 'center',
               gap: 12,
               padding: '12px 16px',
-              backgroundColor: '#f6ffed',
+              background: 'rgba(82, 196, 26, 0.1)',
               borderRadius: 8,
-              border: '1px solid #b7eb8f'
+              border: '1px solid rgba(82, 196, 26, 0.3)'
             }}>
               <Building size={20} color="#52c41a" />
               <div>
@@ -344,9 +344,9 @@ const BranchSelectionPage: React.FC = () => {
         <div style={{
           marginTop: 32,
           padding: '16px',
-          backgroundColor: '#fff3cd',
+          background: 'rgba(250, 173, 20, 0.1)',
           borderRadius: 8,
-          border: '1px solid #ffeaa7'
+          border: '1px solid rgba(250, 173, 20, 0.3)'
         }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             <strong>Note:</strong> Changing branch will affect where attendance is recorded.
