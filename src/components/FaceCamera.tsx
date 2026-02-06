@@ -282,41 +282,76 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
             </div>
           )}
 
-          {/* Face Guide Overlay */}
+          {/* Sci-Fi HUD Overlay */}
           {(mode === 'enrollment' || mode === 'attendance') && (
             <div style={{
               position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '280px',
-              height: '350px',
-              border: `3px ${cameraReady ? 'solid' : 'dashed'} rgba(255,255,255,0.4)`,
-              borderRadius: '50%',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
               pointerEvents: 'none',
-              zIndex: 2,
-              boxShadow: '0 0 0 4000px rgba(0, 0, 0, 0.3)', // Vignette effect
-              transition: 'all 0.5s ease'
+              zIndex: 2
             }}>
+              {/* Corner Brackets */}
+              <div style={{
+                position: 'absolute',
+                top: '20%',
+                left: '15%',
+                width: '70%',
+                height: '60%',
+                border: '2px solid rgba(0, 243, 255, 0.3)',
+                borderTop: 'none',
+                borderBottom: 'none',
+                borderRadius: '20px'
+              }} />
+
+              {/* Central Target */}
               <div style={{
                 position: 'absolute',
                 top: '50%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
-                width: '100%',
-                height: '100%',
-                borderRadius: '50%',
-                border: '1px solid rgba(255,255,255,0.2)',
-                animation: cameraReady ? 'scan-pulse 2s infinite' : 'none'
-              }} />
+                width: '280px',
+                height: '350px',
+                border: '1px solid rgba(0, 243, 255, 0.5)',
+                borderRadius: '16px',
+                boxShadow: '0 0 20px rgba(0, 243, 255, 0.2)',
+                background: 'linear-gradient(180deg, rgba(0,243,255,0) 0%, rgba(0,243,255,0.1) 50%, rgba(0,243,255,0) 100%)'
+              }}>
+                {/* Scanning Line */}
+                <div style={{
+                  width: '100%',
+                  height: '2px',
+                  background: '#0aff60',
+                  boxShadow: '0 0 10px #0aff60',
+                  position: 'absolute',
+                  animation: 'scanner 2s ease-in-out infinite'
+                }} />
+
+                {/* HUD Data Text */}
+                <div style={{
+                  position: 'absolute',
+                  top: -30,
+                  left: 0,
+                  color: '#00f3ff',
+                  fontFamily: 'monospace',
+                  fontSize: 10,
+                  textShadow: '0 0 5px #00f3ff'
+                }}>
+                  TARGET_LOCK: ACTIVE<br />
+                  BIO_metrics: ANALYZING...
+                </div>
+              </div>
             </div>
           )}
 
           <style>{`
-            @keyframes scan-pulse {
-              0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.5; }
-              50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.8; }
-              100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.5; }
+            @keyframes scanner {
+              0% { top: 0%; opacity: 0; }
+              10% { opacity: 1; }
+              90% { opacity: 1; }
+              100% { top: 100%; opacity: 0; }
             }
           `}</style>
 
@@ -329,48 +364,59 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               zIndex: 20,
               textAlign: 'center'
             }}>
-              <Spin size="large" />
-              <Text style={{ color: 'white', display: 'block', marginTop: 16 }}>
-                {mode === 'enrollment' ? 'Processing face...' : 'Matching face...'}
+              <div style={{
+                width: 80,
+                height: 80,
+                border: '4px solid transparent',
+                borderTopColor: '#00f3ff',
+                borderRightColor: '#bc13fe',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <Text style={{ color: '#00f3ff', display: 'block', marginTop: 16, fontFamily: 'monospace', letterSpacing: 2 }}>
+                {mode === 'enrollment' ? 'ENROLLING...' : 'VERIFYING...'}
               </Text>
             </div>
           )}
 
+          {/* Holographic Controls */}
           {((mode === 'enrollment' || mode === 'attendance') && !autoCapture && !loading) && (
             <div style={{
               position: 'absolute',
-              bottom: 20,
+              bottom: 30,
               left: 0,
               right: 0,
               textAlign: 'center',
               zIndex: 10
             }}>
-              <Button
-                type="primary"
-                size="large"
-                icon={<Camera />}
+              <button
                 onClick={handleCapture}
                 disabled={!cameraReady}
                 style={{
-                  height: 60,
-                  fontSize: 18,
-                  padding: '0 40px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                  background: 'rgba(0, 243, 255, 0.1)',
+                  border: '1px solid #00f3ff',
+                  color: '#00f3ff',
+                  padding: '16px 48px',
+                  fontSize: '16px',
+                  fontFamily: 'monospace',
+                  letterSpacing: '2px',
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(4px)',
+                  boxShadow: '0 0 20px rgba(0, 243, 255, 0.3)',
+                  transition: 'all 0.3s ease',
+                  clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 243, 255, 0.3)';
+                  e.currentTarget.style.boxShadow = '0 0 40px rgba(0, 243, 255, 0.6)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 243, 255, 0.1)';
+                  e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 243, 255, 0.3)';
                 }}
               >
-                {mode === 'enrollment' ? 'CAPTURE FACE' : 'SCAN FACE'}
-              </Button>
-
-              <div style={{ marginTop: 12 }}>
-                <Text type="secondary" style={{
-                  color: 'white',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                  fontSize: 14
-                }}>
-                  Position face within the circle
-                </Text>
-              </div>
+                {mode === 'enrollment' ? 'CAPTURE_ID' : 'INITIATE_SCAN'}
+              </button>
             </div>
           )}
 
