@@ -71,19 +71,67 @@ body {
   backdrop-filter: blur(4px);
 }
 
-.ant-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+.ant-input::placeholder,
+.ant-input-password input::placeholder {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.ant-input-password input {
+  background: transparent !important;
+  color: white !important;
+}
+
+/* Ensure Select dropdown text is visible */
+.ant-select-dropdown {
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(10px);
+}
+
+.ant-select-item {
+  color: white !important;
+}
+
+.ant-select-item-option-selected {
+  background: rgba(0, 243, 255, 0.2) !important;
+  color: var(--neon-blue) !important;
+}
+
+.ant-select-item-option-active {
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* Typography Overrides for Dark Mode */
-.ant-typography,
+/* Only apply white text to specific containers, not globally */
+body,
+.ant-layout,
+.ant-layout-content {
+  color: var(--text-primary) !important;
+}
+
+/* Let antd components use their own text colors by default */
+.ant-card-body,
+.ant-modal-body,
+.ant-form-item-label>label,
+.ant-descriptions-item-label,
+.ant-descriptions-item-content {
+  color: var(--text-primary) !important;
+}
+
+/* Headings should be white */
 h1,
 h2,
 h3,
 h4,
-h5,
-span,
-div {
+h5 {
+  color: var(--text-primary) !important;
+}
+
+/* But not when inside modals or cards with light backgrounds */
+.ant-modal-content h1,
+.ant-modal-content h2,
+.ant-modal-content h3,
+.ant-modal-content h4,
+.ant-modal-content h5 {
   color: var(--text-primary) !important;
 }
 
@@ -138,6 +186,59 @@ div {
   letter-spacing: 1px;
 }
 
+.ant-modal-body {
+  color: var(--text-primary) !important;
+}
+
+.ant-modal-body p,
+.ant-modal-body span,
+.ant-modal-body div {
+  color: var(--text-primary) !important;
+}
+
+.ant-modal-footer {
+  border-top: 1px solid var(--glass-border) !important;
+  background: transparent !important;
+}
+
+/* Form Labels and Descriptions */
+.ant-form-item-label>label {
+  color: var(--text-primary) !important;
+}
+
+.ant-form-item-explain,
+.ant-form-item-extra {
+  color: var(--text-secondary) !important;
+}
+
+/* Descriptions */
+.ant-descriptions-item-label {
+  color: var(--text-secondary) !important;
+}
+
+.ant-descriptions-item-content {
+  color: var(--text-primary) !important;
+}
+
+/* Radio and Checkbox */
+.ant-radio-wrapper,
+.ant-checkbox-wrapper {
+  color: var(--text-primary) !important;
+}
+
+/* List Items */
+.ant-list-item {
+  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.ant-list-item-meta-title {
+  color: var(--text-primary) !important;
+}
+
+.ant-list-item-meta-description {
+  color: var(--text-secondary) !important;
+}
+
 /* Sci-fi HUD Utilities */
 .hud-border {
   position: relative;
@@ -183,9 +284,19 @@ div {
   background: rgba(24, 144, 255, 0.1) !important;
 }
 
+.ant-alert-info .ant-alert-message,
+.ant-alert-info .ant-alert-description {
+  color: #69c0ff !important;
+}
+
 .ant-alert-success {
   border-color: rgba(82, 196, 26, 0.4) !important;
   background: rgba(82, 196, 26, 0.1) !important;
+}
+
+.ant-alert-success .ant-alert-message,
+.ant-alert-success .ant-alert-description {
+  color: #95de64 !important;
 }
 
 .ant-alert-warning {
@@ -193,18 +304,19 @@ div {
   background: rgba(250, 173, 20, 0.1) !important;
 }
 
+.ant-alert-warning .ant-alert-message,
+.ant-alert-warning .ant-alert-description {
+  color: #ffc53d !important;
+}
+
 .ant-alert-error {
   border-color: rgba(255, 77, 79, 0.4) !important;
   background: rgba(255, 77, 79, 0.1) !important;
 }
 
-.ant-alert-message {
-  color: var(--text-primary) !important;
-  font-weight: 600;
-}
-
-.ant-alert-description {
-  color: var(--text-secondary) !important;
+.ant-alert-error .ant-alert-message,
+.ant-alert-error .ant-alert-description {
+  color: #ff7875 !important;
 }
 
 /* Steps */
@@ -304,4 +416,59 @@ div {
 
 .ant-drawer-close {
   color: white !important;
+}
+
+/* Messages and Notifications */
+.ant-message-notice-content {
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.ant-message-success .anticon {
+  color: #52c41a !important;
+}
+
+.ant-message-error .anticon {
+  color: #ff4d4f !important;
+}
+
+.ant-message-warning .anticon {
+  color: #faad14 !important;
+}
+
+.ant-message-info .anticon {
+  color: #1890ff !important;
+}
+
+.ant-message-notice-content span {
+  color: white !important;
+}
+
+/* Notification */
+.ant-notification-notice {
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ant-notification-notice-message {
+  color: var(--text-primary) !important;
+}
+
+.ant-notification-notice-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Tag colors */
+.ant-tag {
+  border-color: currentColor;
+}
+
+/* Ensure QR Code visibility */
+.ant-qrcode {
+  background: white !important;
+  padding: 8px;
+  border-radius: 8px;
 }
