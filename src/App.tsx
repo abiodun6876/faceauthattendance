@@ -134,10 +134,8 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
         collapsedWidth="0"
         trigger={null}
         style={{
-          background: 'rgba(15, 23, 42, 0.8)',
-          backdropFilter: 'blur(10px)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: 'none',
+          background: '#fff',
+          boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
           zIndex: 100,
           position: 'fixed',
           height: '100vh',
@@ -145,7 +143,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
         }}
         className="desktop-sider"
       >
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px', background: 'transparent' }}>
+        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
           {!collapsed && <Title level={4} style={{ margin: 0, color: '#fff', fontSize: 16 }}>FaceAuth</Title>}
         </div>
         <Menu
@@ -153,7 +151,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
           defaultSelectedKeys={[window.location.pathname]}
           items={menuItems}
           onClick={handleMenuClick}
-          style={{ borderRight: 0, marginTop: 16 }}
+          style={{ borderRight: 0 }}
         />
       </Sider>
 
@@ -166,7 +164,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
         width={250}
         closable={false}
       >
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: 'rgba(15, 23, 42, 0.95)' }}>
+        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
           <Title level={4} style={{ margin: 0, color: '#fff' }}>FaceAuth</Title>
           <X color="#fff" onClick={() => setMobileVisible(false)} cursor="pointer" />
         </div>
@@ -190,9 +188,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
         className="main-layout"
       >
         <Header style={{
-          background: 'rgba(15, 23, 42, 0.7)',
-          backdropFilter: 'blur(10px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          background: '#fff',
           padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
@@ -200,7 +196,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
           position: 'sticky',
           top: 0,
           zIndex: 99,
-          boxShadow: 'none'
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Button
@@ -257,7 +253,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </Header>
 
-        <Content style={{ padding: '24px', minHeight: 280, background: 'transparent' }}>
+        <Content style={{ padding: '24px', minHeight: 280, backgroundColor: '#fcfcfd' }}>
           <style>{`
             @media (max-width: 992px) {
               .desktop-sider { display: none !important; }
@@ -270,7 +266,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
           {children}
         </Content>
 
-        <Footer style={{ textAlign: 'center', background: 'transparent', borderTop: 'none', color: 'rgba(255, 255, 255, 0.5)' }}>
+        <Footer style={{ textAlign: 'center', backgroundColor: '#fff', borderTop: '1px solid #f0f0f0' }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             FaceAuthAttendance Platform • v2.0 • {device?.branch?.name}
           </Text>
@@ -454,35 +450,33 @@ const DashboardPage = () => {
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      background: 'transparent'
+      backgroundColor: '#f0f2f5'
     }}>
       {/* Organization Info Banner */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.05)',
-        backdropFilter: 'blur(10px)',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         padding: '24px',
         color: '#fff',
         borderRadius: '0 0 16px 16px',
-        marginBottom: 24,
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+        marginBottom: 24
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <Title level={2} style={{ color: '#fff', margin: 0, fontSize: '1.5rem', wordBreak: 'break-word' }}>
               {device?.organization?.name || 'FaceAuthAttendance'}
             </Title>
-            <Text style={{ color: 'rgba(255,255,255,0.7)', display: 'block' }}>
+            <Text style={{ color: 'rgba(255,255,255,0.9)', display: 'block' }}>
               {device?.branch?.name} • {device?.device_name}
             </Text>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
               ID Type: {device?.organization?.settings?.id_label || 'Staff ID'}
             </Text>
-            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
               Mode: {device?.organization?.settings?.attendance_mode === 'shift' ? 'Shift-based' : 'Session-based'}
             </Text>
-            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
+            <Text style={{ display: 'block', color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>
               Role: {device?.current_user?.user_role || 'User'}
             </Text>
           </div>
@@ -528,13 +522,12 @@ const DashboardPage = () => {
                     width: 70,
                     height: 70,
                     borderRadius: '50%',
-                    border: `1px solid ${stat.color}`,
+                    border: `3px solid ${stat.color}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    backdropFilter: 'blur(4px)',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    backgroundColor: 'white',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
                     marginBottom: 8,
                     position: 'relative'
                   }}>
@@ -553,14 +546,14 @@ const DashboardPage = () => {
                       <ChevronRight size={10} color="#fff" />
                     </div>
                   </div>
-                  <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', color: 'rgba(255, 255, 255, 0.7)' }}>{stat.label}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}>{stat.label}</Text>
                 </div>
               </Col>
             ))}
           </Row>
         </div>
 
-        <Title level={3} style={{ marginBottom: 24, color: 'white' }}>
+        <Title level={3} style={{ marginBottom: 24 }}>
           Dashboard
         </Title>
 
@@ -572,13 +565,10 @@ const DashboardPage = () => {
                 onClick={() => navigate(card.path)}
                 style={{
                   height: '100%',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  backdropFilter: 'blur(10px)',
-                  border: `1px solid ${card.color}40`,
+                  border: `1px solid ${card.color}20`,
                   borderRadius: 12,
                   transition: 'all 0.3s',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+                  cursor: 'pointer'
                 }}
                 bodyStyle={{
                   padding: '24px',
@@ -596,7 +586,6 @@ const DashboardPage = () => {
                     height: 80,
                     borderRadius: '50%',
                     backgroundColor: `${card.color}15`,
-                    border: `1px solid ${card.color}30`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -606,7 +595,7 @@ const DashboardPage = () => {
                   <Title level={4} style={{ margin: 0, color: card.color }}>
                     {card.title}
                   </Title>
-                  <Text style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)' }}>
+                  <Text type="secondary" style={{ fontSize: '14px' }}>
                     {card.description}
                   </Text>
                 </div>

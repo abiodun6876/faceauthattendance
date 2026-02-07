@@ -921,7 +921,7 @@ const AttendancePage: React.FC = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'transparent' }}>
+    <div className="intergalactic-theme" style={{ minHeight: '100vh', background: 'transparent' }}>
       {/* Header */}
       <div style={{
         background: 'rgba(255, 255, 255, 0.05)',

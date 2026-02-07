@@ -6,8 +6,6 @@ import {
   TeamOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined,
-  CloseCircleOutlined,
   ReloadOutlined,
   ExclamationCircleOutlined,
   CheckCircleFilled,

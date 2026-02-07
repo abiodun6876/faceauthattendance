@@ -1,6 +1,5 @@
-/* INTERGALACTIC UI THEME */
-
-:root {
+/* INTERGALACTIC UI THEME (Scoped) */
+.intergalactic-theme {
   --cosmic-bg-start: #0f172a;
   --cosmic-bg-end: #1e1b4b;
   --glass-border: rgba(255, 255, 255, 0.1);
@@ -11,25 +10,11 @@
   --neon-green: #0aff60;
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.7);
-}
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  width: 100%;
-  overflow-x: hidden;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  /* Deep Space Animated Background */
   background: linear-gradient(-45deg, #020024, #090979, #1b0042, #001529);
   background-size: 400% 400%;
-  animation: cosmic-flow 15s ease infinite;
-  color: var(--text-primary);
+  animation: cosmic-flow 15s ease infinite !important;
+  color: var(--text-primary) !important;
   min-height: 100vh;
 }
 
@@ -47,13 +32,11 @@ body {
   }
 }
 
-/* --- GLASSMORPHISM SYSTEM (Overriding AntD) --- */
-
-/* Glass Cards - Force dark blue glass everywhere */
-.ant-card,
-.ant-card-bordered,
-.ant-card-body,
-.ant-modal-content {
+/* Scoped Glassmorphism System */
+.intergalactic-theme .ant-card,
+.intergalactic-theme .ant-card-bordered,
+.intergalactic-theme .ant-card-body,
+.intergalactic-theme .ant-modal-content {
   background: rgba(15, 23, 42, 0.7) !important;
   backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px);
@@ -62,510 +45,153 @@ body {
   box-shadow: var(--glass-shadow) !important;
 }
 
-/* Ensure card heads are also dark */
-.ant-card-head {
+.intergalactic-theme .ant-card-head {
   background: rgba(15, 23, 42, 0.5) !important;
   border-bottom: 1px solid var(--glass-border) !important;
   color: var(--text-primary) !important;
 }
 
-.ant-card-head-title {
+.intergalactic-theme .ant-card-head-title {
   color: var(--text-primary) !important;
 }
 
-/* Glass Inputs */
-.ant-input,
-.ant-input-number,
-.ant-input-password,
-.ant-select-selector {
+.intergalactic-theme .ant-input,
+.intergalactic-theme .ant-input-number,
+.intergalactic-theme .ant-input-password,
+.intergalactic-theme .ant-select-selector {
   background: rgba(0, 0, 0, 0.2) !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   color: white !important;
   backdrop-filter: blur(4px);
 }
 
-.ant-input::placeholder,
-.ant-input-password input::placeholder {
-  color: rgba(255, 255, 255, 0.4) !important;
-}
-
-.ant-input-password input {
-  background: transparent !important;
-  color: white !important;
-}
-
-/* Ensure Select dropdown text is visible */
-.ant-select-dropdown {
-  background: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(10px);
-}
-
-.ant-select-item {
-  color: white !important;
-}
-
-.ant-select-item-option-selected {
-  background: rgba(0, 243, 255, 0.2) !important;
-  color: var(--neon-blue) !important;
-}
-
-.ant-select-item-option-active {
-  background: rgba(255, 255, 255, 0.1) !important;
-}
-
-/* Typography Overrides for Dark Mode */
-/* Only apply white text to specific containers, not globally */
-body,
-.ant-layout,
-.ant-layout-content {
+.intergalactic-theme .ant-typography,
+.intergalactic-theme h1,
+.intergalactic-theme h2,
+.intergalactic-theme h3,
+.intergalactic-theme h4,
+.intergalactic-theme h5,
+.intergalactic-theme span,
+.intergalactic-theme div,
+.intergalactic-theme label {
   color: var(--text-primary) !important;
 }
 
-/* Let antd components use their own text colors by default */
-.ant-card-body,
-.ant-modal-body,
-.ant-form-item-label>label,
-.ant-descriptions-item-label,
-.ant-descriptions-item-content {
-  color: var(--text-primary) !important;
+/* --- SIMPLE GLOBAL THEME --- */
+:root {
+  --primary-blue: #1890ff;
 }
 
-/* Headings should be white */
-h1,
-h2,
-h3,
-h4,
-h5 {
-  color: var(--text-primary) !important;
+* {
+  box-sizing: border-box;
 }
 
-/* But not when inside modals or cards with light backgrounds */
-.ant-modal-content h1,
-.ant-modal-content h2,
-.ant-modal-content h3,
-.ant-modal-content h4,
-.ant-modal-content h5 {
-  color: var(--text-primary) !important;
+body {
+  margin: 0;
+  width: 100%;
+  background-color: #fcfcfd;
+  color: rgba(0, 0, 0, 0.85);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  min-height: 100vh;
 }
 
-.ant-typography-secondary {
-  color: var(--text-secondary) !important;
+/* Standard AntD overrides back to simple */
+.ant-card {
+  background: #fff;
 }
 
-/* Tables */
-.ant-table {
-  background: transparent !important;
-  color: var(--text-primary) !important;
+.ant-layout {
+  background: transparent;
 }
 
-.ant-table-thead>tr>th {
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: var(--neon-blue) !important;
-  border-bottom: 1px solid var(--glass-border) !important;
-}
-
-.ant-table-tbody>tr>td {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-}
-
-.ant-table-tbody>tr:hover>td {
-  background: rgba(255, 255, 255, 0.08) !important;
-}
-
-/* Buttons */
-.ant-btn-primary {
-  background: linear-gradient(135deg, var(--neon-blue), #0061ff) !important;
-  border: none !important;
-  box-shadow: 0 4px 15px rgba(0, 243, 255, 0.3) !important;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
-
-.ant-btn-default {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: white !important;
-}
-
-/* Modal */
-.ant-modal-header {
-  background: transparent !important;
-  border-bottom: 1px solid var(--glass-border) !important;
-}
-
-.ant-modal-title {
-  color: var(--neon-blue) !important;
-  font-size: 1.2rem;
-  letter-spacing: 1px;
-}
-
-.ant-modal-body {
-  color: var(--text-primary) !important;
-}
-
-.ant-modal-body p,
-.ant-modal-body span,
-.ant-modal-body div {
-  color: var(--text-primary) !important;
-}
-
-.ant-modal-footer {
-  border-top: 1px solid var(--glass-border) !important;
-  background: transparent !important;
-}
-
-/* Form Labels and Descriptions */
-.ant-form-item-label>label {
-  color: var(--text-primary) !important;
-}
-
-.ant-form-item-explain,
-.ant-form-item-extra {
-  color: var(--text-secondary) !important;
-}
-
-/* Descriptions */
-.ant-descriptions-item-label {
-  color: var(--text-secondary) !important;
-}
-
-.ant-descriptions-item-content {
-  color: var(--text-primary) !important;
-}
-
-/* Radio and Checkbox */
-.ant-radio-wrapper,
-.ant-checkbox-wrapper {
-  color: var(--text-primary) !important;
-}
-
-/* List Items */
-.ant-list-item {
-  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-.ant-list-item-meta-title {
-  color: var(--text-primary) !important;
-}
-
-.ant-list-item-meta-description {
-  color: var(--text-secondary) !important;
-}
-
-/* Sci-fi HUD Utilities */
-.hud-border {
-  position: relative;
-  border: 1px solid var(--neon-blue);
-  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
-}
-
-.hud-text {
-  font-family: 'Courier New', monospace;
-  color: var(--neon-blue);
-  text-transform: uppercase;
-}
-
-/* Scrollbar */
+/* Scrollbar (Simple) */
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #020024;
+  background: #f1f1f1;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334;
+  background: #ccc;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #556;
+  background: #bbb;
 }
 
-/* --- COMPONENT SPECIFIC FIXES --- */
+/* Sci-fi HUD Utilities (Keep for Attendance Page) */
+.intergalactic-theme .hud-border {
+  position: relative;
+  border: 1px solid #00f3ff;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+}
 
-/* Alerts */
-.ant-alert {
+.intergalactic-theme .hud-text {
+  font-family: 'Courier New', monospace;
+  color: #00f3ff;
+  text-transform: uppercase;
+}
+
+/* Scoped Component Overrides */
+.intergalactic-theme .ant-table {
+  background: transparent !important;
+  color: #fff !important;
+}
+
+.intergalactic-theme .ant-table-thead>tr>th {
   background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid var(--glass-border) !important;
+  color: #00f3ff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.intergalactic-theme .ant-table-tbody>tr>td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: #fff !important;
+}
+
+.intergalactic-theme .ant-table-tbody>tr:hover>td {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.intergalactic-theme .ant-alert {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
   backdrop-filter: blur(10px);
 }
 
-.ant-alert-info {
+.intergalactic-theme .ant-alert-info {
   border-color: rgba(24, 144, 255, 0.4) !important;
   background: rgba(24, 144, 255, 0.1) !important;
 }
 
-.ant-alert-info .ant-alert-message,
-.ant-alert-info .ant-alert-description {
+.intergalactic-theme .ant-alert-info .ant-alert-message,
+.intergalactic-theme .ant-alert-info .ant-alert-description {
   color: #69c0ff !important;
 }
 
-.ant-alert-success {
-  border-color: rgba(82, 196, 26, 0.4) !important;
-  background: rgba(82, 196, 26, 0.1) !important;
+.intergalactic-theme .ant-btn-primary {
+  background: linear-gradient(135deg, #00f3ff, #0061ff) !important;
+  border: none !important;
+  box-shadow: 0 4px 15px rgba(0, 243, 255, 0.3) !important;
 }
 
-.ant-alert-success .ant-alert-message,
-.ant-alert-success .ant-alert-description {
-  color: #95de64 !important;
-}
-
-.ant-alert-warning {
-  border-color: rgba(250, 173, 20, 0.4) !important;
-  background: rgba(250, 173, 20, 0.1) !important;
-}
-
-.ant-alert-warning .ant-alert-message,
-.ant-alert-warning .ant-alert-description {
-  color: #ffc53d !important;
-}
-
-.ant-alert-error {
-  border-color: rgba(255, 77, 79, 0.4) !important;
-  background: rgba(255, 77, 79, 0.1) !important;
-}
-
-.ant-alert-error .ant-alert-message,
-.ant-alert-error .ant-alert-description {
-  color: #ff7875 !important;
-}
-
-/* Steps */
-.ant-steps-item-title {
-  color: var(--text-primary) !important;
-}
-
-.ant-steps-item-description {
-  color: var(--text-secondary) !important;
-}
-
-.ant-steps-item-process .ant-steps-item-icon {
-  background: var(--neon-blue) !important;
-  border-color: var(--neon-blue) !important;
-}
-
-.ant-steps-item-wait .ant-steps-item-icon {
-  border-color: rgba(255, 255, 255, 0.3) !important;
-  background: transparent !important;
-}
-
-.ant-steps-item-wait .ant-steps-item-icon>.ant-steps-icon {
-  color: rgba(255, 255, 255, 0.5) !important;
-}
-
-.ant-statistic-title {
-  color: var(--text-secondary) !important;
-}
-
-.ant-statistic-content {
-  color: var(--text-primary) !important;
-}
-
-/* Pagination */
-.ant-pagination-item a {
-  color: var(--text-primary) !important;
-}
-
-.ant-pagination-item-active {
-  background: transparent !important;
-  border-color: var(--neon-blue) !important;
-}
-
-.ant-pagination-item-active a {
-  color: var(--neon-blue) !important;
-}
-
-/* Ensure icons in Buttons are visible */
-.ant-btn .lucide,
-.ant-btn .anticon {
-  vertical-align: middle;
-}
-
-/* Menu - Force dark background everywhere */
-.ant-menu,
-.ant-menu-root,
-.ant-menu-inline,
-.ant-menu-sub,
-.ant-menu-vertical,
-ul.ant-menu,
-.ant-menu-light {
-  background: transparent !important;
-  color: rgba(255, 255, 255, 0.7) !important;
-  border-right: none !important;
-}
-
-.ant-menu-item a,
-.ant-menu-item,
-.ant-menu-submenu-title {
-  color: rgba(255, 255, 255, 0.7) !important;
-  background: transparent !important;
-}
-
-.ant-menu-item-selected,
-.ant-menu-item-selected a {
-  background: rgba(0, 243, 255, 0.1) !important;
-  color: var(--neon-blue) !important;
-}
-
-.ant-menu-item:hover,
-.ant-menu-item:hover a {
+.intergalactic-theme .ant-steps-item-title {
   color: #fff !important;
-  background: rgba(255, 255, 255, 0.05) !important;
 }
 
-.ant-menu-item::after {
-  border-right: 3px solid var(--neon-blue) !important;
-}
-
-/* Menu Icon colors */
-.ant-menu-item .anticon,
-.ant-menu-item .lucide {
+.intergalactic-theme .ant-steps-item-description {
   color: rgba(255, 255, 255, 0.7) !important;
 }
 
-.ant-menu-item-selected .anticon,
-.ant-menu-item-selected .lucide {
-  color: var(--neon-blue) !important;
-}
-
-/* Drawer */
-.ant-drawer-content {
-  background: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(10px);
-}
-
-.ant-drawer-header {
+.intergalactic-theme .ant-modal-header,
+.intergalactic-theme .ant-modal-footer {
   background: transparent !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.ant-drawer-title {
-  color: white !important;
-}
-
-.ant-drawer-close {
-  color: white !important;
-}
-
-/* Messages and Notifications */
-.ant-message-notice-content {
-  background: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.ant-message-success .anticon {
-  color: #52c41a !important;
-}
-
-.ant-message-error .anticon {
-  color: #ff4d4f !important;
-}
-
-.ant-message-warning .anticon {
-  color: #faad14 !important;
-}
-
-.ant-message-info .anticon {
-  color: #1890ff !important;
-}
-
-.ant-message-notice-content span {
-  color: white !important;
-}
-
-/* Notification */
-.ant-notification-notice {
-  background: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.ant-notification-notice-message {
-  color: var(--text-primary) !important;
-}
-
-.ant-notification-notice-description {
-  color: var(--text-secondary) !important;
-}
-
-/* Tag colors */
-.ant-tag {
-  border-color: currentColor;
-}
-
-/* Ensure QR Code visibility */
-.ant-qrcode {
-  background: white !important;
-  padding: 8px;
-  border-radius: 8px;
-}
-
-/* === UNIVERSAL OVERRIDES - Catch all white/gray backgrounds === */
-
-/* Force all Ant Design components with white defaults to dark blue */
-.ant-layout,
-.ant-layout-content,
-.ant-layout-header,
-.ant-layout-sider,
-.ant-layout-footer {
-  background: transparent !important;
-}
-
-/* Override any remaining white backgrounds */
-div[style*="background: white"],
-div[style*="background:#fff"],
-div[style*="backgroundColor: white"],
-div[style*="backgroundColor:#fff"] {
-  background: rgba(15, 23, 42, 0.7) !important;
-}
-
-/* Ensure Sider is always dark */
-.ant-layout-sider {
-  background: rgba(15, 23, 42, 0.8) !important;
-}
-
-/* Statistic cards */
-.ant-statistic {
-  color: var(--text-primary) !important;
-}
-
-/* Prevent any component from having gray backgrounds */
-.ant-card,
-.ant-modal,
-.ant-drawer-body,
-.ant-dropdown-menu,
-.ant-popover-inner {
-  background: rgba(15, 23, 42, 0.7) !important;
-}
-
-/* Tabs */
-.ant-tabs-tab {
-  color: rgba(255, 255, 255, 0.7) !important;
-}
-
-.ant-tabs-tab-active {
-  color: var(--neon-blue) !important;
-}
-
-.ant-tabs-nav {
-  background: transparent !important;
-}
-
-/* Collapse/Accordion */
-.ant-collapse {
-  background: transparent !important;
-  border-color: var(--glass-border) !important;
-}
-
-.ant-collapse-header {
-  color: var(--text-primary) !important;
-}
-
-.ant-collapse-content {
-  background: rgba(15, 23, 42, 0.5) !important;
-  border-color: var(--glass-border) !important;
+.intergalactic-theme .ant-modal-title {
+  color: #00f3ff !important;
 }
