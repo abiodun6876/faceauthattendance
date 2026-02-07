@@ -773,9 +773,11 @@ const AttendanceManagementPage: React.FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           padding: '12px',
-          background: 'white',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           minWidth: '100px'
         }}>
           <div style={{
@@ -799,9 +801,11 @@ const AttendanceManagementPage: React.FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           padding: '12px',
-          background: 'white',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           minWidth: '100px'
         }}>
           <div style={{
@@ -825,9 +829,11 @@ const AttendanceManagementPage: React.FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           padding: '12px',
-          background: 'white',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           minWidth: '100px'
         }}>
           <div style={{
@@ -851,9 +857,11 @@ const AttendanceManagementPage: React.FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           padding: '12px',
-          background: 'white',
+          background: 'rgba(255, 255, 255, 0.05)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '12px',
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           minWidth: '100px'
         }}>
           <div style={{
