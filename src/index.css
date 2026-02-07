@@ -49,15 +49,28 @@ body {
 
 /* --- GLASSMORPHISM SYSTEM (Overriding AntD) --- */
 
-/* Glass Cards */
+/* Glass Cards - Force dark blue glass everywhere */
 .ant-card,
+.ant-card-bordered,
+.ant-card-body,
 .ant-modal-content {
-  background: rgba(16, 20, 45, 0.7) !important;
+  background: rgba(15, 23, 42, 0.7) !important;
   backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border) !important;
   color: var(--text-primary) !important;
   box-shadow: var(--glass-shadow) !important;
+}
+
+/* Ensure card heads are also dark */
+.ant-card-head {
+  background: rgba(15, 23, 42, 0.5) !important;
+  border-bottom: 1px solid var(--glass-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.ant-card-head-title {
+  color: var(--text-primary) !important;
 }
 
 /* Glass Inputs */
@@ -370,33 +383,51 @@ h5 {
   vertical-align: middle;
 }
 
-/* Menu */
-.ant-menu {
+/* Menu - Force dark background everywhere */
+.ant-menu,
+.ant-menu-root,
+.ant-menu-inline,
+.ant-menu-sub,
+.ant-menu-vertical,
+ul.ant-menu,
+.ant-menu-light {
   background: transparent !important;
   color: rgba(255, 255, 255, 0.7) !important;
   border-right: none !important;
 }
 
 .ant-menu-item a,
-.ant-menu-item {
+.ant-menu-item,
+.ant-menu-submenu-title {
   color: rgba(255, 255, 255, 0.7) !important;
+  background: transparent !important;
 }
 
-.ant-menu-item-selected {
+.ant-menu-item-selected,
+.ant-menu-item-selected a {
   background: rgba(0, 243, 255, 0.1) !important;
   color: var(--neon-blue) !important;
 }
 
-.ant-menu-item-selected a {
-  color: var(--neon-blue) !important;
-}
-
-.ant-menu-item:hover {
+.ant-menu-item:hover,
+.ant-menu-item:hover a {
   color: #fff !important;
+  background: rgba(255, 255, 255, 0.05) !important;
 }
 
 .ant-menu-item::after {
   border-right: 3px solid var(--neon-blue) !important;
+}
+
+/* Menu Icon colors */
+.ant-menu-item .anticon,
+.ant-menu-item .lucide {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.ant-menu-item-selected .anticon,
+.ant-menu-item-selected .lucide {
+  color: var(--neon-blue) !important;
 }
 
 /* Drawer */
@@ -471,4 +502,70 @@ h5 {
   background: white !important;
   padding: 8px;
   border-radius: 8px;
+}
+
+/* === UNIVERSAL OVERRIDES - Catch all white/gray backgrounds === */
+
+/* Force all Ant Design components with white defaults to dark blue */
+.ant-layout,
+.ant-layout-content,
+.ant-layout-header,
+.ant-layout-sider,
+.ant-layout-footer {
+  background: transparent !important;
+}
+
+/* Override any remaining white backgrounds */
+div[style*="background: white"],
+div[style*="background:#fff"],
+div[style*="backgroundColor: white"],
+div[style*="backgroundColor:#fff"] {
+  background: rgba(15, 23, 42, 0.7) !important;
+}
+
+/* Ensure Sider is always dark */
+.ant-layout-sider {
+  background: rgba(15, 23, 42, 0.8) !important;
+}
+
+/* Statistic cards */
+.ant-statistic {
+  color: var(--text-primary) !important;
+}
+
+/* Prevent any component from having gray backgrounds */
+.ant-card,
+.ant-modal,
+.ant-drawer-body,
+.ant-dropdown-menu,
+.ant-popover-inner {
+  background: rgba(15, 23, 42, 0.7) !important;
+}
+
+/* Tabs */
+.ant-tabs-tab {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.ant-tabs-tab-active {
+  color: var(--neon-blue) !important;
+}
+
+.ant-tabs-nav {
+  background: transparent !important;
+}
+
+/* Collapse/Accordion */
+.ant-collapse {
+  background: transparent !important;
+  border-color: var(--glass-border) !important;
+}
+
+.ant-collapse-header {
+  color: var(--text-primary) !important;
+}
+
+.ant-collapse-content {
+  background: rgba(15, 23, 42, 0.5) !important;
+  border-color: var(--glass-border) !important;
 }
