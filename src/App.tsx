@@ -19,7 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Truck,
-  MapPin
+  MapPin,
+  Map
 } from 'lucide-react';
 import EnrollmentPage from './pages/EnrollmentPage';
 import AttendancePage from './pages/AttendancePage';
@@ -115,11 +116,16 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
     { key: '/leave', icon: <CalendarDays size={18} />, label: 'Leave' },
     { key: '/customers', icon: <Briefcase size={18} />, label: 'Customers' },
     { key: '/vehicles', icon: <Truck size={18} />, label: 'Vehicle Management' }, // Add this
+    { key: 'https://trackmycar.netlify.app/', icon: <Map size={18} />, label: 'Track Vehicles' },
     { key: '/org-settings', icon: <Settings size={18} />, label: 'Settings' },
   ];
 
   const handleMenuClick = (e: any) => {
-    navigate(e.key);
+    if (e.key.startsWith('http')) {
+      window.open(e.key, '_blank');
+    } else {
+      navigate(e.key);
+    }
     setMobileVisible(false);
   };
 
@@ -416,6 +422,14 @@ const DashboardPage = () => {
       color: '#1890ff',
     },
     {
+      key: 'track-vehicles',
+      title: 'Track Vehicles',
+      description: 'Real-time vehicle tracking via mobile',
+      icon: <Map size={32} />,
+      path: 'https://trackmycar.netlify.app/',
+      color: '#faad14',
+    },
+    {
       key: 'driver-trip',
       title: 'Driver Trip',
       description: 'Share Google Maps trip links',
@@ -562,7 +576,13 @@ const DashboardPage = () => {
             <Col xs={24} sm={12} lg={6} key={card.key}>
               <Card
                 hoverable
-                onClick={() => navigate(card.path)}
+                onClick={() => {
+                  if (card.path.startsWith('http')) {
+                    window.open(card.path, '_blank');
+                  } else {
+                    navigate(card.path);
+                  }
+                }}
                 style={{
                   height: '100%',
                   border: `1px solid ${card.color}20`,
