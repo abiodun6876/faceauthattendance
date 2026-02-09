@@ -615,9 +615,7 @@ const DashboardPage = () => {
                   <Title level={4} style={{ margin: 0, color: card.color }}>
                     {card.title}
                   </Title>
-                  <Text type="secondary" style={{ fontSize: '14px' }}>
-                    {card.description}
-                  </Text>
+
                 </div>
               </Card>
             </Col>

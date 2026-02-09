@@ -25,7 +25,7 @@ import {
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
 
-const { Title, Text } = Typography;
+const { Title} = Typography;
 
 const OrganizationSettingsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -230,9 +230,7 @@ const OrganizationSettingsPage: React.FC = () => {
                         <Title level={3} style={{ margin: 0, color: 'white' }}>
                             Organization Settings
                         </Title>
-                        <Text style={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                            Configure attendance times and rules
-                        </Text>
+
                     </div>
                 </div>
             </div>

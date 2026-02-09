@@ -1,11 +1,9 @@
 // pages/AttendancePage.tsx - Complete Multi-tenant Attendance System
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import {
-  Card,
   Row,
   Col,
-  Typography,
   Button,
   Space,
   Tag,
@@ -13,21 +11,12 @@ import {
   Spin,
   Result,
   message,
-  Tooltip,
-  Radio,
   Input,
   Switch,
   Image
 } from 'antd';
 import {
-  Camera,
-  RefreshCw,
-  Settings,
-  LogIn,
-  ArrowLeft,
-  LogOut,
-  Wifi,
-  WifiOff
+  Camera
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase, deviceService } from '../lib/supabase';
@@ -38,7 +27,6 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
-const { Title, Text } = Typography;
 
 interface AttendanceRecord {
   id: string;
@@ -112,7 +100,7 @@ interface AttendanceStats {
 }
 
 const AttendancePage: React.FC = () => {
-  const navigate = useNavigate();
+
   const [processing, setProcessing] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [attendanceMode, setAttendanceMode] = useState<'toggle' | 'explicit' | 'event'>('toggle');
@@ -139,9 +127,9 @@ const AttendancePage: React.FC = () => {
   } | null>(null);
   const [autoScan, setAutoScan] = useState(false);
   const [scanInterval, setScanInterval] = useState<NodeJS.Timeout | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline'>('online');
+  const [_connectionStatus, setConnectionStatus] = useState<'online' | 'offline'>('online');
   const [manualId, setManualId] = useState('');
-  const [manualLoading, setManualLoading] = useState(false);
+  const [_manualLoading, setManualLoading] = useState(false);
   const [_showHistory, _setShowHistory] = useState(false);
 
 
@@ -922,222 +910,113 @@ const AttendancePage: React.FC = () => {
 
   return (
     <div className="intergalactic-theme" style={{ minHeight: '100vh', background: 'transparent' }}>
-      {/* Header */}
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.05)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        padding: '16px 24px',
-        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-        marginBottom: 32
-      }}>
-        <Row align="middle" justify="space-between">
-          <Col>
-            <Space size={16}>
-              <Button
-                type="text"
-                icon={<ArrowLeft size={24} />}
-                onClick={() => navigate('/')}
-                style={{ color: 'white' }}
+
+
+      <div style={{ padding: 0, height: '100vh', width: '100vw', overflow: 'hidden', position: 'relative' }}>
+        <Row style={{ height: '100%', width: '100%' }}>
+          {/* Main Camera Column - True Full Screen */}
+          <Col span={24} style={{ height: '100%' }}>
+            <div style={{
+              height: '100%',
+              backgroundColor: '#000',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <FaceCamera
+                mode="attendance"
+                onAttendanceComplete={({ photoData }) => {
+                  if (photoData?.base64) {
+                    handleFaceCapture(photoData.base64);
+                  }
+                }}
+                autoCapture={autoScan}
+                captureInterval={1500}
+                loading={processing}
+                deviceInfo={deviceInfo}
+                organizationName={deviceInfo.organization?.name}
               />
-              <div>
-                <Title level={4} style={{ color: 'white', margin: 0, fontWeight: 700 }}>
-                  {deviceInfo.organization?.type === 'school' ? 'Take Attendance' : 'Clock In/Out'}
-                </Title>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.9rem' }}>
-                  {deviceInfo.branch?.name} • {deviceInfo.device_name}
-                </Text>
-              </div>
-            </Space>
-          </Col>
 
-          <Col>
-            <Space>
-              <Tooltip title={connectionStatus === 'online' ? 'Online' : 'Offline'}>
-                <Tag
-                  color={connectionStatus === 'online' ? 'success' : 'error'}
-                  style={{ borderRadius: 20, border: 'none', padding: '2px 10px' }}
-                  icon={connectionStatus === 'online' ? <Wifi size={12} /> : <WifiOff size={12} />}
-                >
-                  {connectionStatus.toUpperCase()}
-                </Tag>
-              </Tooltip>
-              <Tag
-                color="blue"
-                style={{ borderRadius: 20, border: 'none', padding: '2px 10px' }}
-              >
-                {attendanceMode === 'toggle' ? 'Auto Mode' :
-                  attendanceMode === 'explicit' ? 'Button Mode' : 'Event Mode'}
-              </Tag>
-              <Button
-                icon={<Settings size={16} />}
-                onClick={() => navigate('/device-setup')}
-              >
-                Settings
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-      </div>
-
-      <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
-        {/* Stats Row */}
-        <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-          {/* Main Camera Column */}
-          <Col xs={24} lg={16}>
-            <Card
-              title={
-                <Space>
-                  <Camera size={20} />
-                  <span>Face Recognition</span>
-                </Space>
-              }
-              style={{ marginBottom: 24, borderRadius: 12 }}
-              extra={
-                <Space>
-                  <Tooltip title="Toggle auto scan">
-                    <Switch
-                      checked={autoScan}
-                      onChange={setAutoScan}
-                      checkedChildren="Auto"
-                      unCheckedChildren="Manual"
-                    />
-                  </Tooltip>
+              {!autoScan && !processing && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.4)',
+                  zIndex: 10
+                }}>
                   <Button
-                    icon={<RefreshCw size={16} />}
-                    onClick={initializeAttendance}
+                    type="primary"
+                    shape="circle"
+                    onClick={() => setAutoScan(true)}
+                    icon={<Camera size={48} />}
+                    style={{
+                      height: 120,
+                      width: 120,
+                      boxShadow: '0 0 50px rgba(82, 196, 26, 0.6)',
+                      background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
+                      border: 'none',
+                    }}
                   />
-                </Space>
-              }
-            >
-              {/* Action Selection for Explicit Mode */}
-              {attendanceMode === 'explicit' && (
-                <div style={{ marginBottom: 24, textAlign: 'center' }}>
-                  <Radio.Group
-                    value={userAction}
-                    onChange={(e) => setUserAction(e.target.value)}
-                    buttonStyle="solid"
-                    size="large"
-                  >
-                    <Radio.Button value="clock_in">
-                      <Space>
-                        <LogIn size={16} />
-                        Clock In
-                      </Space>
-                    </Radio.Button>
-                    <Radio.Button value="clock_out">
-                      <Space>
-                        <LogOut size={16} />
-                        Clock Out
-                      </Space>
-                    </Radio.Button>
-                  </Radio.Group>
                 </div>
               )}
 
-              {/* Camera Feed */}
+              {/* Minimal Overlays */}
               <div style={{
-                height: 400,
-                backgroundColor: '#000',
-                borderRadius: 8,
-                marginBottom: 24,
-                position: 'relative',
-                overflow: 'hidden'
+                position: 'absolute',
+                bottom: 24,
+                left: 24,
+                zIndex: 20,
+                display: 'flex',
+                gap: 16,
+                alignItems: 'center'
               }}>
-                <FaceCamera
-                  mode="attendance"
-                  onAttendanceComplete={({ photoData }) => {
-                    if (photoData?.base64) {
-                      handleFaceCapture(photoData.base64);
-                    }
-                  }}
-                  autoCapture={autoScan}
-                  captureInterval={1500}
-                  loading={processing}
-                  deviceInfo={deviceInfo}
-                  organizationName={deviceInfo.organization?.name}
-                />
-                {!autoScan && !processing && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    backgroundColor: 'rgba(0,0,0,0.4)',
-                    zIndex: 10
-                  }}>
-                    <Button
-                      type="primary"
-                      size="large"
-                      onClick={() => setAutoScan(true)}
-                      icon={<Camera size={24} />}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  backdropFilter: 'blur(10px)',
+                  padding: '4px 12px',
+                  borderRadius: 20,
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }}>
+                  <Space.Compact>
+                    <Input
+                      placeholder="ID..."
+                      value={manualId}
+                      onChange={(e) => setManualId(e.target.value)}
                       style={{
-                        height: 80,
-                        width: 200,
-                        fontSize: 20,
-                        borderRadius: 40,
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                        background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
-                        border: 'none'
+                        width: 80,
+                        background: 'transparent',
+                        color: 'white',
+                        border: 'none',
                       }}
-                    >
-                      START
-                    </Button>
+                      onPressEnter={handleManualAttendance}
+                    />
+                  </Space.Compact>
+                </div>
 
-                  </div>
-                )}
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  backdropFilter: 'blur(10px)',
+                  padding: '8px 16px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                }}>
+                  <Switch
+                    checked={autoScan}
+                    onChange={setAutoScan}
+                    size="small"
+                  />
+                  <span style={{ marginLeft: 8, fontSize: 12 }}>AUTO</span>
+                </div>
               </div>
 
-              {/* Manual Attendance */}
-              <Card
-                title="Manual Attendance"
-                size="small"
-                style={{ marginTop: 16 }}
-                extra={
-                  <Tag color="orange">Fallback</Tag>
-                }
-              >
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    placeholder={`Enter ${deviceInfo.organization?.settings?.id_label || 'Staff/Student'} ID`}
-                    value={manualId}
-                    onChange={(e) => setManualId(e.target.value)}
-                    size="large"
-                    onPressEnter={handleManualAttendance}
-                    disabled={manualLoading}
-                  />
-                  <Button
-                    type="primary"
-                    size="large"
-                    onClick={handleManualAttendance}
-                    loading={manualLoading}
-                  >
-                    {attendanceMode === 'explicit' ? userAction === 'clock_in' ? 'Clock In' : 'Clock Out' : 'Record'}
-                  </Button>
-                </Space.Compact>
-                <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                  Use this if face recognition fails
-                </Text>
-              </Card>
 
-
-
-            </Card>
-
-
-          </Col>
-
-          {/* Right Column */}
-          <Col xs={24} lg={8}>
-
-
-
-
+            </div>
           </Col>
         </Row>
       </div>
@@ -1166,32 +1045,21 @@ const AttendancePage: React.FC = () => {
         {attendanceResult?.success ? (
           <Result
             status="success"
-            title={`${attendanceResult.action === 'clock_in' ? 'Clock In' : 'Clock Out'} Successful!`}
-            subTitle={`${attendanceResult.user?.full_name} at ${formatTime(new Date().toISOString())}`}
+            title={attendanceResult.user?.full_name}
+            subTitle={formatTime(new Date().toISOString())}
             extra={[
-              <Space key="details" direction="vertical" style={{ width: '100%', textAlign: 'left' }}>
-                <div>
-                  <Text strong>ID: </Text>
-                  <Text>{attendanceResult.user?.staff_id}</Text>
-                </div>
-                <div>
-                  <Text strong>Confidence: </Text>
-                  <Text>{attendanceResult.confidence?.toFixed(1)}%</Text>
-                </div>
-                <div>
-                  <Text strong>Action: </Text>
-                  <Tag color={attendanceResult.action === 'clock_in' ? 'green' : 'blue'}>
-                    {attendanceResult.action === 'clock_in' ? 'CLOCK IN' : 'CLOCK OUT'}
-                  </Tag>
-                </div>
+              <Space key="details" direction="vertical" style={{ width: '100%', alignItems: 'center' }}>
+                <Tag color={attendanceResult.action === 'clock_in' ? 'green' : 'blue'} style={{ fontSize: 16, padding: '4px 16px' }}>
+                  {attendanceResult.action === 'clock_in' ? 'CLOCK IN' : 'CLOCK OUT'}
+                </Tag>
                 {attendanceResult.photoData && (
-                  <div style={{ marginTop: 16, textAlign: 'center' }}>
+                  <div style={{ marginTop: 16 }}>
                     <Image
                       src={attendanceResult.photoData}
                       alt="Capture"
-                      width={150}
-                      height={150}
-                      style={{ borderRadius: 8 }}
+                      width={180}
+                      height={180}
+                      style={{ borderRadius: 12, border: '2px solid rgba(255,255,255,0.1)' }}
                     />
                   </div>
                 )}

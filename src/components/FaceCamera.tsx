@@ -1,8 +1,8 @@
 // components/FaceCamera.tsx - Multi-tenant Version
 import React, { useRef, useState, useEffect, useCallback } from 'react'; // Added useCallback
 import Webcam from 'react-webcam';
-import { Button, message, Typography, Alert, Tag } from 'antd';
-import { Camera, AlertCircle, User, Zap } from 'lucide-react';
+import { Button, message, Typography, Alert } from 'antd';
+import { Camera, AlertCircle } from 'lucide-react';
 
 const { Text } = Typography;
 
@@ -34,7 +34,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
 }) => {
   const webcamRef = useRef<any>(null);
   const [isCameraActive, setIsCameraActive] = useState(true);
-  const [countdown, setCountdown] = useState<number | null>(null);
+
   const [cameraError, setCameraError] = useState<string>('');
   const [cameraReady, setCameraReady] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -123,11 +123,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   useEffect(() => {
     if (autoCapture && isCameraActive && cameraReady && mode === 'attendance') {
       intervalRef.current = setInterval(() => {
-        setCountdown(1);
-        setTimeout(() => {
-          handleCapture();
-          setCountdown(null);
-        }, 1000);
+        handleCapture();
       }, captureInterval);
     }
 
@@ -214,74 +210,6 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
             mirrored={true}
           />
 
-          {/* Device/Branch Info Overlay */}
-          {(deviceInfo || organizationName) && (
-            <div style={{
-              position: 'absolute',
-              top: 10,
-              left: 10,
-              backgroundColor: 'rgba(0,0,0,0.7)',
-              color: 'white',
-              padding: '4px 8px',
-              borderRadius: 4,
-              fontSize: 12,
-              zIndex: 5,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}>
-              {organizationName && <Tag color="blue">{organizationName}</Tag>}
-              {deviceInfo?.device_name && <Tag color="green">{deviceInfo.device_name}</Tag>}
-              {deviceInfo?.branch?.name && <Tag color="purple">{deviceInfo.branch.name}</Tag>}
-            </div>
-          )}
-
-          {/* Mode Overlay */}
-          <div style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            backgroundColor: 'rgba(0,0,0,0.7)',
-            color: 'white',
-            padding: '4px 12px',
-            borderRadius: 4,
-            fontSize: 12,
-            zIndex: 5,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4
-          }}>
-            {mode === 'enrollment' ? (
-              <>
-                <User size={12} />
-                <span>ENROLLMENT</span>
-              </>
-            ) : (
-              <>
-                <Zap size={12} />
-                <span>ATTENDANCE</span>
-              </>
-            )}
-          </div>
-
-          {/* Auto-capture Countdown */}
-          {countdown && autoCapture && (
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              fontSize: 72,
-              fontWeight: 'bold',
-              color: 'white',
-              textShadow: '0 2px 8px rgba(0,0,0,0.5)',
-              zIndex: 10,
-              animation: 'pulse 1s infinite'
-            }}>
-              {countdown}
-            </div>
-          )}
-
           {/* Sci-Fi HUD Overlay */}
           {(mode === 'enrollment' || mode === 'attendance') && (
             <div style={{
@@ -296,52 +224,37 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               {/* Corner Brackets */}
               <div style={{
                 position: 'absolute',
-                top: '20%',
-                left: '15%',
-                width: '70%',
-                height: '60%',
-                border: '2px solid rgba(0, 243, 255, 0.3)',
+                top: '15%',
+                left: '20%',
+                width: '60%',
+                height: '70%',
+                border: '1px solid rgba(0, 243, 255, 0.2)',
                 borderTop: 'none',
                 borderBottom: 'none',
-                borderRadius: '20px'
+                borderRadius: '40px'
               }} />
 
-              {/* Central Target */}
+              {/* Central Target - Cleaner */}
               <div style={{
                 position: 'absolute',
                 top: '50%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
-                width: '280px',
-                height: '350px',
-                border: '1px solid rgba(0, 243, 255, 0.5)',
-                borderRadius: '16px',
-                boxShadow: '0 0 20px rgba(0, 243, 255, 0.2)',
-                background: 'linear-gradient(180deg, rgba(0,243,255,0) 0%, rgba(0,243,255,0.1) 50%, rgba(0,243,255,0) 100%)'
+                width: '300px',
+                height: '400px',
+                border: '1px solid rgba(0, 243, 255, 0.4)',
+                borderRadius: '24px',
+                boxShadow: '0 0 30px rgba(0, 243, 255, 0.1)'
               }}>
                 {/* Scanning Line */}
                 <div style={{
                   width: '100%',
                   height: '2px',
-                  background: '#0aff60',
-                  boxShadow: '0 0 10px #0aff60',
+                  background: 'linear-gradient(90deg, transparent, #0aff60, transparent)',
+                  boxShadow: '0 0 15px #0aff60',
                   position: 'absolute',
-                  animation: 'scanner 2s ease-in-out infinite'
+                  animation: 'scanner 3s ease-in-out infinite'
                 }} />
-
-                {/* HUD Data Text */}
-                <div style={{
-                  position: 'absolute',
-                  top: -30,
-                  left: 0,
-                  color: '#00f3ff',
-                  fontFamily: 'monospace',
-                  fontSize: 10,
-                  textShadow: '0 0 5px #00f3ff'
-                }}>
-                  TARGET_LOCK: ACTIVE<br />
-                  BIO_metrics: ANALYZING...
-                </div>
               </div>
             </div>
           )}
@@ -365,17 +278,14 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               textAlign: 'center'
             }}>
               <div style={{
-                width: 80,
-                height: 80,
+                width: 100,
+                height: 100,
                 border: '4px solid transparent',
                 borderTopColor: '#00f3ff',
                 borderRightColor: '#bc13fe',
                 borderRadius: '50%',
                 animation: 'spin 1s linear infinite'
               }} />
-              <Text style={{ color: '#00f3ff', display: 'block', marginTop: 16, fontFamily: 'monospace', letterSpacing: 2 }}>
-                {mode === 'enrollment' ? 'ENROLLING...' : 'VERIFYING...'}
-              </Text>
             </div>
           )}
 
@@ -383,7 +293,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           {((mode === 'enrollment' || mode === 'attendance') && !autoCapture && !loading) && (
             <div style={{
               position: 'absolute',
-              bottom: 30,
+              bottom: 40,
               left: 0,
               right: 0,
               textAlign: 'center',
@@ -396,44 +306,21 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                   background: 'rgba(0, 243, 255, 0.1)',
                   border: '1px solid #00f3ff',
                   color: '#00f3ff',
-                  padding: '16px 48px',
-                  fontSize: '16px',
+                  padding: '12px 40px',
+                  fontSize: '18px',
                   fontFamily: 'monospace',
-                  letterSpacing: '2px',
+                  letterSpacing: '4px',
                   cursor: 'pointer',
-                  backdropFilter: 'blur(4px)',
-                  boxShadow: '0 0 20px rgba(0, 243, 255, 0.3)',
+                  backdropFilter: 'blur(8px)',
+                  boxShadow: '0 0 30px rgba(0, 243, 255, 0.2)',
                   transition: 'all 0.3s ease',
-                  clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = 'rgba(0, 243, 255, 0.3)';
-                  e.currentTarget.style.boxShadow = '0 0 40px rgba(0, 243, 255, 0.6)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'rgba(0, 243, 255, 0.1)';
-                  e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 243, 255, 0.3)';
+                  borderRadius: '4px'
                 }}
               >
-                {mode === 'enrollment' ? 'CAPTURE_ID' : 'INITIATE_SCAN'}
+                {mode === 'enrollment' ? 'ENROLL' : 'SCAN'}
               </button>
             </div>
           )}
-
-          {/* Camera Status */}
-          <div style={{
-            position: 'absolute',
-            bottom: 10,
-            left: 10,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            color: 'white',
-            padding: '2px 8px',
-            borderRadius: 4,
-            fontSize: 10,
-            zIndex: 5
-          }}>
-            {cameraReady ? '🟢 Camera Ready' : '🟡 Camera Initializing'}
-          </div>
         </>
       ) : (
         <div style={{

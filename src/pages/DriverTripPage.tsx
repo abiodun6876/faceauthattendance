@@ -24,7 +24,6 @@ import {
     ExternalLink,
     Copy,
     Send,
-    AlertCircle,
     Play,
     StopCircle
 } from 'lucide-react';
@@ -50,7 +49,7 @@ const DriverTripPage: React.FC = () => {
     const loadDriverData = async () => {
         try {
             const userId = localStorage.getItem('user_id');
-            
+
             // Load driver info
             const { data: driverData } = await supabase
                 .from('users')
@@ -95,7 +94,7 @@ const DriverTripPage: React.FC = () => {
         try {
             setLoading(true);
             const userId = localStorage.getItem('user_id');
-            
+
             // Create a new trip
             const { data: trip, error } = await supabase
                 .from('vehicle_trips')
@@ -126,7 +125,7 @@ const DriverTripPage: React.FC = () => {
     const handleShareLink = async (values: any) => {
         try {
             setLoading(true);
-            
+
             const { error } = await supabase
                 .from('vehicle_trips')
                 .update({
@@ -138,7 +137,7 @@ const DriverTripPage: React.FC = () => {
                 .eq('id', activeTrip.id);
 
             if (error) throw error;
-            
+
             message.success('Trip link shared successfully!');
             setLinkModalVisible(false);
             form.resetFields();
@@ -154,7 +153,7 @@ const DriverTripPage: React.FC = () => {
     const handleCompleteTrip = async () => {
         try {
             setLoading(true);
-            
+
             const { error } = await supabase
                 .from('vehicle_trips')
                 .update({
@@ -165,7 +164,7 @@ const DriverTripPage: React.FC = () => {
                 .eq('id', activeTrip.id);
 
             if (error) throw error;
-            
+
             message.success('Trip completed successfully!');
             setActiveTrip(null);
             loadDriverData();
@@ -182,17 +181,7 @@ const DriverTripPage: React.FC = () => {
         message.success('Copied to clipboard!');
     };
 
-    const getGoogleMapsShareInstructions = () => {
-        return `How to share Google Maps trip:
-        1. Open Google Maps on your phone
-        2. Search for your destination
-        3. Tap "Directions"
-        4. Choose your starting point
-        5. Tap the three dots menu (⋮)
-        6. Select "Share trip" or "Share directions"
-        7. Copy the link
-        8. Paste it in the form above`;
-    };
+
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa', padding: 16 }}>
@@ -219,7 +208,7 @@ const DriverTripPage: React.FC = () => {
                     <Col>
                         <Statistic
                             title="Today's Trips"
-                            value={pastTrips.filter(t => 
+                            value={pastTrips.filter(t =>
                                 dayjs(t.created_at).isSame(dayjs(), 'day')
                             ).length}
                             valueStyle={{ color: '#1890ff' }}
@@ -237,10 +226,10 @@ const DriverTripPage: React.FC = () => {
                     </Title>
                     <Row gutter={[16, 16]}>
                         <Col span={12}>
-                            <div style={{ 
-                                background: '#f0f7ff', 
-                                padding: 16, 
-                                borderRadius: 8 
+                            <div style={{
+                                background: '#f0f7ff',
+                                padding: 16,
+                                borderRadius: 8
                             }}>
                                 <Text strong style={{ fontSize: 18, display: 'block' }}>
                                     {assignedVehicle.vehicle_name}
@@ -254,10 +243,10 @@ const DriverTripPage: React.FC = () => {
                             </div>
                         </Col>
                         <Col span={12}>
-                            <div style={{ 
-                                background: '#f6ffed', 
-                                padding: 16, 
-                                borderRadius: 8 
+                            <div style={{
+                                background: '#f6ffed',
+                                padding: 16,
+                                borderRadius: 8
                             }}>
                                 <Text strong>Mileage:</Text>
                                 <Text style={{ fontSize: 24, display: 'block', marginTop: 4 }}>
@@ -274,7 +263,7 @@ const DriverTripPage: React.FC = () => {
 
             {/* Active Trip Section */}
             {activeTrip ? (
-                <Card 
+                <Card
                     style={{ marginBottom: 24 }}
                     title={
                         <Space>
@@ -286,28 +275,22 @@ const DriverTripPage: React.FC = () => {
                 >
                     <Row gutter={[16, 16]}>
                         <Col span={24}>
-                            <Alert
-                                message="Trip is Active"
-                                description="Please share your Google Maps link so security can track your trip."
-                                type="info"
-                                showIcon
-                                style={{ marginBottom: 16 }}
-                            />
+
                         </Col>
-                        
+
                         {activeTrip.google_maps_link ? (
                             <Col span={24}>
-                                <div style={{ 
-                                    background: '#e6f7ff', 
-                                    padding: 16, 
-                                    borderRadius: 8 
+                                <div style={{
+                                    background: '#e6f7ff',
+                                    padding: 16,
+                                    borderRadius: 8
                                 }}>
                                     <Text strong style={{ display: 'block', marginBottom: 8 }}>
                                         Shared Google Maps Link:
                                     </Text>
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
                                         justifyContent: 'space-between',
                                         background: 'white',
                                         padding: '8px 12px',
@@ -343,13 +326,6 @@ const DriverTripPage: React.FC = () => {
                         ) : (
                             <Col span={24}>
                                 <div style={{ textAlign: 'center', padding: 24 }}>
-                                    <AlertCircle size={48} color="#fa8c16" style={{ marginBottom: 16 }} />
-                                    <Title level={5} style={{ marginBottom: 8 }}>
-                                        Share Your Trip Link
-                                    </Title>
-                                    <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                                        Security needs your Google Maps link to track your trip
-                                    </Text>
                                     <Button
                                         type="primary"
                                         size="large"
@@ -412,7 +388,8 @@ const DriverTripPage: React.FC = () => {
                         )}
                     </div>
                 </Card>
-            )}
+            )
+            }
 
             {/* Past Trips */}
             <Card title={<Title level={5}>Recent Trips</Title>}>
@@ -425,7 +402,7 @@ const DriverTripPage: React.FC = () => {
                                     avatar={
                                         <Avatar
                                             size={40}
-                                            style={{ 
+                                            style={{
                                                 backgroundColor: trip.status === 'completed' ? '#52c41a' : '#fa8c16'
                                             }}
                                         >
@@ -479,13 +456,7 @@ const DriverTripPage: React.FC = () => {
                 width={600}
                 footer={null}
             >
-                <Alert
-                    message="Instructions"
-                    description={getGoogleMapsShareInstructions()}
-                    type="info"
-                    showIcon
-                    style={{ marginBottom: 16 }}
-                />
+
 
                 <Form
                     form={form}
@@ -501,7 +472,7 @@ const DriverTripPage: React.FC = () => {
                         ]}
                         extra="Paste the link from Google Maps"
                     >
-                        <Input 
+                        <Input
                             placeholder="https://www.google.com/maps/dir/..."
                             size="large"
                         />
@@ -530,7 +501,7 @@ const DriverTripPage: React.FC = () => {
                         label="Notes"
                         name="notes"
                     >
-                        <TextArea 
+                        <TextArea
                             rows={3}
                             placeholder="Any additional notes about the trip..."
                         />
@@ -548,7 +519,7 @@ const DriverTripPage: React.FC = () => {
                     </Form.Item>
                 </Form>
             </Modal>
-        </div>
+        </div >
     );
 };
 

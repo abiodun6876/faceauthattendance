@@ -583,13 +583,7 @@ const EnrollmentPage: React.FC = () => {
       icon: <User size={16} />,
       content: (
         <Form form={form} layout="vertical" initialValues={{ user_role: 'staff', gender: 'male' }}>
-          <Alert
-            message="Biometric Enrollment"
-            description="Fill in user details. After this, we'll capture and process face biometrics."
-            type="info"
-            showIcon
-            style={{ marginBottom: 24 }}
-          />
+
 
           <Row gutter={16}>
             <Col span={24}>
@@ -740,11 +734,6 @@ const EnrollmentPage: React.FC = () => {
               type="error"
               showIcon
               style={{ marginBottom: 24 }}
-              action={
-                <Button size="small" onClick={() => setFaceProcessingResult(null)}>
-                  Try Again
-                </Button>
-              }
             />
           )}
 

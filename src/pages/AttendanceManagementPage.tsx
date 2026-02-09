@@ -699,9 +699,7 @@ const AttendanceManagementPage: React.FC = () => {
       <Title level={2} style={{ marginBottom: 24 }}>
         Attendance Management
       </Title>
-      <Text type="secondary">
-        View, search, and filter attendance records for all users
-      </Text>
+
 
       {/* Today's Stats - Compact Circular Cards */}
       <div style={{
@@ -1046,8 +1044,8 @@ const AttendanceManagementPage: React.FC = () => {
               message="No attendance records found"
               description={
                 attendanceData.length === 0
-                  ? "No attendance data has been recorded yet. Check back after some clock-ins/outs have been recorded."
-                  : "No records match your current filters. Try adjusting your search criteria."
+                  ? "No attendance data recorded yet."
+                  : "No records match your filters."
               }
               type="info"
               showIcon

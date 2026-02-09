@@ -7,7 +7,6 @@ import {
   Input,
   Button,
   Typography,
-  Alert,
   Steps,
   Row,
   Col,
@@ -298,13 +297,7 @@ const DeviceSetupPage: React.FC = () => {
 
           {orgMode === 'join' ? (
             <>
-              <Alert
-                message="Organization Setup"
-                description="If you have an organization code, enter it below. Otherwise, you'll be connected to the default organization."
-                type="info"
-                showIcon
-                style={{ marginBottom: 24 }}
-              />
+
               <Form.Item
                 name="organization_code"
                 label="Organization Code (Optional)"
@@ -319,13 +312,7 @@ const DeviceSetupPage: React.FC = () => {
             </>
           ) : (
             <div style={{ padding: '0 12px' }}>
-              <Alert
-                message="Create New Organization"
-                description="Set up a new workspace for your company or school."
-                type="success"
-                showIcon
-                style={{ marginBottom: 24 }}
-              />
+
 
               <Form.Item
                 name="new_org_name"
@@ -494,19 +481,7 @@ const DeviceSetupPage: React.FC = () => {
             />
 
             <div style={{ marginTop: 32 }}>
-              <Alert
-                message="Setup Instructions"
-                description={
-                  <ul style={{ margin: 0, paddingLeft: 16 }}>
-                    <li>Ensure stable internet connection</li>
-                    <li>Keep pairing code secure</li>
-                    <li>Place device in accessible location</li>
-                    <li>Test camera and microphone</li>
-                  </ul>
-                }
-                type="info"
-                showIcon
-              />
+
             </div>
           </Col>
 
@@ -529,13 +504,7 @@ const DeviceSetupPage: React.FC = () => {
                 onFinish={handleLogin}
                 size="large"
               >
-                <Alert
-                  message="Device Login"
-                  description="Enter your device credentials to reconnect this device."
-                  type="info"
-                  showIcon
-                  style={{ marginBottom: 24 }}
-                />
+
 
                 <Form.Item
                   name="login_device_code"

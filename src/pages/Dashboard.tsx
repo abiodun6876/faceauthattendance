@@ -1,19 +1,14 @@
 // src/pages/Dashboard.tsx - FIXED VERSION
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Typography, Statistic, Spin, Alert, Button, Tag, message } from 'antd';
+import { Card, Row, Col, Typography, Statistic, Spin, Button, Tag, message } from 'antd';
 import {
   UserOutlined,
   TeamOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
-  ReloadOutlined,
-  ExclamationCircleOutlined,
-  CheckCircleFilled,
-  CiCircleFilled
+  ReloadOutlined
 } from '@ant-design/icons';
 import {
-  Users,
-  Calendar,
   CheckCircle,
   Clock,
   XCircle
@@ -267,90 +262,9 @@ const Dashboard = () => {
     <div style={{ padding: '24px' }}>
       <Title level={2}>Dashboard</Title>
 
-      {error && (
-        <Alert
-          message="Error Loading Dashboard"
-          description={error}
-          type="error"
-          showIcon
-          style={{ marginBottom: '24px' }}
-          action={
-            <Button size="small" onClick={fetchDashboardData}>
-              Retry
-            </Button>
-          }
-        />
-      )}
 
-      {connectionTest && (
-        <Alert
-          message="Connection Status"
-          description={connectionTest.message}
-          type={connectionTest.success ? 'success' : 'error'}
-          showIcon
-          style={{ marginBottom: '24px' }}
-        />
-      )}
 
-      {/* Connection Test Section */}
-      <Card
-        title="Database Connection Test"
-        style={{ marginBottom: '24px' }}
-        extra={
-          <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            onClick={testConnection}
-            loading={loading}
-          >
-            Test Connection
-          </Button>
-        }
-      >
-        <Row gutter={[16, 16]}>
-          <Col span={8}>
-            <Card size="small">
-              <Statistic
-                title="Database"
-                value={stats.systemStatus.database ? 'Connected' : 'Disconnected'}
-                prefix={stats.systemStatus.database ? <CheckCircleFilled style={{ color: '#52c41a' }} /> : <CiCircleFilled style={{ color: '#ff4d4f' }} />}
-              />
-            </Card>
-          </Col>
-          <Col span={8}>
-            <Card size="small">
-              <Statistic
-                title="Face Recognition"
-                value={stats.systemStatus.faceRecognition ? 'Ready' : 'Not Ready'}
-                prefix={stats.systemStatus.faceRecognition ? <CheckCircleFilled style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#faad14' }} />}
-              />
-            </Card>
-          </Col>
-          <Col span={8}>
-            <Card size="small">
-              <Statistic
-                title="Sync Service"
-                value={stats.systemStatus.sync ? 'Active' : 'Inactive'}
-                prefix={stats.systemStatus.sync ? <CheckCircleFilled style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#faad14' }} />}
-              />
-            </Card>
-          </Col>
-        </Row>
 
-        <div style={{ marginTop: '16px', textAlign: 'center' }}>
-          <Button
-            type="dashed"
-            onClick={handleTestInsert}
-            style={{ marginRight: '8px' }}
-          >
-            Test Database Insert
-          </Button>
-          <Text type="secondary">
-            Device: {organizationId ? `Org: ${organizationId.substring(0, 8)}...` : 'Not registered'}
-            {branchId && ` | Branch: ${branchId.substring(0, 8)}...`}
-          </Text>
-        </div>
-      </Card>
 
       {/* Stats Cards */}
       <Row gutter={[16, 16]}>
@@ -362,7 +276,7 @@ const Dashboard = () => {
               prefix={<UserOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
-            <Text type="secondary">Active users in system</Text>
+
           </Card>
         </Col>
 
@@ -374,7 +288,7 @@ const Dashboard = () => {
               prefix={<TeamOutlined />}
               valueStyle={{ color: '#52c41a' }}
             />
-            <Text type="secondary">Users with biometrics</Text>
+
           </Card>
         </Col>
 
@@ -386,7 +300,7 @@ const Dashboard = () => {
               prefix={<CalendarOutlined />}
               valueStyle={{ color: '#722ed1' }}
             />
-            <Text type="secondary">Attendance sessions today</Text>
+
           </Card>
         </Col>
 
@@ -399,7 +313,7 @@ const Dashboard = () => {
               prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#13c2c2' }}
             />
-            <Text type="secondary">Biometric coverage</Text>
+
           </Card>
         </Col>
       </Row>
