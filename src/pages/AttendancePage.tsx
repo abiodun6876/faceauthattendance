@@ -24,7 +24,6 @@ import faceService from '../utils/faceService';
 import { speak } from '../utils/speechSynthesis';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-
 dayjs.extend(relativeTime);
 
 
@@ -548,7 +547,7 @@ const AttendancePage: React.FC = () => {
         'match_users_by_face',
         {
           filter_organization_id: deviceInfo?.organization_id,
-          match_threshold: 0.60, // Lowered from 0.7 for better detection
+          match_threshold: 0.70, // Increased from 0.6 for better detection (closer to work mode)
           query_embedding: embeddingString
         }
       );
@@ -666,6 +665,12 @@ const AttendancePage: React.FC = () => {
     loadStats,
     load
   ]);
+
+  const handleCameraComplete = useCallback(({ photoData }: any) => {
+    if (photoData?.base64) {
+      handleFaceCapture(photoData.base64);
+    }
+  }, [handleFaceCapture]);
 
   // Handle manual attendance
   const handleManualAttendance = useCallback(async () => {
@@ -924,11 +929,7 @@ const AttendancePage: React.FC = () => {
             }}>
               <FaceCamera
                 mode="attendance"
-                onAttendanceComplete={({ photoData }) => {
-                  if (photoData?.base64) {
-                    handleFaceCapture(photoData.base64);
-                  }
-                }}
+                onAttendanceComplete={handleCameraComplete}
                 autoCapture={autoScan}
                 captureInterval={1500}
                 loading={processing}
