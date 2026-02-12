@@ -17,7 +17,9 @@ import {
   ArrowLeft,
   Plus
 } from 'lucide-react';
-import { supabase, deviceService } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { deviceService } from '../services/deviceService';
+
 import { Form, Input, Modal, message as antdMessage } from 'antd';
 
 const { Title, Text } = Typography;
@@ -37,7 +39,7 @@ const BranchSelectionPage: React.FC = () => {
 
   const loadBranches = useCallback(async () => {
     try {
-      const { isRegistered, device } = await deviceService.checkDeviceRegistration();
+      const { isRegistered, device } = await deviceService.checkRegistration();
 
       if (!isRegistered || !device) {
         navigate('/device-setup');

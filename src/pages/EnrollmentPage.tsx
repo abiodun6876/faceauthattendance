@@ -43,7 +43,11 @@ import {
   Home
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
-import { supabase, deviceService } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { deviceService } from '../services/deviceService';
+import { userService } from '../services/userService';
+import { orgService } from '../services/orgService';
+import { attendanceService } from '../services/attendanceService';
 import faceService from '../utils/faceService';
 import dayjs from 'dayjs';
 
@@ -98,7 +102,7 @@ const EnrollmentPage: React.FC = () => {
     setLoading(true);
     try {
       // Check validation first
-      const { isRegistered, device } = await deviceService.checkDeviceRegistration();
+      const { isRegistered, device } = await deviceService.checkRegistration();
 
       if (!isRegistered || !device) {
         message.warning('Device not registered. Redirecting to setup...');
@@ -157,12 +161,7 @@ const EnrollmentPage: React.FC = () => {
       }
 
       // Check if user already exists
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('staff_id', values.staff_id)
-        .eq('organization_id', deviceInfo?.organization_id)
-        .single();
+      const { data: existingUser } = await userService.getUserByStaffId(values.staff_id, deviceInfo?.organization_id);
 
       if (existingUser) {
         throw new Error(`User with ID ${values.staff_id} already exists`);
@@ -213,7 +212,7 @@ const EnrollmentPage: React.FC = () => {
     }
   }, [deviceInfo?.organization_id]);
 
-  const handleEnrollment = useCallback(async (userData: any, photoData: string, faceResult: FaceProcessingResult) => {
+    const handleEnrollment = useCallback(async (userData: any, photoData: string, faceResult: FaceProcessingResult) => {
     setLoading(true);
 
     try {
@@ -221,123 +220,48 @@ const EnrollmentPage: React.FC = () => {
         throw new Error('Face embedding not available');
       }
 
-      // Prepare user data - BOTH staff and student go to the users table
-      const userInsertData = {
-        full_name: userData.full_name,
-        staff_id: userData.staff_id,
-        email: userData.email || null,
-        phone: userData.phone || null,
-        user_role: userData.user_role, // 'staff', 'student', or 'admin'
-        gender: userData.gender,
-        branch_id: userData.branch_id || deviceInfo?.branch_id,
-        department_id: userData.department_id || null,
-        organization_id: deviceInfo?.organization_id,
-        is_active: true,
-        enrollment_status: 'enrolled',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      // For students, add extra fields if needed
-      if (userData.user_role === 'student') {
-        userInsertData['level'] = userData.level || 100;
-        userInsertData['program_code'] = userData.department_name || 'General';
-      }
-
-      // 💾 SAVE DRAFT TO LOCAL STORAGE FIRST (Reliability requirement)
+      // 💾 SAVE DRAFT TO LOCAL STORAGE FIRST
       const enrollmentDraft = {
-        userData: userInsertData,
+        userData,
         faceResult: {
           ...faceResult,
-          embedding: Array.from(faceResult.embedding) // Must convert Float32Array to regular array for JSON
+          embedding: Array.from(faceResult.embedding)
         },
         photoData,
         timestamp: new Date().toISOString()
       };
       localStorage.setItem('pending_enrollment_draft', JSON.stringify(enrollmentDraft));
-      console.log('📝 Enrollment draft saved to local storage');
 
-      // Insert user into the users table
-      const { data: user, error: userError } = await supabase
-        .from('users')
-        .insert(userInsertData)
-        .select()
-        .single();
+      // Use userService to enroll the user
+      const { user, faceEnrollment, error: enrollError } = await userService.enrollUser({
+        fullName: userData.full_name,
+        staffId: userData.staff_id,
+        email: userData.email,
+        phone: userData.phone,
+        userRole: userData.user_role || 'staff',
+        gender: userData.gender,
+        organizationId: deviceInfo?.organization_id,
+        branchId: userData.branch_id || deviceInfo?.branch_id,
+        departmentId: userData.department_id || null,
+        photoUrl: photoData,
+        embedding: Array.from(faceResult.embedding),
+        qualityScore: faceResult.quality || 0,
+        deviceName: deviceInfo?.device_name || 'web_camera',
+        locationName: deviceInfo?.branch?.name || 'online'
+      } as any);
 
-      if (userError) throw userError;
+      if (enrollError) throw enrollError;
 
-      // Convert embedding to string for database storage
-      const embeddingArray = Array.from(faceResult.embedding);
-      const embeddingString = JSON.stringify(embeddingArray); // Convert to JSON string
-
-      // Create face enrollment with STRING embedding
-      const faceEnrollmentData = {
-        user_id: user.id,
-        organization_id: deviceInfo?.organization_id,
-        photo_url: photoData,
-        embedding: embeddingString, // STORE AS STRING (JSON format)
-        capture_device: deviceInfo?.device_name || 'web_camera',
-        enrollment_location: deviceInfo?.branch?.name || 'unknown',
-        is_primary: true,
-        is_active: true,
-        quality_score: faceResult.quality || 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const { data: faceEnrollment, error: faceError } = await supabase
-        .from('face_enrollments')
-        .insert(faceEnrollmentData)
-        .select()
-        .single();
-
-      if (faceError) {
-        // Rollback user creation if face enrollment fails
-        await supabase
-          .from('users')
-          .delete()
-          .eq('id', user.id);
-        throw faceError;
-      }
-
-      // Update user with face enrollment info
-      const { data: updatedUser, error: updateError } = await supabase
-        .from('users')
-        .update({
-          enrollment_status: 'enrolled',
-          face_enrolled_at: new Date().toISOString(),
-          face_photo_url: photoData,
-          face_embedding: embeddingString,
-          face_embedding_stored: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.error('Final status update failed:', updateError);
-        // We don't throw here to avoid rollback if the face data is already saved
-        // but we should warn the user
-        message.warning('User enrolled but status update failed. Please contact admin.');
-      } else {
-        console.log('User status successfully updated to enrolled:', updatedUser.id);
-      }
-
-      // Create log entry
-      await supabase
-        .from('face_match_logs')
-        .insert({
-          user_id: user.id,
-          organization_id: deviceInfo?.organization_id,
-          device_id: deviceInfo?.id,
-          photo_url: photoData,
-          confidence_score: faceResult.quality || 0,
-          threshold_score: 70,
-          is_match: true,
-          verification_result: 'enrollment',
-          created_at: new Date().toISOString()
-        });
+      // Create log entry using attendanceService
+      await attendanceService.logFaceMatch({
+        userId: user.id || '',
+        organizationId: deviceInfo?.organization_id || '',
+        deviceId: deviceInfo?.id || '',
+        photoUrl: photoData,
+        confidence: faceResult.quality || 0,
+        isMatch: true,
+        result: 'enrollment'
+      } as any);
 
       const result = {
         success: true,
@@ -349,32 +273,18 @@ const EnrollmentPage: React.FC = () => {
 
       // ✅ SUCCESS - CLEAR DRAFT
       localStorage.removeItem('pending_enrollment_draft');
-      localStorage.removeItem('processing_draft'); // Also clear processing flag
-      console.log('🗑️ Enrollment draft cleared');
+      localStorage.removeItem('processing_draft');
 
-      // Get role display name
-      const getRoleDisplayName = (role: string) => {
-        switch (role) {
-          case 'student': return 'Student';
-          case 'estate_member': return 'Estate Member';
-          case 'event_attendee': return 'Event Attendee';
-          case 'hotel_user': return 'Hotel User';
-          case 'visitor': return 'Visitor';
-          case 'tenant': return 'Tenant';
-          case 'landlord': return 'Landlord';
-          case 'vendor': return 'Vendor';
-          case 'contractor': return 'Contractor';
-          case 'security': return 'Security';
-          case 'other': return 'Other';
-          default: return 'Staff';
-        }
+      const roles: Record<string, string> = {
+        student: 'Student',
+        estate_member: 'Estate Member',
+        visitor: 'Visitor',
+        staff: 'Staff'
       };
+      const roleDisplayName = roles[userData.user_role as string] || 'User';
 
-      const roleDisplayName = getRoleDisplayName(userData.user_role);
-
-      // Set all states at once to avoid multiple re-renders
       setEnrollmentResult(result);
-      setFormData(userData); // Update form data here if needed
+      setFormData(userData);
       setCurrentStep(2);
       message.success(`${roleDisplayName} enrolled with biometrics!`);
 

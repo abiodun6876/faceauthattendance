@@ -28,7 +28,9 @@ import {
     Edit,
     Download
 } from 'lucide-react';
-import { supabase, deviceService } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { deviceService } from '../services/deviceService';
+import { userService } from '../services/userService';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -62,7 +64,7 @@ const UsersManagementPage: React.FC = () => {
     const loadUsers = async () => {
         try {
             setLoading(true);
-            const { isRegistered: _isRegistered, device: deviceInfo } = await deviceService.checkDeviceRegistration();
+            const { isRegistered: _isRegistered, device: deviceInfo } = await deviceService.checkRegistration();
             const organizationId = deviceInfo?.organization_id || localStorage.getItem('organization_id');
 
             if (!organizationId) {
@@ -70,22 +72,8 @@ const UsersManagementPage: React.FC = () => {
                 return;
             }
 
-            const branchId = localStorage.getItem('branch_id');
-
-            let query = supabase
-                .from('users')
-                .select(`
-          *,
-          branch:branches(name),
-          organization:organizations(name, type)
-        `)
-                .eq('organization_id', organizationId);
-
-            if (branchId) {
-                query = query.eq('branch_id', branchId);
-            }
-
-            const { data, error } = await query.order('created_at', { ascending: false });
+            const branchId = localStorage.getItem('branch_id') || undefined;
+            const { data, error } = await userService.getOrganizationUsers(organizationId, branchId);
 
             if (error) throw error;
 

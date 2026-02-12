@@ -34,9 +34,6 @@ import {
   BranchesOutlined,
   ApartmentOutlined
 } from '@ant-design/icons';
-import { supabase } from '../lib/supabase';
-import dayjs from 'dayjs';
-import type { Dayjs } from 'dayjs';
 import {
   TrendingUp,
   TrendingDown,
@@ -45,6 +42,15 @@ import {
   UserX,
   AlertCircle
 } from 'lucide-react';
+import {
+  supabase,
+  deviceService,
+  attendanceService,
+  userService,
+  organizationService as orgService
+} from '../lib/supabase';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -119,32 +125,17 @@ const AttendanceManagementPage: React.FC = () => {
     punctual: 0
   });
 
-  // Load Today's Stats (Logic from OrganizationSettingsPage)
+  // Load Today's Stats
   const loadTodayStats = useCallback(async () => {
     try {
       const organizationId = localStorage.getItem('organization_id');
       if (!organizationId) return;
+
       const today = dayjs().format('YYYY-MM-DD');
-
-      // Get all users
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('id') // Only need count really, but logic uses length
-        .eq('organization_id', organizationId)
-        .eq('is_active', true);
-
-      if (usersError) throw usersError;
+      const { data: attendance, error } = await attendanceService.getTodayStats(organizationId);
+      if (error) throw error;
 
       const totalUsers = users?.length || 0;
-
-      // Get today's attendance
-      const { data: attendance, error: attendanceError } = await supabase
-        .from('attendance')
-        .select('clock_in')
-        .eq('organization_id', organizationId)
-        .eq('date', today);
-
-      if (attendanceError) throw attendanceError;
 
       const presentCount = attendance?.length || 0;
       const absentCount = totalUsers - presentCount;
@@ -187,7 +178,7 @@ const AttendanceManagementPage: React.FC = () => {
     } catch (error: any) {
       console.error('Error loading today stats:', error);
     }
-  }, []);
+  }, [users]);
 
 
 

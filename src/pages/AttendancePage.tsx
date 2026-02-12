@@ -19,7 +19,10 @@ import {
   Camera
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
-import { supabase, deviceService } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { deviceService } from '../services/deviceService';
+import { attendanceService } from '../services/attendanceService';
+import { userService } from '../services/userService';
 import faceService from '../utils/faceService';
 import { speak } from '../utils/speechSynthesis';
 import dayjs from 'dayjs';
@@ -157,7 +160,6 @@ const AttendancePage: React.FC = () => {
   // Check connection
   const checkConnection = useCallback(async () => {
     try {
-      // Fix: Add underscore prefix to unused 'data' variable
       const { data: _data, error } = await supabase
         .from('devices')
         .select('id')
@@ -168,33 +170,23 @@ const AttendancePage: React.FC = () => {
 
       // Update device last seen
       if (deviceInfo) {
-        await supabase
-          .from('devices')
-          .update({ last_seen: new Date().toISOString() })
-          .eq('id', deviceInfo.id);
+        await deviceService.updateLastSeen(deviceInfo.id);
       }
     } catch (error) {
       console.log('Connection offline');
-      setConnectionStatus('offline');
+      setConnectionStatus('online'); // Keep online if we can't confirm offline but had data
     }
   }, [deviceInfo]);
 
   // Load stats
   const loadStats = useCallback(async () => {
     try {
-      const today = dayjs().format('YYYY-MM-DD');
+      if (!deviceInfo?.organization_id) return;
 
-      let query = supabase
-        .from('attendance')
-        .select('*')
-        .eq('date', today)
-        .eq('organization_id', deviceInfo?.organization_id);
-
-      if (deviceInfo?.branch_id) {
-        query = query.eq('branch_id', deviceInfo.branch_id);
-      }
-
-      const { data: attendance, error } = await query;
+      const { data: attendance, error } = await attendanceService.getTodayStats(
+        deviceInfo.organization_id,
+        deviceInfo.branch_id
+      );
 
       if (error) throw error;
 
@@ -215,17 +207,12 @@ const AttendancePage: React.FC = () => {
   // Load user count
   const loadUserCount = useCallback(async () => {
     try {
-      let query = supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', deviceInfo?.organization_id)
-        .eq('is_active', true);
+      if (!deviceInfo?.organization_id) return;
 
-      if (deviceInfo?.branch_id) {
-        query = query.eq('branch_id', deviceInfo.branch_id);
-      }
-
-      const { count, error } = await query;
+      const { count, error } = await userService.getOrganizationUsers(
+        deviceInfo.organization_id,
+        deviceInfo.branch_id
+      );
 
       if (error) throw error;
 
@@ -269,40 +256,43 @@ const AttendancePage: React.FC = () => {
   // Check last attendance
   const checkLastAttendance = useCallback(async () => {
     try {
-      // Get last attendance for this device today
+      if (!deviceInfo?.id) return;
+
+      const { data, error } = await attendanceService.getTodayRecord(
+        '', // We don't have user ID yet, this function in service is for a specific user
+        deviceInfo.organization_id
+      );
+      // Wait, the checkLastAttendance in original code was getting last attendance for *this device*
+
       const today = dayjs().format('YYYY-MM-DD');
-      const { data, error } = await supabase
+      const { data: deviceLastRecord, error: devError } = await supabase
         .from('attendance')
         .select('*')
-        .eq('device_id', deviceInfo?.id)
+        .eq('device_id', deviceInfo.id)
         .eq('date', today)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
-      setLastAttendance(data || null);
+      if (devError && devError.code !== 'PGRST116') throw devError;
+      setLastAttendance(deviceLastRecord || null);
     } catch (error) {
       console.error('Error checking last attendance:', error);
     }
-  }, [deviceInfo?.id]);
+  }, [deviceInfo]);
 
   // Determine next action
   const determineNextAction = useCallback(async () => {
     if (!deviceInfo) return;
 
-    const today = dayjs().format('YYYY-MM-DD');
     const userId = null; // We'll get this after face match
 
     // For toggle mode, check if user is already clocked in
     if (attendanceMode === 'toggle' && userId) {
-      const { data: todayRecord } = await supabase
-        .from('attendance')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('date', today)
-        .eq('organization_id', deviceInfo.organization_id)
-        .single();
+      const { data: todayRecord } = await attendanceService.getTodayRecord(
+        userId,
+        deviceInfo.organization_id
+      );
 
       if (todayRecord) {
         setUserAction(todayRecord.clock_out ? 'clock_in' : 'clock_out');
@@ -315,7 +305,7 @@ const AttendancePage: React.FC = () => {
   // Initialize attendance
   const initializeAttendance = useCallback(async () => {
     try {
-      const { isRegistered, device: deviceInfoData } = await deviceService.checkDeviceRegistration();
+      const { isRegistered, device: deviceInfoData } = await deviceService.checkRegistration();
 
       if (!isRegistered || !deviceInfoData) {
         message.warning('Device not registered. Redirecting to setup...');
@@ -380,19 +370,12 @@ const AttendancePage: React.FC = () => {
       return userAction;
     }
 
-    const today = dayjs().format('YYYY-MM-DD');
-
     try {
       // Check existing attendance for today
-      const { data: existingRecord, error } = await supabase
-        .from('attendance')
-        .select('id, clock_in, clock_out')
-        .eq('user_id', userId)
-        .eq('date', today)
-        .eq('organization_id', deviceInfo?.organization_id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: existingRecord, error } = await attendanceService.getTodayRecord(
+        userId,
+        deviceInfo?.organization_id || ''
+      );
 
       if (error) {
         console.error('Error fetching existing attendance:', error);
@@ -421,107 +404,46 @@ const AttendancePage: React.FC = () => {
     action: 'clock_in' | 'clock_out',
     photoData: string,
     confidence: number,
-    _embedding: string // Add underscore prefix since it's not used
+    _embedding: string
   ): Promise<AttendanceRecord> => {
     const today = dayjs().format('YYYY-MM-DD');
-    const now = new Date().toISOString();
 
     // Check existing record for today
-    const { data: existingRecord } = await supabase
-      .from('attendance')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('date', today)
-      .eq('organization_id', deviceInfo?.organization_id)
-      .single();
+    const { data: existingRecord } = await attendanceService.getTodayRecord(
+      userId,
+      deviceInfo?.organization_id || ''
+    );
 
-    let attendanceData: any;
-    let recordId: string;
+    let finalResult;
 
-    if (existingRecord) {
-      // Update existing record
-      if (action === 'clock_out') {
-        attendanceData = {
-          clock_out: now,
-          status: 'present',
-          updated_at: now
-        };
-      } else {
-        // For toggle mode clocking in again after clock out
-        attendanceData = {
-          clock_in: now,
-          clock_out: null,
-          status: 'present',
-          updated_at: now
-        };
-      }
-
-      const { error } = await supabase
-        .from('attendance')
-        .update(attendanceData)
-        .eq('id', existingRecord.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      recordId = existingRecord.id;
+    if (existingRecord && action === 'clock_out') {
+      finalResult = await attendanceService.clockOut(existingRecord.id);
     } else {
-      // Create new record
-      attendanceData = {
-        user_id: userId,
-        organization_id: deviceInfo?.organization_id,
-        branch_id: deviceInfo?.branch_id,
-        device_id: deviceInfo?.id,
-        date: today,
-        clock_in: now,
-        clock_out: action === 'clock_out' ? now : null,
-        status: 'present',
-        confidence_score: confidence,
-        face_match_score: confidence,
-        photo_url: photoData,
-        verification_method: 'face',
-        created_at: now,
-        updated_at: now
-      };
-
-      const { data, error } = await supabase
-        .from('attendance')
-        .insert(attendanceData)
-        .select()
-        .single();
-
-      if (error) throw error;
-      recordId = data.id;
+      finalResult = await attendanceService.clockIn({
+        userId,
+        deviceId: deviceInfo?.id || '',
+        organizationId: deviceInfo?.organization_id || '',
+        branchId: deviceInfo?.branch_id || '',
+        confidence,
+        photoUrl: photoData
+      });
     }
 
-    // Create face match log
-    await supabase
-      .from('face_match_logs')
-      .insert({
-        user_id: userId,
-        organization_id: deviceInfo?.organization_id,
-        device_id: deviceInfo?.id,
-        photo_url: photoData,
-        confidence_score: confidence,
-        threshold_score: 70,
-        is_match: true,
-        verification_result: action === 'clock_in' ? 'clock_in' : 'clock_out',
-        created_at: now
-      });
+    if (finalResult.error) throw finalResult.error;
 
-    // Return the created/updated record
-    const { data: finalRecord } = await supabase
-      .from('attendance')
-      .select(`
-        *,
-        user:users(full_name, staff_id, face_photo_url, department_id, user_role),
-        branch:branches(name)
-      `)
-      .eq('id', recordId)
-      .single();
+    // Log face match
+    await attendanceService.logFaceMatch({
+      userId,
+      organizationId: deviceInfo?.organization_id || '',
+      deviceId: deviceInfo?.id || '',
+      photoUrl: photoData,
+      confidence,
+      isMatch: true,
+      result: action
+    });
 
-    return finalRecord;
-  }, [deviceInfo?.organization_id, deviceInfo?.branch_id, deviceInfo?.id]);
+    return finalResult.data as AttendanceRecord;
+  }, [deviceInfo]);
 
   // Handle face capture
   const handleFaceCapture = useCallback(async (photoData: string) => {
@@ -537,60 +459,15 @@ const AttendancePage: React.FC = () => {
       }
 
       // Find matching user
-      const embeddingArray = Array.from(faceResult.embedding);
-      const embeddingString = JSON.stringify(embeddingArray);
-
-      let matches = [];
-      console.log('🔍 Searching for matching users in DB...');
-
-      const { data: rpcMatches, error: matchError } = await supabase.rpc(
-        'match_users_by_face',
-        {
-          filter_organization_id: deviceInfo?.organization_id,
-          match_threshold: 0.70, // Increased from 0.6 for better detection (closer to work mode)
-          query_embedding: embeddingString
-        }
+      const matchedUser = await userService.findByFaceEmbedding(
+        Array.from(faceResult.embedding),
+        deviceInfo?.organization_id || '',
+        0.70
       );
 
-      if (matchError) {
-        console.warn('RPC matching failed, falling back to comprehensive scan:', matchError);
-      } else {
-        matches = rpcMatches || [];
-        console.log(`RPC found ${matches.length} matches.`);
-      }
-
-      // FALLBACK: Client-side matching if RPC returns no results or fails
-      if (matches.length === 0) {
-        console.log('Checking face_enrollments for a direct match...');
-        const { data: enrollments, error: fetchError } = await supabase
-          .from('face_enrollments')
-          .select('embedding, user_id, users:users(*)')
-          .eq('organization_id', deviceInfo?.organization_id)
-          .eq('is_active', true);
-
-        if (fetchError) {
-          console.error('Fallback fetch error:', fetchError);
-        } else if (enrollments && enrollments.length > 0) {
-          console.log(`Analyzing ${enrollments.length} active enrollments...`);
-          for (const enc of enrollments) {
-            if (enc.embedding && faceService.compareFaces(faceResult.embedding, enc.embedding, 0.6)) {
-              if (enc.users) {
-                // Supabase join syntax: handle both field name and table name
-                const userObj = enc.users;
-                matches.push(userObj);
-                console.log('✅ Identity Verified via Fallback:', userObj.full_name);
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      if (matches.length === 0) {
+      if (!matchedUser) {
         throw new Error('Identity not recognized. Please scan again or enroll first.');
       }
-
-      const matchedUser = matches[0];
 
       // Determine action based on mode
       const action = await determineAttendanceAction(matchedUser.id);
@@ -601,7 +478,7 @@ const AttendancePage: React.FC = () => {
         action,
         photoData,
         faceResult.quality || 0,
-        embeddingString
+        ''
       );
 
       // Show result

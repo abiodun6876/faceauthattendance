@@ -35,7 +35,8 @@ import CustomerManagementPage from './pages/CustomerManagementPage';
 import LeaveManagementPage from './pages/LeaveManagementPage';
 import VehicleManagementPage from './pages/VehicleManagementPage'; // Add this import
 import DriverTripPage from './pages/DriverTripPage'; // Add this import
-import { supabase, deviceService } from './lib/supabase';
+import { supabase } from './lib/supabase';
+import { deviceService } from './services/deviceService';
 
 import './App.css';
 
@@ -56,7 +57,7 @@ const useDeviceRegistration = () => {
 
   useEffect(() => {
     const checkDevice = async () => {
-      const { isRegistered, device } = await deviceService.checkDeviceRegistration();
+      const { isRegistered, device } = await deviceService.checkRegistration();
       setIsRegistered(isRegistered);
       setDevice(device);
       setLoading(false);

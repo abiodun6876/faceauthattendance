@@ -29,7 +29,9 @@ import {
   ArrowLeft,
   MapPin
 } from 'lucide-react';
-import { supabase, deviceService, organizationService } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { deviceService } from '../services/deviceService';
+import { orgService as organizationService } from '../services/orgService';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
