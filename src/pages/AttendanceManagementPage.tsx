@@ -44,10 +44,7 @@ import {
 } from 'lucide-react';
 import {
   supabase,
-  deviceService,
   attendanceService,
-  userService,
-  organizationService as orgService
 } from '../lib/supabase';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';

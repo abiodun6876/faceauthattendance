@@ -28,7 +28,6 @@ import {
     Edit,
     Download
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { deviceService } from '../services/deviceService';
 import { userService } from '../services/userService';
 import dayjs from 'dayjs';

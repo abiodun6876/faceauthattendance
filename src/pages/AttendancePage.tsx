@@ -258,7 +258,7 @@ const AttendancePage: React.FC = () => {
     try {
       if (!deviceInfo?.id) return;
 
-      const { data, error } = await attendanceService.getTodayRecord(
+      await attendanceService.getTodayRecord(
         '', // We don't have user ID yet, this function in service is for a specific user
         deviceInfo.organization_id
       );
@@ -406,8 +406,6 @@ const AttendancePage: React.FC = () => {
     confidence: number,
     _embedding: string
   ): Promise<AttendanceRecord> => {
-    const today = dayjs().format('YYYY-MM-DD');
-
     // Check existing record for today
     const { data: existingRecord } = await attendanceService.getTodayRecord(
       userId,

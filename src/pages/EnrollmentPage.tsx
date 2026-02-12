@@ -46,7 +46,6 @@ import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
 import { deviceService } from '../services/deviceService';
 import { userService } from '../services/userService';
-import { orgService } from '../services/orgService';
 import { attendanceService } from '../services/attendanceService';
 import faceService from '../utils/faceService';
 import dayjs from 'dayjs';
@@ -212,7 +211,7 @@ const EnrollmentPage: React.FC = () => {
     }
   }, [deviceInfo?.organization_id]);
 
-    const handleEnrollment = useCallback(async (userData: any, photoData: string, faceResult: FaceProcessingResult) => {
+  const handleEnrollment = useCallback(async (userData: any, photoData: string, faceResult: FaceProcessingResult) => {
     setLoading(true);
 
     try {
