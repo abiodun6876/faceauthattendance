@@ -674,8 +674,12 @@ const AttendanceManagementPage: React.FC = () => {
   // Initialize on component mount
   useEffect(() => {
     fetchAttendanceData();
+  }, [fetchAttendanceData]);
+
+  // Load stats whenever users list changes (which updates loadTodayStats reference)
+  useEffect(() => {
     loadTodayStats();
-  }, [fetchAttendanceData, loadTodayStats]);
+  }, [loadTodayStats]);
 
   // Apply filters whenever they change
   useEffect(() => {
