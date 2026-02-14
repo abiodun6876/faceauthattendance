@@ -37,7 +37,7 @@ export const attendanceService = {
             } as any)
             .select(`
         *,
-        user:users(full_name, staff_id, photo_url),
+        user:users(full_name, staff_id, face_photo_url),
         branch:branches(name)
       `)
             .single();
@@ -58,7 +58,7 @@ export const attendanceService = {
             .eq('id', attendanceId)
             .select(`
         *,
-        user:users(full_name, staff_id, photo_url),
+        user:users(full_name, staff_id, face_photo_url),
         branch:branches(name)
       `)
             .single();
@@ -120,7 +120,7 @@ export const attendanceService = {
           full_name, 
           email, 
           user_role,
-          photo_url,
+          face_photo_url,
           department_id
         )
       `)

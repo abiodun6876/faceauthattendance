@@ -22,7 +22,7 @@ export class SyncService {
   private static instance: SyncService;
   private isSyncing = false;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): SyncService {
     if (!SyncService.instance) {
@@ -40,7 +40,7 @@ export class SyncService {
       ...attendance,
       id: `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
-    
+
     pending.push(newRecord);
     localStorage.setItem('pending_attendance', JSON.stringify(pending));
     console.log(`Added pending attendance for user: ${attendance.userId}`);
@@ -115,7 +115,7 @@ export class SyncService {
       }
 
       console.log(`Sync completed: ${synced.length} synced, ${errors.length} errors`);
-      
+
       return {
         synced: synced.length,
         errors
@@ -167,7 +167,7 @@ export class SyncService {
           .update({
             face_embedding: JSON.stringify(embedding.descriptor),
             face_embedding_stored: true,
-            last_face_update: new Date().toISOString()
+            face_enrolled_at: new Date().toISOString()
           })
           .eq('id', embedding.userId); // ✅ CORRECT COLUMN NAME
 
@@ -190,7 +190,7 @@ export class SyncService {
     }
 
     console.log(`Embeddings sync completed: ${syncedUserIds.length} synced, ${errors.length} errors`);
-    
+
     return {
       synced: syncedUserIds.length,
       errors
@@ -205,7 +205,7 @@ export class SyncService {
     embeddings: { synced: number; errors: string[] };
   }> {
     console.log('Starting full sync...');
-    
+
     const [attendanceResult, embeddingsResult] = await Promise.all([
       this.syncAttendance(),
       this.syncFaceEmbeddings()

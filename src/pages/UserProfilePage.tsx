@@ -61,7 +61,7 @@ const UserProfilePage: React.FC = () => {
 
             setUser(data);
             const userData: any = data;
-            setPhotoUrl(userData.photo_url || '');
+            setPhotoUrl(userData.face_photo_url || '');
 
             form.setFieldsValue({
                 full_name: data.full_name,
@@ -143,8 +143,8 @@ const UserProfilePage: React.FC = () => {
             }
 
             // Update photo if changed
-            if (photoUrl !== user?.photo_url) {
-                updateData.photo_url = photoUrl;
+            if (photoUrl !== user?.face_photo_url) {
+                updateData.face_photo_url = photoUrl;
             }
 
             const { error } = await supabase

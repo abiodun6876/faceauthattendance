@@ -149,7 +149,7 @@ const UsersManagementPage: React.FC = () => {
     const columns = [
         {
             title: 'Photo',
-            dataIndex: 'photo_url',
+            dataIndex: 'face_photo_url',
             key: 'photo',
             width: 80,
             render: (photo: string, record: any) => (
@@ -389,9 +389,9 @@ const UsersManagementPage: React.FC = () => {
                 {selectedUser && (
                     <div>
                         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                            {selectedUser.photo_url ? (
+                            {selectedUser.face_photo_url ? (
                                 <Image
-                                    src={selectedUser.photo_url}
+                                    src={selectedUser.face_photo_url}
                                     alt={selectedUser.full_name}
                                     style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover' }}
                                 />
