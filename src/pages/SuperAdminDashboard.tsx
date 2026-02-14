@@ -106,7 +106,7 @@ const SuperAdminDashboard: React.FC = () => {
         };
 
         checkAuth();
-    }, []);
+    }, [navigate]);
 
     const handlePasswordSubmit = () => {
         if (adminPassword === 'Nigeram2026@?') {
