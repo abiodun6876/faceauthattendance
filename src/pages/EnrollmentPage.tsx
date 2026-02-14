@@ -40,7 +40,8 @@ import {
   Shield,
   AlertCircle,
   Zap,
-  Home
+  Home,
+  QrCode
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -242,6 +243,7 @@ const EnrollmentPage: React.FC = () => {
         organizationId: deviceInfo?.organization_id,
         branchId: userData.branch_id || deviceInfo?.branch_id,
         departmentId: userData.department_id || null,
+        qrCode: userData.qr_code,
         photoUrl: photoData,
         embedding: Array.from(faceResult.embedding),
         qualityScore: faceResult.quality || 0,
@@ -504,6 +506,12 @@ const EnrollmentPage: React.FC = () => {
             <Col span={24}>
               <Form.Item label={organizationSettings.id_label || 'ID'} name="staff_id" extra="Leave blank to auto-generate">
                 <Input size="large" placeholder="Will be auto-generated" prefix={<IdCard size={16} />} />
+              </Form.Item>
+            </Col>
+
+            <Col span={24}>
+              <Form.Item label="QR Code Value" name="qr_code" extra="Optional: Unique value to be encoded in QR code">
+                <Input size="large" placeholder="Enter QR code value" prefix={<QrCode size={16} />} />
               </Form.Item>
             </Col>
 

@@ -12,6 +12,7 @@
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
     "face-api.js": "^0.22.2",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.561.0",
     "path-browserify": "^1.0.1",
     "react": "^18.2.0",
@@ -24,9 +25,9 @@
   },
   "scripts": {
     "start": "craco start",
-  "build": "craco build",
-  "test": "craco test",
-  "eject": "react-scripts eject",
+    "build": "craco build",
+    "test": "craco test",
+    "eject": "react-scripts eject",
     "generate-icons": "node scripts/generate-icons-no-deps.js",
     "setup-icons": "node scripts/setup-icons.js"
   },

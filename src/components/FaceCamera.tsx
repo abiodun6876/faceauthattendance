@@ -4,10 +4,13 @@ import Webcam from 'react-webcam';
 import { Button, message, Typography, Alert } from 'antd';
 import { Camera, AlertCircle } from 'lucide-react';
 
+import jsQR from 'jsqr';
+
 const { Text } = Typography;
 
 interface FaceCameraProps {
   mode: 'enrollment' | 'attendance';
+  scanningMode?: 'face' | 'qr';
   onEnrollmentComplete?: (photoData: string) => void;
   onAttendanceComplete?: (result: {
     success: boolean;
@@ -15,6 +18,7 @@ interface FaceCameraProps {
     user?: any;
     confidence?: number;
   }) => void;
+  onQRCodeDetected?: (data: string) => void;
   autoCapture?: boolean;
   captureInterval?: number;
   loading?: boolean;
@@ -24,8 +28,10 @@ interface FaceCameraProps {
 
 const FaceCamera: React.FC<FaceCameraProps> = ({
   mode,
+  scanningMode = 'face',
   onEnrollmentComplete,
   onAttendanceComplete,
+  onQRCodeDetected,
   autoCapture = false,
   captureInterval = 3000,
   loading = false,
@@ -121,7 +127,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete]);
 
   useEffect(() => {
-    if (autoCapture && isCameraActive && cameraReady && mode === 'attendance') {
+    if (autoCapture && isCameraActive && cameraReady && mode === 'attendance' && scanningMode === 'face') {
       intervalRef.current = setInterval(() => {
         handleCapture();
       }, captureInterval);
@@ -132,7 +138,50 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, [autoCapture, isCameraActive, mode, captureInterval, cameraReady, handleCapture]); // Added handleCapture
+  }, [autoCapture, isCameraActive, mode, captureInterval, cameraReady, handleCapture, scanningMode]);
+
+  // QR Code Scanning Logic
+  useEffect(() => {
+    if (scanningMode !== 'qr' || !cameraReady || !isCameraActive) return;
+
+    let requestRef: number;
+
+    const scanQRCode = () => {
+      if (!webcamRef.current || !webcamRef.current.video) {
+        requestRef = requestAnimationFrame(scanQRCode);
+        return;
+      }
+
+      const video = webcamRef.current.video;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+          });
+
+          if (code && onQRCodeDetected) {
+            onQRCodeDetected(code.data);
+            // Throttle detection to avoid multiple triggers
+            setTimeout(() => {
+              requestRef = requestAnimationFrame(scanQRCode);
+            }, 2000);
+            return;
+          }
+        }
+      }
+      requestRef = requestAnimationFrame(scanQRCode);
+    };
+
+    requestRef = requestAnimationFrame(scanQRCode);
+    return () => cancelAnimationFrame(requestRef);
+  }, [scanningMode, cameraReady, isCameraActive, onQRCodeDetected]);
 
   const videoConstraints = {
     width: { ideal: 1280 },
@@ -240,21 +289,39 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                 top: '50%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
-                width: '300px',
-                height: '400px',
-                border: '1px solid rgba(0, 243, 255, 0.4)',
-                borderRadius: '24px',
-                boxShadow: '0 0 30px rgba(0, 243, 255, 0.1)'
+                width: scanningMode === 'qr' ? '250px' : '300px',
+                height: scanningMode === 'qr' ? '250px' : '400px',
+                border: `2px solid ${scanningMode === 'qr' ? 'rgba(0, 243, 255, 0.8)' : 'rgba(0, 243, 255, 0.4)'}`,
+                borderRadius: scanningMode === 'qr' ? '12px' : '24px',
+                boxShadow: scanningMode === 'qr' ? '0 0 40px rgba(0, 243, 255, 0.3)' : '0 0 30px rgba(0, 243, 255, 0.1)'
               }}>
                 {/* Scanning Line */}
                 <div style={{
                   width: '100%',
                   height: '2px',
-                  background: 'linear-gradient(90deg, transparent, #0aff60, transparent)',
-                  boxShadow: '0 0 15px #0aff60',
+                  background: scanningMode === 'qr'
+                    ? 'linear-gradient(90deg, transparent, #00f3ff, transparent)'
+                    : 'linear-gradient(90deg, transparent, #0aff60, transparent)',
+                  boxShadow: scanningMode === 'qr' ? '0 0 15px #00f3ff' : '0 0 15px #0aff60',
                   position: 'absolute',
                   animation: 'scanner 3s ease-in-out infinite'
                 }} />
+
+                {scanningMode === 'qr' && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: -40,
+                    width: '100%',
+                    textAlign: 'center',
+                    color: '#00f3ff',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    letterSpacing: '2px',
+                    textShadow: '0 0 10px rgba(0, 243, 255, 0.5)'
+                  }}>
+                    SCAN QR CODE
+                  </div>
+                )}
               </div>
             </div>
           )}

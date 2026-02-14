@@ -22,7 +22,8 @@ import {
     Camera,
     Mail,
     Phone,
-    IdCard
+    IdCard,
+    QrCode
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -72,7 +73,8 @@ const UserProfilePage: React.FC = () => {
                 gender: userData.gender,
                 user_role: data.user_role,
                 is_active: data.is_active,
-                branch_id: data.branch_id
+                branch_id: data.branch_id,
+                qr_code: data.qr_code
             });
         } catch (error: any) {
             console.error('Error loading user:', error);
@@ -130,7 +132,8 @@ const UserProfilePage: React.FC = () => {
                 phone: values.phone,
                 gender: values.gender,
                 is_active: values.is_active,
-                branch_id: values.branch_id
+                branch_id: values.branch_id,
+                qr_code: values.qr_code
             };
 
             // Add role-specific ID
@@ -283,6 +286,17 @@ const UserProfilePage: React.FC = () => {
                         <Input
                             prefix={<Phone size={16} />}
                             placeholder="Enter phone number"
+                            size="large"
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        label="QR Code Value"
+                        name="qr_code"
+                    >
+                        <Input
+                            prefix={<QrCode size={16} />}
+                            placeholder="Enter QR code value"
                             size="large"
                         />
                     </Form.Item>

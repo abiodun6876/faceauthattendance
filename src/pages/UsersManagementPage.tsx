@@ -102,7 +102,8 @@ const UsersManagementPage: React.FC = () => {
                 user.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
                 user.email?.toLowerCase().includes(searchText.toLowerCase()) ||
                 user.staff_id?.toLowerCase().includes(searchText.toLowerCase()) ||
-                user.student_id?.toLowerCase().includes(searchText.toLowerCase())
+                user.student_id?.toLowerCase().includes(searchText.toLowerCase()) ||
+                user.qr_code?.toLowerCase().includes(searchText.toLowerCase())
             );
         }
 
@@ -169,9 +170,14 @@ const UsersManagementPage: React.FC = () => {
             sorter: (a: any, b: any) => a.full_name.localeCompare(b.full_name),
         },
         {
-            title: 'ID',
-            key: 'id',
-            render: (record: any) => record.staff_id || record.student_id || '-',
+            title: 'ID / QR',
+            key: 'id_qr',
+            render: (record: any) => (
+                <Space direction="vertical" size={0}>
+                    <Text strong>{record.staff_id || record.student_id || '-'}</Text>
+                    {record.qr_code && <Text type="secondary" style={{ fontSize: '11px' }}>QR: {record.qr_code}</Text>}
+                </Space>
+            ),
         },
         {
             title: 'Email',
@@ -419,6 +425,9 @@ const UsersManagementPage: React.FC = () => {
                             </Descriptions.Item>
                             <Descriptions.Item label="ID">
                                 {selectedUser.staff_id || selectedUser.student_id || '-'}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="QR Code">
+                                {selectedUser.qr_code || '-'}
                             </Descriptions.Item>
                             <Descriptions.Item label="Gender">
                                 {selectedUser.gender || '-'}

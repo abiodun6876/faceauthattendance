@@ -1206,6 +1206,7 @@ export type Database = {
           is_active: boolean | null
           organization_id: string | null
           phone: string | null
+          qr_code: string | null
           staff_id: string | null
           updated_at: string | null
           user_role: string | null
@@ -1226,6 +1227,7 @@ export type Database = {
           is_active?: boolean | null
           organization_id?: string | null
           phone?: string | null
+          qr_code?: string | null
           staff_id?: string | null
           updated_at?: string | null
           user_role?: string | null
@@ -1246,6 +1248,7 @@ export type Database = {
           is_active?: boolean | null
           organization_id?: string | null
           phone?: string | null
+          qr_code?: string | null
           staff_id?: string | null
           updated_at?: string | null
           user_role?: string | null

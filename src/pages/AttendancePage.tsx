@@ -16,7 +16,10 @@ import {
   Image
 } from 'antd';
 import {
-  Camera
+  Camera,
+  QrCode,
+  User,
+  Scan
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -131,6 +134,7 @@ const AttendancePage: React.FC = () => {
   const [scanInterval, setScanInterval] = useState<NodeJS.Timeout | null>(null);
   const [_connectionStatus, setConnectionStatus] = useState<'online' | 'offline'>('online');
   const [manualId, setManualId] = useState('');
+  const [verificationMethod, setVerificationMethod] = useState<'face' | 'qr' | 'manual'>('face');
   const [_manualLoading, setManualLoading] = useState(false);
   const [_showHistory, _setShowHistory] = useState(false);
 
@@ -404,7 +408,8 @@ const AttendancePage: React.FC = () => {
     action: 'clock_in' | 'clock_out',
     photoData: string,
     confidence: number,
-    _embedding: string
+    _embedding: string,
+    verificationMethod: string = 'face'
   ): Promise<AttendanceRecord> => {
     // Check existing record for today
     const { data: existingRecord } = await attendanceService.getTodayRecord(
@@ -423,7 +428,8 @@ const AttendancePage: React.FC = () => {
         organizationId: deviceInfo?.organization_id || '',
         branchId: deviceInfo?.branch_id || '',
         confidence,
-        photoUrl: photoData
+        photoUrl: photoData,
+        verificationMethod
       });
     }
 
@@ -476,7 +482,8 @@ const AttendancePage: React.FC = () => {
         action,
         photoData,
         faceResult.quality || 0,
-        ''
+        '',
+        'face'
       );
 
       // Show result
@@ -541,6 +548,67 @@ const AttendancePage: React.FC = () => {
     load
   ]);
 
+  // Handle QR Detection
+  const handleQRDetected = useCallback(async (qrData: string) => {
+    if (processing) return;
+
+    // Simple validation (assuming QR data is staff_id or user_id)
+    if (!qrData || qrData.length < 3) return;
+
+    setProcessing(true);
+    try {
+      // Find user by staff_id, qr_code, or id
+      let query = supabase
+        .from('users')
+        .select('*')
+        .or(`qr_code.eq.${qrData},staff_id.eq.${qrData},id.eq.${qrData}`)
+        .eq('organization_id', deviceInfo?.organization_id)
+        .eq('is_active', true);
+
+      const { data: user, error } = await query.maybeSingle();
+
+      if (error || !user) {
+        throw new Error('User not recognized from QR code');
+      }
+
+      const action = await determineAttendanceAction(user.id);
+      const attendanceRecord = await recordAttendance(
+        user.id,
+        action,
+        'qr_scan', // Placeholder photo URL
+        100,
+        '',
+        'qr'
+      );
+
+      setAttendanceResult({
+        success: true,
+        user,
+        confidence: 100,
+        action,
+        attendance: attendanceRecord
+      });
+      setShowResultModal(true);
+      message.success(`QR ${action} successful!`);
+      speak(`Hello ${user.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`);
+
+      await Promise.all([loadStats(), load()]);
+
+    } catch (error: any) {
+      console.error('QR Attendance error:', error);
+      message.error(error.message || 'QR Verification failed');
+    } finally {
+      setProcessing(false);
+    }
+  }, [
+    processing,
+    deviceInfo?.organization_id,
+    determineAttendanceAction,
+    recordAttendance,
+    loadStats,
+    load
+  ]);
+
   const handleCameraComplete = useCallback(({ photoData }: any) => {
     if (photoData?.base64) {
       handleFaceCapture(photoData.base64);
@@ -579,7 +647,8 @@ const AttendancePage: React.FC = () => {
         action,
         'manual_entry',
         100,
-        ''
+        '',
+        'manual'
       );
 
       const result = {
@@ -804,8 +873,10 @@ const AttendancePage: React.FC = () => {
             }}>
               <FaceCamera
                 mode="attendance"
+                scanningMode={verificationMethod === 'qr' ? 'qr' : 'face'}
                 onAttendanceComplete={handleCameraComplete}
-                autoCapture={autoScan}
+                onQRCodeDetected={handleQRDetected}
+                autoCapture={autoScan && verificationMethod === 'face'}
                 captureInterval={1500}
                 loading={processing}
                 deviceInfo={deviceInfo}
@@ -844,6 +915,62 @@ const AttendancePage: React.FC = () => {
               {/* Minimal Overlays */}
               <div style={{
                 position: 'absolute',
+                top: 24,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 20,
+                display: 'flex',
+                background: 'rgba(0, 0, 0, 0.4)',
+                backdropFilter: 'blur(15px)',
+                padding: '4px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+              }}>
+                <Button
+                  type={verificationMethod === 'face' ? 'primary' : 'text'}
+                  icon={<Scan size={18} />}
+                  onClick={() => setVerificationMethod('face')}
+                  style={{
+                    color: verificationMethod === 'face' ? 'white' : 'rgba(255,255,255,0.6)',
+                    borderRadius: '8px',
+                    height: '40px',
+                    padding: '0 20px'
+                  }}
+                >
+                  FACE
+                </Button>
+                <Button
+                  type={verificationMethod === 'qr' ? 'primary' : 'text'}
+                  icon={<QrCode size={18} />}
+                  onClick={() => setVerificationMethod('qr')}
+                  style={{
+                    color: verificationMethod === 'qr' ? 'white' : 'rgba(255,255,255,0.6)',
+                    borderRadius: '8px',
+                    height: '40px',
+                    padding: '0 20px'
+                  }}
+                >
+                  QR
+                </Button>
+                <Button
+                  type={verificationMethod === 'manual' ? 'primary' : 'text'}
+                  icon={<User size={18} />}
+                  onClick={() => setVerificationMethod('manual')}
+                  style={{
+                    color: verificationMethod === 'manual' ? 'white' : 'rgba(255,255,255,0.6)',
+                    borderRadius: '8px',
+                    height: '40px',
+                    padding: '0 20px'
+                  }}
+                >
+                  ID
+                </Button>
+              </div>
+
+              {/* Bottom Overlays */}
+              <div style={{
+                position: 'absolute',
                 bottom: 24,
                 left: 24,
                 zIndex: 20,
@@ -851,44 +978,51 @@ const AttendancePage: React.FC = () => {
                 gap: 16,
                 alignItems: 'center'
               }}>
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  backdropFilter: 'blur(10px)',
-                  padding: '4px 12px',
-                  borderRadius: 20,
-                  border: '1px solid rgba(255, 255, 255, 0.2)'
-                }}>
-                  <Space.Compact>
+                {(verificationMethod === 'manual' || true) && (
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '4px 12px',
+                    borderRadius: 20,
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    <User size={14} color="rgba(255,255,255,0.6)" style={{ marginRight: 8 }} />
                     <Input
-                      placeholder="ID..."
+                      placeholder="ENTER ID..."
                       value={manualId}
                       onChange={(e) => setManualId(e.target.value)}
                       style={{
-                        width: 80,
+                        width: 100,
                         background: 'transparent',
                         color: 'white',
                         border: 'none',
+                        fontSize: '12px',
+                        letterSpacing: '1px'
                       }}
                       onPressEnter={handleManualAttendance}
                     />
-                  </Space.Compact>
-                </div>
+                  </div>
+                )}
 
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  backdropFilter: 'blur(10px)',
-                  padding: '8px 16px',
-                  borderRadius: 12,
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  color: 'white'
-                }}>
-                  <Switch
-                    checked={autoScan}
-                    onChange={setAutoScan}
-                    size="small"
-                  />
-                  <span style={{ marginLeft: 8, fontSize: 12 }}>AUTO</span>
-                </div>
+                {verificationMethod === 'face' && (
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '8px 16px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: 'white'
+                  }}>
+                    <Switch
+                      checked={autoScan}
+                      onChange={setAutoScan}
+                      size="small"
+                    />
+                    <span style={{ marginLeft: 8, fontSize: 12 }}>AUTO</span>
+                  </div>
+                )}
               </div>
 
 

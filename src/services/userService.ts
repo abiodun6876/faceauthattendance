@@ -95,6 +95,7 @@ export const userService = {
         gender?: string;
         userRole?: string;
         departmentId?: string | null;
+        qrCode?: string | null;
     }) {
         try {
             const embeddingString = JSON.stringify(params.embedding);
@@ -118,6 +119,7 @@ export const userService = {
                     face_enrolled_at: new Date().toISOString(),
                     face_photo_url: params.photoUrl,
                     face_embedding: embeddingString,
+                    qr_code: params.qrCode,
                     updated_at: new Date().toISOString()
                 } as any)
                 .select()
@@ -169,6 +171,6 @@ export const userService = {
             .from('users')
             .select('*')
             .eq('organization_id', organizationId)
-            .or(`full_name.ilike.%${term}%,email.ilike.%${term}%,staff_id.ilike.%${term}%,student_id.ilike.%${term}%`);
+            .or(`full_name.ilike.%${term}%,email.ilike.%${term}%,staff_id.ilike.%${term}%,student_id.ilike.%${term}%,qr_code.ilike.%${term}%`);
     }
 };
