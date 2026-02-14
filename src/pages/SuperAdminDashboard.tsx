@@ -42,6 +42,8 @@ const SuperAdminDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [organizations, setOrganizations] = useState<any[]>([]);
     const [subscriptions, setSubscriptions] = useState<any[]>([]);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [adminPassword, setAdminPassword] = useState('');
     const [stats, setStats] = useState({
         totalOrgs: 0,
         activeSubs: 0,
@@ -85,8 +87,37 @@ const SuperAdminDashboard: React.FC = () => {
     };
 
     useEffect(() => {
-        loadData();
+        const checkAuth = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.email !== 'nigeramventures@gmail.com') {
+                message.error('Access Denied: Restricted to system owner.');
+                navigate('/');
+                return;
+            }
+
+            // Check if already authenticated during this session
+            const sessionAuth = sessionStorage.getItem('super_admin_verified');
+            if (sessionAuth === 'true') {
+                setIsAuthenticated(true);
+                loadData();
+            } else {
+                setLoading(false);
+            }
+        };
+
+        checkAuth();
     }, []);
+
+    const handlePasswordSubmit = () => {
+        if (adminPassword === 'Nigeram2026@?') {
+            setIsAuthenticated(true);
+            sessionStorage.setItem('super_admin_verified', 'true');
+            loadData();
+            message.success('Dashboard Unlocked');
+        } else {
+            message.error('Invalid Password');
+        }
+    };
 
     const handleApprove = async (sub: any) => {
         Modal.confirm({
@@ -236,6 +267,55 @@ const SuperAdminDashboard: React.FC = () => {
             render: (date: string) => date ? dayjs(date).format('MMM D, YYYY') : 'Never'
         }
     ];
+
+    if (!isAuthenticated) {
+        return (
+            <div style={{
+                height: '100vh',
+                background: '#001529',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                flexDirection: 'column'
+            }}>
+                <Card style={{ width: 400, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+                    <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                        <ShieldCheck size={48} color="#1890ff" style={{ margin: '0 auto' }} />
+                        <Title level={3} style={{ marginTop: 16 }}>Owner Dashboard Login</Title>
+                        <Text type="secondary">Verification required to access platform data.</Text>
+                    </div>
+                    <Space direction="vertical" style={{ width: '100%' }} size="large">
+                        <div>
+                            <Text strong>Admin Email</Text>
+                            <Input value="nigeramventures@gmail.com" disabled style={{ marginTop: 8 }} />
+                        </div>
+                        <div>
+                            <Text strong>Enter Password</Text>
+                            <Input.Password
+                                placeholder="Security Password"
+                                style={{ marginTop: 8 }}
+                                value={adminPassword}
+                                onChange={(e) => setAdminPassword(e.target.value)}
+                                onPressEnter={handlePasswordSubmit}
+                            />
+                        </div>
+                        <Button
+                            type="primary"
+                            block
+                            size="large"
+                            onClick={handlePasswordSubmit}
+                            icon={<ShieldCheck size={18} />}
+                        >
+                            Unlock Dashboard
+                        </Button>
+                        <Button type="text" block onClick={() => navigate('/')}>
+                            Return to App
+                        </Button>
+                    </Space>
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <Layout style={{ minHeight: '100vh' }}>

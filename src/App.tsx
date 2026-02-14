@@ -111,7 +111,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!isRegistered) {
+  if (!isRegistered && window.location.pathname !== '/super-admin') {
     navigate('/device-setup');
     return null;
   }
