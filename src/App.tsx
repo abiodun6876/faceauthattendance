@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Avatar, Menu, Drawer } from 'antd';
+import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Avatar, Menu, Drawer, Space, Tag, Table } from 'antd';
 import {
   UserPlus,
   Camera,
   Book,
-  ArrowLeft,
   Building,
   Clock,
   Settings,
@@ -14,9 +13,7 @@ import {
   CalendarDays,
   UserCheck,
   Menu as MenuIcon,
-  X,
   Layout as LayoutIcon,
-  ChevronLeft,
   ChevronRight,
   Truck,
   MapPin,
@@ -81,9 +78,18 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const checkSub = async () => {
       const orgId = localStorage.getItem('organization_id');
       if (isRegistered && orgId) {
-        const { hasAccess } = await billingService.checkAccess(orgId);
+        const { hasAccess, reason } = await billingService.checkAccess(orgId);
+
+        // Handle blocked access
         if (!hasAccess && window.location.pathname !== '/billing') {
-          navigate('/billing?expired=true');
+          navigate('/billing?reason=' + reason);
+        }
+
+        // Handle warnings (10-19 users) - stored in state to show in layout
+        if (reason === 'approaching_limit') {
+          (window as any).__billing_warning = true;
+        } else {
+          (window as any).__billing_warning = false;
         }
       }
       setCheckingSub(false);
@@ -137,7 +143,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
     { key: '/users', icon: <Users size={18} />, label: 'User Management' },
     { key: '/leave', icon: <CalendarDays size={18} />, label: 'Leave' },
     { key: '/customers', icon: <Briefcase size={18} />, label: 'Customers' },
-    { key: '/vehicles', icon: <Truck size={18} />, label: 'Vehicle Management' }, // Add this
+    { key: '/vehicles', icon: <Truck size={18} />, label: 'Vehicle Management' },
     { key: 'https://trackmycar.netlify.app/', icon: <Map size={18} />, label: 'Track Vehicles' },
     { key: '/org-settings', icon: <Settings size={18} />, label: 'Settings' },
   ];
@@ -153,6 +159,25 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      {/* Mobile Drawer */}
+      <Drawer
+        title="Menu"
+        placement="left"
+        onClose={() => setMobileVisible(false)}
+        open={mobileVisible}
+        styles={{ body: { padding: 0 } }}
+      >
+        <div style={{ padding: '16px', background: '#001529', color: 'white', textAlign: 'center' }}>
+          <Title level={4} style={{ color: 'white', margin: 0 }}>Face Attendance</Title>
+        </div>
+        <Menu
+          mode="inline"
+          selectedKeys={[window.location.pathname]}
+          items={menuItems}
+          onClick={handleMenuClick}
+        />
+      </Drawer>
+
       {/* Desktop Sider */}
       <Sider
         collapsible
@@ -162,141 +187,85 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
         collapsedWidth="0"
         trigger={null}
         style={{
-          background: '#fff',
-          boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
-          zIndex: 100,
-          position: 'fixed',
+          overflow: 'auto',
           height: '100vh',
+          position: 'fixed',
           left: 0,
+          zIndex: 100,
+          background: '#001529'
         }}
-        className="desktop-sider"
       >
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-          {!collapsed && <Title level={4} style={{ margin: 0, color: '#fff', fontSize: 16 }}>FaceAuth</Title>}
+        <div style={{
+          height: 64,
+          margin: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          color: 'white',
+          borderBottom: '1px solid rgba(255,255,255,0.1)'
+        }}>
+          {!collapsed && <Title level={4} style={{ color: 'white', margin: 0 }}>{device?.organizations?.name || 'Face Attendance'}</Title>}
         </div>
         <Menu
+          theme="dark"
           mode="inline"
-          defaultSelectedKeys={[window.location.pathname]}
+          selectedKeys={[window.location.pathname]}
           items={menuItems}
           onClick={handleMenuClick}
-          style={{ borderRight: 0 }}
         />
       </Sider>
 
-      {/* Mobile Drawer */}
-      <Drawer
-        placement="left"
-        onClose={() => setMobileVisible(false)}
-        open={mobileVisible}
-        bodyStyle={{ padding: 0 }}
-        width={250}
-        closable={false}
-      >
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-          <Title level={4} style={{ margin: 0, color: '#fff' }}>FaceAuth</Title>
-          <X color="#fff" onClick={() => setMobileVisible(false)} cursor="pointer" />
-        </div>
-        <Menu
-          mode="inline"
-          defaultSelectedKeys={[window.location.pathname]}
-          items={menuItems}
-          onClick={handleMenuClick}
-          style={{ borderRight: 0 }}
-        />
-      </Drawer>
-
-      <Layout
-        style={{
-          marginLeft: (collapsed || window.innerWidth <= 992) ? 0 : 200,
-          transition: 'all 0.2s',
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-        className="main-layout"
-      >
+      <Layout style={{ marginLeft: collapsed ? 0 : (window.innerWidth < 992 ? 0 : 250), transition: 'margin 0.2s' }}>
         <Header style={{
+          padding: '0 16px',
           background: '#fff',
-          padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           position: 'sticky',
           top: 0,
           zIndex: 99,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Button
               type="text"
               icon={<MenuIcon size={20} />}
               onClick={() => setMobileVisible(true)}
-              className="mobile-menu-btn"
-              style={{ display: 'none' }} // Controlled by CSS
+              style={{ display: window.innerWidth < 992 ? 'flex' : 'none', alignItems: 'center' }}
             />
-            {/* Desktop toggle */}
-            <Button
-              type="text"
-              icon={collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-              onClick={() => setCollapsed(!collapsed)}
-              className="desktop-menu-btn"
-            />
-
-            <div style={{ display: mobileVisible ? 'none' : 'flex', alignItems: 'center', gap: 12 }}>
-              <Avatar
-                size="small"
-                style={{ backgroundColor: '#667eea' }}
-              >
-                {device?.organization?.name?.charAt(0) || 'F'}
-              </Avatar>
-              <Title level={5} style={{ margin: 0 }} className="header-title">
-                {device?.organization?.name || 'FaceAuthAttendance'}
-              </Title>
-            </div>
+            <Text strong style={{ fontSize: 18 }}>
+              {menuItems.find(item => item.key === window.location.pathname)?.label || 'Dashboard'}
+            </Text>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Add Driver Trip button if user is a driver */}
-            {device?.current_user?.user_role === 'driver' && (
-              <Button
-                type="primary"
-                shape="round"
-                icon={<MapPin size={16} />}
-                onClick={() => navigate('/driver-trip')}
-                style={{ background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)', border: 'none' }}
-              >
-                Driver Trip
-              </Button>
-            )}
-            <Button
-              type="primary"
-              shape="round"
-              icon={<ArrowLeft size={16} />}
-              onClick={() => navigate('/')}
-              style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}
-              className="home-btn"
-            >
-              Dashboard
-            </Button>
-          </div>
+          <Space>
+            {device?.branches?.name && <Tag color="blue">{device.branches.name}</Tag>}
+            <Text type="secondary">{device?.name}</Text>
+          </Space>
         </Header>
 
-        <Content style={{ padding: '24px', minHeight: 280, backgroundColor: '#fcfcfd' }}>
-          <style>{`
-            @media (max-width: 992px) {
-              .desktop-sider { display: none !important; }
-              .mobile-menu-btn { display: block !important; }
-              .desktop-menu-btn { display: none !important; }
-              .header-title { font-size: 14px !important; }
-              .home-btn span { display: none; }
-            }
-          `}</style>
+        <Content style={{ margin: '16px', minHeight: 280 }}>
+          {(window as any).__billing_warning && window.location.pathname !== '/billing' && (
+            <Alert
+              message="Subscription Recommended"
+              description="Your organization has reached 10+ users. The free tier is for small teams (<10). Please consider upgrading to avoid service interruption when you reach 20 users."
+              type="warning"
+              showIcon
+              closable
+              action={
+                <Button size="small" type="primary" onClick={() => navigate('/billing')}>
+                  View Plans
+                </Button>
+              }
+              style={{ marginBottom: 16 }}
+            />
+          )}
           {children}
         </Content>
 
         <Footer style={{ textAlign: 'center', backgroundColor: '#fff', borderTop: '1px solid #f0f0f0' }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            FaceAuthAttendance Platform • v2.0 • {device?.branch?.name}
+            FaceAuthAttendance Platform • v2.0 • {device?.branches?.name}
           </Text>
         </Footer>
       </Layout>

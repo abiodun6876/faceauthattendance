@@ -34,7 +34,8 @@ const { Title, Text } = Typography;
 const BillingPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const isExpired = searchParams.get('expired') === 'true';
+    const reason = searchParams.get('reason');
+    const isExpired = reason === 'expired' || reason === 'subscription_required';
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -98,18 +99,25 @@ const BillingPage: React.FC = () => {
 
     const planData = [
         {
-            key: '1',
-            feature: 'Monthly Active Users',
-            free: '50,000',
-            pro: '100,000+',
-            team: 'Unlimited'
+            key: 'starter',
+            feature: 'Active Users',
+            free: 'Up to 10',
+            pro: 'Up to 50',
+            team: 'Unlimited*'
         },
         {
-            key: '2',
-            feature: 'Database Size',
+            key: 'limit',
+            feature: 'Access Status',
+            free: 'Free < 10 users',
+            pro: 'Member Required',
+            team: 'Member Required'
+        },
+        {
+            key: 'storage',
+            feature: 'Storage (Shared)',
             free: '500 MB',
-            pro: '8 GB+',
-            team: 'Variable'
+            pro: '5 GB',
+            team: '50 GB'
         },
         {
             key: '3',
@@ -171,8 +179,11 @@ const BillingPage: React.FC = () => {
 
                 {isExpired && (
                     <Alert
-                        message="Subscription Expired"
-                        description="Your organization profile has expired. Please renew your subscription to continue using all features."
+                        message={reason === 'subscription_required' ? "Subscription Required" : "Subscription Expired"}
+                        description={reason === 'subscription_required'
+                            ? "Your organization has 20 or more active users. A paid subscription is required to continue using the platform."
+                            : "Your organization subscription has expired. Please renew to maintain full access."
+                        }
                         type="error"
                         showIcon
                         icon={<Info />}
@@ -225,10 +236,10 @@ const BillingPage: React.FC = () => {
                                         <Text type="secondary">Current Plan</Text>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
                                             <Title level={2} style={{ margin: 0, textTransform: 'capitalize', color: '#1890ff' }}>
-                                                {subInfo?.plan || 'Free'}
+                                                {usage && usage.activeUsers < 10 ? 'Starter (Free)' : (subInfo?.plan || 'Free')}
                                             </Title>
-                                            <Tag color={subInfo?.status === 'active' ? 'green' : (subInfo?.status === 'expired' ? 'red' : 'orange')}>
-                                                {subInfo?.status?.toUpperCase() || 'ACTIVE'}
+                                            <Tag color={(subInfo?.status === 'active' || (usage && usage.activeUsers < 10)) ? 'green' : (subInfo?.status === 'expired' ? 'red' : 'orange')}>
+                                                {(usage && usage.activeUsers < 10) ? 'COMPLIMENTARY' : (subInfo?.status?.toUpperCase() || 'INACTIVE')}
                                             </Tag>
                                         </div>
                                     </div>
@@ -306,15 +317,20 @@ const BillingPage: React.FC = () => {
                             <div style={{ marginBottom: 24 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                                     <Space size={4}><Users size={16} /> <Text>Active Users (MAU)</Text></Space>
-                                    <Text strong>{usage?.activeUsers.toLocaleString()} / 50,000</Text>
+                                    <Text strong>{usage?.activeUsers.toLocaleString()} / {(usage?.activeUsers || 0) < 10 ? '10' : ((usage?.activeUsers || 0) < 20 ? '20' : '50,000')}</Text>
                                 </div>
                                 <Progress
-                                    percent={Math.min(100, (usage?.activeUsers || 0) / 50000 * 100)}
+                                    percent={Math.min(100, (usage?.activeUsers || 0) / ((usage?.activeUsers || 0) < 10 ? 10 : 20) * 100)}
                                     showInfo={false}
-                                    strokeColor="#667eea"
+                                    strokeColor={(usage?.activeUsers || 0) >= 15 ? "#ff4d4f" : "#667eea"}
                                 />
                                 <Text type="secondary" style={{ fontSize: 12 }}>
-                                    Counts total enrolled employees in your organization.
+                                    {(usage?.activeUsers || 0) < 10
+                                        ? "Free tier: Stay under 10 users for complimentary access."
+                                        : ((usage?.activeUsers || 0) < 20
+                                            ? "Approaching limit: Subscriptions are mandatory from 20 users."
+                                            : "Paid tier active: Managing large organization resources.")
+                                    }
                                 </Text>
                             </div>
 

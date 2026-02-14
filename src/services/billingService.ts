@@ -39,21 +39,41 @@ export const billingService = {
     /**
      * Check if the organization currently has access to the platform
      */
-    async checkAccess(organizationId: string): Promise<{ hasAccess: boolean; reason?: string }> {
-        const info = await this.getSubscriptionInfo(organizationId);
+    async checkAccess(organizationId: string): Promise<{ hasAccess: boolean; reason?: 'none' | 'free_tier' | 'approaching_limit' | 'subscription_required' | 'not_found' | 'suspended' | 'expired' }> {
+        // 1. Get usage stats (to check user count)
+        const usage = await this.getUsageStats(organizationId);
 
-        if (!info) return { hasAccess: false, reason: 'Organization not found' };
+        // 2. Free Tier: < 10 users
+        if (usage.activeUsers < 10) {
+            return { hasAccess: true, reason: 'free_tier' };
+        }
+
+        // 3. Check Subscription for others
+        const info = await this.getSubscriptionInfo(organizationId);
+        if (!info) return { hasAccess: false, reason: 'not_found' };
 
         if (info.status === 'suspended') {
-            return { hasAccess: false, reason: 'Subscription suspended' };
+            return { hasAccess: false, reason: 'suspended' };
         }
 
-        const expiry = new Date(info.expiryDate);
-        if (expiry < new Date()) {
-            return { hasAccess: false, reason: 'Subscription expired' };
+        const isPaid = info.plan !== 'free' && info.status === 'active';
+        const expiry = info.expiryDate ? new Date(info.expiryDate) : null;
+        const isExpired = expiry ? expiry < new Date() : true;
+
+        // 4. Paid Threshold: >= 20 users MUST have active paid sub
+        if (usage.activeUsers >= 20) {
+            if (isPaid && !isExpired) {
+                return { hasAccess: true, reason: 'none' };
+            }
+            return { hasAccess: false, reason: 'subscription_required' };
         }
 
-        return { hasAccess: true };
+        // 5. Grace/Warning Tier: 10 - 19 users
+        if (isPaid && !isExpired) {
+            return { hasAccess: true, reason: 'none' };
+        }
+
+        return { hasAccess: true, reason: 'approaching_limit' };
     },
 
     /**
