@@ -45,9 +45,7 @@ const SuperAdminDashboard: React.FC = () => {
     const [organizations, setOrganizations] = useState<any[]>([]);
     const [subscriptions, setSubscriptions] = useState<any[]>([]);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isSupabaseAuthenticated, setIsSupabaseAuthenticated] = useState(false);
-    const [adminPassword, setAdminPassword] = useState('');
-    const [supabasePassword, setSupabasePassword] = useState('');
+    const [password, setPassword] = useState('');
     const [adminEmail, setAdminEmail] = useState('nigeramventures@gmail.com');
     const [allAdmins, setAllAdmins] = useState<any[]>([]);
     const [adminModalVisible, setAdminModalVisible] = useState(false);
@@ -109,7 +107,7 @@ const SuperAdminDashboard: React.FC = () => {
 
             if (!user) {
                 setLoading(false);
-                setIsSupabaseAuthenticated(false);
+                setIsAuthenticated(false);
                 return;
             }
 
@@ -122,34 +120,24 @@ const SuperAdminDashboard: React.FC = () => {
 
             if (adminError || !adminRecord) {
                 message.error('Access Denied: You are not authorized as a platform admin.');
-                // Don't sign out automatically here to allow the user to see the error, 
-                // but prevent access.
-                setIsSupabaseAuthenticated(false);
+                setIsAuthenticated(false);
                 setLoading(false);
                 return;
             }
 
-            setIsSupabaseAuthenticated(true);
-
-            // Check if already authenticated during this session
-            const sessionAuth = sessionStorage.getItem('super_admin_verified');
-            if (sessionAuth === 'true') {
-                setIsAuthenticated(true);
-                loadData();
-            } else {
-                setLoading(false);
-            }
+            setIsAuthenticated(true);
+            loadData();
         };
 
         checkAuth();
     }, [navigate]);
 
-    const handleSupabaseLogin = async () => {
+    const handleLogin = async () => {
         try {
             setLoading(true);
             const { error } = await supabase.auth.signInWithPassword({
                 email: adminEmail,
-                password: supabasePassword
+                password: password
             });
 
             if (error) throw error;
@@ -166,51 +154,16 @@ const SuperAdminDashboard: React.FC = () => {
                 if (!adminRecord) {
                     message.error('This account is not authorized for admin access.');
                     await supabase.auth.signOut();
-                    setIsSupabaseAuthenticated(false);
+                    setIsAuthenticated(false);
                     return;
                 }
             }
 
-            setIsSupabaseAuthenticated(true);
-            message.success('Account Authenticated');
-
-            // Re-check session for the secondary gate
-            const sessionAuth = sessionStorage.getItem('super_admin_verified');
-            if (sessionAuth === 'true') {
-                setIsAuthenticated(true);
-                loadData();
-            } else {
-                setLoading(false);
-            }
+            setIsAuthenticated(true);
+            message.success('Authorized Access Granted');
+            loadData();
         } catch (error: any) {
-            message.error('Supabase Login Failed: ' + error.message);
-            setLoading(false);
-        }
-    };
-
-    const handlePasswordSubmit = async () => {
-        setLoading(true);
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('User session not found');
-
-            const { data: adminRecord } = await (supabase as any)
-                .from('platform_admins')
-                .select('secondary_password')
-                .eq('email', user.email)
-                .single();
-
-            if (adminRecord && adminPassword === adminRecord.secondary_password) {
-                setIsAuthenticated(true);
-                sessionStorage.setItem('super_admin_verified', 'true');
-                loadData();
-                message.success('Dashboard Unlocked');
-            } else {
-                message.error('Invalid Security Password');
-            }
-        } catch (error: any) {
-            message.error('Verification failed: ' + error.message);
-        } finally {
+            message.error('Login Failed: ' + error.message);
             setLoading(false);
         }
     };
@@ -475,80 +428,6 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    if (!isSupabaseAuthenticated) {
-        return (
-            <div style={{
-                height: '100vh',
-                background: '#001529',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                flexDirection: 'column'
-            }}>
-                <Card style={{ width: 450, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                        <ShieldCheck size={48} color="#1890ff" style={{ margin: '0 auto' }} />
-                        <Title level={3} style={{ marginTop: 16 }}>Step 1 of 2: Main Account Access</Title>
-                        <Text type="secondary">Sign in with your <b>Main Supabase Account Password</b>.</Text>
-                    </div>
-
-                    <Alert
-                        message="Password Clarification"
-                        description={
-                            <span>
-                                This is <b>NOT</b> the security code <i>(Nigeram2026@?)</i>.<br />
-                                Use the password you use to log into the Supabase Dashboard.
-                            </span>
-                        }
-                        type="warning"
-                        showIcon
-                        style={{ marginBottom: 24 }}
-                    />
-
-                    <Space direction="vertical" style={{ width: '100%' }} size="large">
-                        <div>
-                            <Text strong>Account Email</Text>
-                            <Input
-                                placeholder="nigeramventures@gmail.com"
-                                style={{ marginTop: 8 }}
-                                value={adminEmail}
-                                onChange={(e) => setAdminEmail(e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text strong>Supabase Account Password</Text>
-                                <Button type="link" size="small" onClick={() => window.open('https://app.supabase.com/project/vpliofrxoalpihmebhrk/settings/auth', '_blank')} style={{ padding: 0, height: 'auto' }}>
-                                    Reset Password?
-                                </Button>
-                            </div>
-                            <Input.Password
-                                placeholder="NOT the security code"
-                                style={{ marginTop: 8 }}
-                                value={supabasePassword}
-                                onChange={(e) => setSupabasePassword(e.target.value)}
-                                onPressEnter={handleSupabaseLogin}
-                            />
-                        </div>
-                        <Button
-                            type="primary"
-                            block
-                            size="large"
-                            onClick={handleSupabaseLogin}
-                            loading={loading}
-                        >
-                            Authenticate Main Account
-                        </Button>
-                        <Button type="text" block onClick={() => navigate('/')}>
-                            Return to App
-                        </Button>
-                    </Space>
-                </Card>
-
-            </div>
-        );
-    }
-
     if (!isAuthenticated) {
         return (
             <div style={{
@@ -561,43 +440,54 @@ const SuperAdminDashboard: React.FC = () => {
             }}>
                 <Card style={{ width: 450, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
                     <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                        <ShieldCheck size={48} color="#faad14" style={{ margin: '0 auto' }} />
-                        <Title level={3} style={{ marginTop: 16 }}>Step 2 of 2: Dashboard Security</Title>
-                        <Text type="secondary">Enter your **Secondary Security Code** to unlock.</Text>
+                        <ShieldCheck size={48} color="#1890ff" style={{ margin: '0 auto' }} />
+                        <Title level={3} style={{ marginTop: 16 }}>Super Admin Access</Title>
+                        <Text type="secondary">Enter your credentials to manage the platform.</Text>
                     </div>
+
                     <Space direction="vertical" style={{ width: '100%' }} size="large">
                         <div>
-                            <Text strong>Dashboard Security Code (Nigeram2026@?)</Text>
-                            <Input.Password
-                                placeholder="Enter security code"
+                            <Text strong>Admin Email</Text>
+                            <Input
+                                placeholder="nigeramventures@gmail.com"
                                 style={{ marginTop: 8 }}
-                                value={adminPassword}
-                                onChange={(e) => setAdminPassword(e.target.value)}
-                                onPressEnter={handlePasswordSubmit}
+                                value={adminEmail}
+                                onChange={(e) => setAdminEmail(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Text strong>Dashboard Password</Text>
+                                <Button type="link" size="small" onClick={() => window.open('https://app.supabase.com/project/vpliofrxoalpihmebhrk/settings/auth', '_blank')} style={{ padding: 0, height: 'auto' }}>
+                                    Reset?
+                                </Button>
+                            </div>
+                            <Input.Password
+                                placeholder="Enter your password"
+                                style={{ marginTop: 8 }}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                onPressEnter={handleLogin}
                             />
                         </div>
                         <Button
                             type="primary"
                             block
                             size="large"
-                            onClick={handlePasswordSubmit}
-                            icon={<ShieldCheck size={18} />}
-                            style={{ background: '#faad14', borderColor: '#faad14' }}
+                            onClick={handleLogin}
+                            loading={loading}
                         >
-                            Unlock Dashboard
+                            Log In to Dashboard
                         </Button>
-                        <Button type="text" block onClick={() => {
-                            supabase.auth.signOut();
-                            setIsSupabaseAuthenticated(false);
-                        }}>
-                            Sign Out and Return
+                        <Button type="text" block onClick={() => navigate('/')}>
+                            Return to App
                         </Button>
                     </Space>
                 </Card>
-
             </div>
         );
     }
+
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
