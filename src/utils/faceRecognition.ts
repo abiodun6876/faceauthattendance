@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 class FaceRecognition {
   private static instance: FaceRecognition;
   private modelsLoaded = false;
-  private useTinyModel = true; // Use tiny model for mobile
+  private useTinyModel = true; // Use tiny model for better performance
 
   // For local storage of embeddings
   private readonly EMBEDDINGS_KEY = 'face_embeddings';
@@ -23,11 +23,11 @@ class FaceRecognition {
     if (this.modelsLoaded) return;
 
     try {
-      console.log('Loading face recognition models for mobile...');
+      console.log('Loading face recognition models...');
 
-      // FOR MOBILE: Use tiny models for better performance
+      // Use tiny models for better performance in web browsers
       if (this.useTinyModel) {
-        console.log('Using tiny face detector for mobile...');
+        console.log('Using tiny face detector...');
         await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
       } else {
         await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
@@ -36,21 +36,21 @@ class FaceRecognition {
       await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
       await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
 
-      // Configure TensorFlow.js for mobile
-      await this.configureTensorFlowForMobile();
+      // Configure TensorFlow.js for web browser
+      await this.configureTensorFlow();
 
       this.modelsLoaded = true;
-      console.log('Face recognition models loaded successfully on mobile');
+      console.log('Face recognition models loaded successfully');
 
     } catch (error) {
-      console.error('Failed to load models on mobile:', error);
+      console.error('Failed to load models:', error);
       // Try alternative loading strategy
       await this.loadModelsAlternative();
     }
   }
 
-  private async configureTensorFlowForMobile() {
-    // Optimize TensorFlow for mobile
+  private async configureTensorFlow() {
+    // Optimize TensorFlow for web browsers
     await tf.ready();
 
     // Set backend - try WebGL first, fall back to CPU
@@ -67,7 +67,7 @@ class FaceRecognition {
       }
     }
 
-    // Optimize for mobile
+    // Optimize for web browsers
     tf.ENV.set('WEBGL_PACK', true);
     tf.ENV.set('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
 
