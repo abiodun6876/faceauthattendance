@@ -28,6 +28,8 @@ import {
     Clock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { deviceService } from '../services/deviceService';
+import { userService } from '../services/userService';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -43,6 +45,8 @@ const LeaveManagementPage: React.FC = () => {
     const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [activeTab, setActiveTab] = useState('my-requests');
+    const [organizationId, setOrganizationId] = useState<string>('');
+    const [availableUsers, setAvailableUsers] = useState<any[]>([]);
     const [stats, setStats] = useState({
         pending: 0,
         approved: 0,
@@ -53,24 +57,17 @@ const LeaveManagementPage: React.FC = () => {
     const loadLeaveRequests = useCallback(async () => {
         try {
             setLoading(true);
-            // Get device info to get organization
-            const deviceInfoStr = localStorage.getItem('cached_device_info') || localStorage.getItem('device_info');
-            let organizationId = '';
 
-            if (deviceInfoStr) {
-                try {
-                    const deviceInfo = JSON.parse(deviceInfoStr);
-                    organizationId = deviceInfo.organization_id;
-                } catch (e) {
-                    console.error('Error parsing device info:', e);
-                }
-            }
+            const { isRegistered, device } = await deviceService.checkRegistration();
 
-            if (!organizationId) {
-                console.warn('No organization ID found. Ensure device is registered.');
+            if (!isRegistered || !device) {
+                console.warn('Device not registered.');
                 setLoading(false);
                 return;
             }
+
+            const orgId = device.organization_id;
+            setOrganizationId(orgId);
 
             const userId = localStorage.getItem('user_id');
 
@@ -81,7 +78,7 @@ const LeaveManagementPage: React.FC = () => {
           user:users!leave_requests_user_id_fkey(full_name, staff_id),
           approver:users!leave_requests_approved_by_fkey(full_name)
         `)
-                .eq('organization_id', organizationId);
+                .eq('organization_id', orgId);
 
             query = query.order('created_at', { ascending: false });
 
@@ -113,29 +110,32 @@ const LeaveManagementPage: React.FC = () => {
 
     useEffect(() => {
         loadLeaveRequests();
+        const fetchUsers = async () => {
+            const { device } = await deviceService.checkRegistration();
+            if (device?.organization_id) {
+                const { data } = await userService.getOrganizationUsers(device.organization_id);
+                setAvailableUsers(data || []);
+            }
+        };
+        fetchUsers();
     }, [loadLeaveRequests]);
 
     const handleSubmit = async (values: any) => {
         try {
             setLoading(true);
-            const deviceInfoStr = localStorage.getItem('cached_device_info') || localStorage.getItem('device_info');
-            let organizationId = '';
-
-            if (deviceInfoStr) {
-                try {
-                    const deviceInfo = JSON.parse(deviceInfoStr);
-                    organizationId = deviceInfo.organization_id;
-                } catch (e) {
-                    console.error('Error parsing device info:', e);
-                }
-            }
 
             if (!organizationId) {
-                message.error('Device configuration missing. Please setup device.');
+                message.error('Device configuration missing.');
                 return;
             }
 
-            const userId = localStorage.getItem('user_id');
+            const userId = values.user_id || localStorage.getItem('user_id');
+
+            if (!userId) {
+                message.error('Please select an employee for this leave request.');
+                setLoading(false);
+                return;
+            }
 
             const startDate = values.date_range[0].format('YYYY-MM-DD');
             const endDate = values.date_range[1].format('YYYY-MM-DD');
@@ -457,6 +457,26 @@ const LeaveManagementPage: React.FC = () => {
                     layout="vertical"
                     onFinish={handleSubmit}
                 >
+                    <Form.Item
+                        label="Employee"
+                        name="user_id"
+                        initialValue={localStorage.getItem('user_id')}
+                        rules={[{ required: true, message: 'Please select an employee' }]}
+                    >
+                        <Select
+                            showSearch
+                            placeholder="Search and select employee"
+                            size="large"
+                            optionFilterProp="children"
+                        >
+                            {availableUsers.map(user => (
+                                <Option key={user.id} value={user.id}>
+                                    {user.full_name} ({user.staff_id || 'No ID'})
+                                </Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
+
                     <Form.Item
                         label="Leave Type"
                         name="leave_type"
