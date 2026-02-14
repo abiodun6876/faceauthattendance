@@ -53,10 +53,26 @@ const LeaveManagementPage: React.FC = () => {
     const loadLeaveRequests = useCallback(async () => {
         try {
             setLoading(true);
-            const organizationId = localStorage.getItem('organization_id');
-            const userId = localStorage.getItem('user_id');
+            // Get device info to get organization
+            const deviceInfoStr = localStorage.getItem('cached_device_info') || localStorage.getItem('device_info');
+            let organizationId = '';
 
-            const branchId = localStorage.getItem('branch_id');
+            if (deviceInfoStr) {
+                try {
+                    const deviceInfo = JSON.parse(deviceInfoStr);
+                    organizationId = deviceInfo.organization_id;
+                } catch (e) {
+                    console.error('Error parsing device info:', e);
+                }
+            }
+
+            if (!organizationId) {
+                console.warn('No organization ID found. Ensure device is registered.');
+                setLoading(false);
+                return;
+            }
+
+            const userId = localStorage.getItem('user_id');
 
             let query = supabase
                 .from('leave_requests' as any)
@@ -66,10 +82,6 @@ const LeaveManagementPage: React.FC = () => {
           approver:users!leave_requests_approved_by_fkey(full_name)
         `)
                 .eq('organization_id', organizationId);
-
-            if (branchId) {
-                query = query.eq('branch_id', branchId);
-            }
 
             query = query.order('created_at', { ascending: false });
 
@@ -106,7 +118,23 @@ const LeaveManagementPage: React.FC = () => {
     const handleSubmit = async (values: any) => {
         try {
             setLoading(true);
-            const organizationId = localStorage.getItem('organization_id');
+            const deviceInfoStr = localStorage.getItem('cached_device_info') || localStorage.getItem('device_info');
+            let organizationId = '';
+
+            if (deviceInfoStr) {
+                try {
+                    const deviceInfo = JSON.parse(deviceInfoStr);
+                    organizationId = deviceInfo.organization_id;
+                } catch (e) {
+                    console.error('Error parsing device info:', e);
+                }
+            }
+
+            if (!organizationId) {
+                message.error('Device configuration missing. Please setup device.');
+                return;
+            }
+
             const userId = localStorage.getItem('user_id');
 
             const startDate = values.date_range[0].format('YYYY-MM-DD');
