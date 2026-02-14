@@ -1,0 +1,269 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+    Card,
+    Typography,
+    Button,
+    Row,
+    Col,
+    Statistic,
+    Table,
+    Tag,
+    Alert,
+    Progress,
+    Divider,
+    Space
+} from 'antd';
+import {
+    CreditCard,
+    ArrowLeft,
+    CheckCircle,
+    Clock,
+    Users,
+    HardDrive,
+    Info,
+    ExternalLink
+} from 'lucide-react';
+import { billingService, SubscriptionInfo, UsageStats } from '../services/billingService';
+import dayjs from 'dayjs';
+
+const { Title, Text } = Typography;
+
+const BillingPage: React.FC = () => {
+    const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const isExpired = searchParams.get('expired') === 'true';
+
+    const [loading, setLoading] = useState(true);
+    const [subInfo, setSubInfo] = useState<SubscriptionInfo | null>(null);
+    const [usage, setUsage] = useState<UsageStats | null>(null);
+
+    const loadData = async () => {
+        try {
+            setLoading(true);
+            const orgId = localStorage.getItem('organization_id');
+            if (orgId) {
+                const [info, stats] = await Promise.all([
+                    billingService.getSubscriptionInfo(orgId),
+                    billingService.getUsageStats(orgId)
+                ]);
+                setSubInfo(info);
+                setUsage(stats);
+            }
+        } catch (error) {
+            console.error('Error loading billing data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const planData = [
+        {
+            key: '1',
+            feature: 'Monthly Active Users',
+            free: '50,000',
+            pro: '100,000+',
+            team: 'Unlimited'
+        },
+        {
+            key: '2',
+            feature: 'Database Size',
+            free: '500 MB',
+            pro: '8 GB+',
+            team: 'Variable'
+        },
+        {
+            key: '3',
+            feature: 'File Storage',
+            free: '1 GB',
+            pro: '100 GB+',
+            team: 'Variable'
+        },
+        {
+            key: '4',
+            feature: 'Support',
+            free: 'Community',
+            pro: 'Email',
+            team: 'Priority Email'
+        }
+    ];
+
+    const columns = [
+        { title: 'Feature', dataIndex: 'feature', key: 'feature' },
+        { title: 'Free ($0)', dataIndex: 'free', key: 'free' },
+        {
+            title: 'Pro ($25)',
+            dataIndex: 'pro',
+            key: 'pro',
+            render: (text: string) => <Text strong color="#1890ff">{text}</Text>
+        },
+        { title: 'Team ($599)', dataIndex: 'team', key: 'team' }
+    ];
+
+    const formatBytes = (bytes: number) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const getRemainingDays = () => {
+        if (!subInfo?.expiryDate) return 0;
+        const diff = dayjs(subInfo.expiryDate).diff(dayjs(), 'day');
+        return diff > 0 ? diff : 0;
+    };
+
+    return (
+        <div style={{ minHeight: '100vh', backgroundColor: '#f0f2f5', padding: '24px' }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+                <Button
+                    type="text"
+                    icon={<ArrowLeft size={20} />}
+                    onClick={() => navigate('/')}
+                    style={{ marginBottom: 16 }}
+                >
+                    Back to Dashboard
+                </Button>
+
+                {isExpired && (
+                    <Alert
+                        message="Subscription Expired"
+                        description="Your organization profile has expired. Please renew your subscription to continue using all features."
+                        type="error"
+                        showIcon
+                        icon={<Info />}
+                        style={{ marginBottom: 24 }}
+                    />
+                )}
+
+                <Row gutter={[24, 24]}>
+                    <Col xs={24} lg={16}>
+                        <Card
+                            title={
+                                <Space>
+                                    <CreditCard size={20} />
+                                    <span>Subscription Plan</span>
+                                </Space>
+                            }
+                            loading={loading}
+                        >
+                            <Row gutter={16} align="middle">
+                                <Col xs={24} md={12}>
+                                    <div style={{ marginBottom: 24 }}>
+                                        <Text type="secondary">Current Plan</Text>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                                            <Title level={2} style={{ margin: 0, textTransform: 'capitalize' }}>
+                                                {subInfo?.plan || 'Free'}
+                                            </Title>
+                                            <Tag color={subInfo?.status === 'active' ? 'green' : 'red'}>
+                                                {subInfo?.status?.toUpperCase()}
+                                            </Tag>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ marginBottom: 24 }}>
+                                        <Text type="secondary">Expiry Date</Text>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                            <Clock size={16} color="#666" />
+                                            <Text strong>
+                                                {subInfo?.expiryDate ? dayjs(subInfo.expiryDate).format('MMMM D, YYYY') : 'Lifetime'}
+                                            </Text>
+                                        </div>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>
+                                            ({getRemainingDays()} days remaining)
+                                        </Text>
+                                    </div>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                    <div style={{
+                                        padding: '20px',
+                                        backgroundColor: '#f6ffed',
+                                        borderRadius: '8px',
+                                        border: '1px solid #b7eb8f'
+                                    }}>
+                                        <Title level={5} style={{ marginTop: 0 }}>Need to upgrade?</Title>
+                                        <Text>Upgrade to Pro for more users, storage, and prioritized support.</Text>
+                                        <Button
+                                            type="primary"
+                                            block
+                                            icon={<ExternalLink size={16} />}
+                                            style={{ marginTop: 16 }}
+                                            onClick={() => window.open('https://supabase.com/dashboard', '_blank')}
+                                        >
+                                            Manage Payment
+                                        </Button>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </Card>
+
+                        <Card
+                            title="Plan Comparison"
+                            style={{ marginTop: 24 }}
+                            bodyStyle={{ padding: 0 }}
+                        >
+                            <Table
+                                columns={columns}
+                                dataSource={planData}
+                                pagination={false}
+                                size="middle"
+                                scroll={{ x: 600 }}
+                            />
+                        </Card>
+                    </Col>
+
+                    <Col xs={24} lg={8}>
+                        <Card title="Current Usage" loading={loading}>
+                            <div style={{ marginBottom: 24 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <Space size={4}><Users size={16} /> <Text>Active Users (MAU)</Text></Space>
+                                    <Text strong>{usage?.activeUsers.toLocaleString()} / 50,000</Text>
+                                </div>
+                                <Progress
+                                    percent={Math.min(100, (usage?.activeUsers || 0) / 50000 * 100)}
+                                    showInfo={false}
+                                    strokeColor="#667eea"
+                                />
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    Counts total enrolled employees in your organization.
+                                </Text>
+                            </div>
+
+                            <Divider />
+
+                            <div style={{ marginBottom: 24 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                    <Space size={4}><HardDrive size={16} /> <Text>Estimated Storage</Text></Space>
+                                    <Text strong>{formatBytes(usage?.storageUsageBytes || 0)} / 500 MB</Text>
+                                </div>
+                                <Progress
+                                    percent={Math.min(100, (usage?.storageUsageBytes || 0) / (500 * 1024 * 1024) * 100)}
+                                    showInfo={false}
+                                    status="active"
+                                />
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    Estimated space used by user profiles and face data.
+                                </Text>
+                            </div>
+
+                            <Divider />
+
+                            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                                <CheckCircle size={32} color="#52c41a" style={{ marginBottom: 16 }} />
+                                <Title level={5} style={{ margin: 0 }}>System is Optimized</Title>
+                                <Text type="secondary">You are currently within your plan limits.</Text>
+                            </div>
+                        </Card>
+                    </Col>
+                </Row>
+            </div>
+        </div>
+    );
+};
+
+export default BillingPage;

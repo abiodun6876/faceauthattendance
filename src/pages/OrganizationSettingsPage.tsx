@@ -20,12 +20,13 @@ import {
 import {
     Settings,
     ArrowLeft,
-    Save
+    Save,
+    CreditCard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
 
-const { Title} = Typography;
+const { Title, Text } = Typography;
 
 const OrganizationSettingsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -249,6 +250,26 @@ const OrganizationSettingsPage: React.FC = () => {
                     />
                 </Card>
             )}
+
+            {/* Billing Section */}
+            <Card style={{ marginBottom: 24 }} title="Subscription & Billing">
+                <Row gutter={16} align="middle">
+                    <Col xs={24} md={16}>
+                        <Text type="secondary">
+                            Manage your organization's subscription plan, view usage stats (MAUs, storage), and handle payments.
+                        </Text>
+                    </Col>
+                    <Col xs={24} md={8} style={{ textAlign: 'right' }}>
+                        <Button
+                            type="primary"
+                            icon={<CreditCard size={18} />}
+                            onClick={() => navigate('/billing')}
+                        >
+                            View Billing Setup
+                        </Button>
+                    </Col>
+                </Row>
+            </Card>
 
             {/* Settings Form */}
             <Card title="Attendance Time Settings">

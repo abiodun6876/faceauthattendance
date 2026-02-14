@@ -35,8 +35,10 @@ import CustomerManagementPage from './pages/CustomerManagementPage';
 import LeaveManagementPage from './pages/LeaveManagementPage';
 import VehicleManagementPage from './pages/VehicleManagementPage'; // Add this import
 import DriverTripPage from './pages/DriverTripPage'; // Add this import
+import BillingPage from './pages/BillingPage';
 import { supabase } from './lib/supabase';
 import { deviceService } from './services/deviceService';
+import { billingService } from './services/billingService';
 
 import './App.css';
 
@@ -70,10 +72,28 @@ const useDeviceRegistration = () => {
 
 // Wrapper for protected routes
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isRegistered, loading } = useDeviceRegistration(); // Removed device since it's not used
+  const { isRegistered, loading } = useDeviceRegistration();
   const navigate = useNavigate();
+  const [checkingSub, setCheckingSub] = useState(true);
 
-  if (loading) {
+  useEffect(() => {
+    const checkSub = async () => {
+      const orgId = localStorage.getItem('organization_id');
+      if (isRegistered && orgId) {
+        const { hasAccess } = await billingService.checkAccess(orgId);
+        if (!hasAccess && window.location.pathname !== '/billing') {
+          navigate('/billing?expired=true');
+        }
+      }
+      setCheckingSub(false);
+    };
+
+    if (!loading) {
+      checkSub();
+    }
+  }, [isRegistered, loading, navigate]);
+
+  if (loading || checkingSub) {
     return (
       <div style={{
         display: 'flex',
@@ -84,7 +104,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       }}>
         <Spin size="large" />
         <Text type="secondary" style={{ marginTop: 20 }}>
-          Checking device registration...
+          {loading ? 'Checking device registration...' : 'Verifying subscription...'}
         </Text>
       </div>
     );
@@ -814,6 +834,11 @@ function App() {
           <Route path="/driver-trip" element={
             <ProtectedRoute>
               <DriverTripPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/billing" element={
+            <ProtectedRoute>
+              <BillingPage />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" />} />
