@@ -6,7 +6,6 @@ import {
     Button,
     Row,
     Col,
-    Table,
     Tag,
     Alert,
     Progress,
@@ -22,9 +21,7 @@ import {
     Clock,
     Users,
     HardDrive,
-    Info,
-    Zap,
-    FileText
+    Info
 } from 'lucide-react';
 import { billingService, SubscriptionInfo, UsageStats } from '../services/billingService';
 import dayjs from 'dayjs';
@@ -97,59 +94,6 @@ const BillingPage: React.FC = () => {
         }
     };
 
-    const planData = [
-        {
-            key: 'starter',
-            feature: 'Active Users',
-            free: 'Up to 10',
-            pro: 'Up to 50',
-            team: 'Unlimited*'
-        },
-        {
-            key: 'limit',
-            feature: 'Access Status',
-            free: 'Free < 10 users',
-            pro: 'Member Required',
-            team: 'Member Required'
-        },
-        {
-            key: 'storage',
-            feature: 'Storage (Shared)',
-            free: '500 MB',
-            pro: '5 GB',
-            team: '50 GB'
-        },
-        {
-            key: '3',
-            feature: 'File Storage',
-            free: '1 GB',
-            pro: '100 GB+',
-            team: 'Variable'
-        },
-        {
-            key: '4',
-            feature: 'Support',
-            free: 'Community',
-            pro: 'Email',
-            team: 'Priority Email'
-        }
-    ];
-
-    const columns = [
-        { title: 'Feature', dataIndex: 'feature', key: 'feature' },
-        { title: 'Free ($0)', dataIndex: 'free', key: 'free' },
-        {
-            title: billingCycle === 'yearly' ? 'Pro ($250/yr)' : 'Pro ($25/mo)',
-            dataIndex: 'pro',
-            key: 'pro',
-            render: (text: string) => <Text strong style={{ color: '#1890ff' }}>{text}</Text>
-        },
-        {
-            title: billingCycle === 'yearly' ? 'Team ($5990/yr)' : 'Team ($599/mo)',
-            dataIndex: 'team',
-            key: 'team'
-        }
-    ];
 
     const formatBytes = (bytes: number) => {
         if (bytes === 0) return '0 Bytes';
@@ -198,7 +142,7 @@ const BillingPage: React.FC = () => {
                             <div>
                                 <p>You have a pending request for the <strong>{pendingSub.plan_type.toUpperCase()} ({pendingSub.billing_cycle})</strong> plan.</p>
                                 <p>Invoice: <strong>{pendingSub.invoice_number}</strong> | Amount: <strong>${pendingSub.amount}</strong></p>
-                                <p>Please finalize your payment and contact the platform administrator for activation.</p>
+                                <p>Please finalize your payment and send your <b>Invoice Number</b> and <b>Evidence of Payment</b> to our WhatsApp: <b>+2348102922615</b> or Email: <b>nigeramventures@gmail.com</b> for activation confirmation.</p>
                             </div>
                         }
                         type="warning"
@@ -214,7 +158,7 @@ const BillingPage: React.FC = () => {
                             title={
                                 <Space>
                                     <CreditCard size={20} />
-                                    <span>Subscription Plan</span>
+                                    <span>Manage Subscription</span>
                                 </Space>
                             }
                             extra={
@@ -232,7 +176,7 @@ const BillingPage: React.FC = () => {
                         >
                             <Row gutter={16} align="middle">
                                 <Col xs={24} md={12}>
-                                    <div style={{ marginBottom: 24 }}>
+                                    <div style={{ marginBottom: 12 }}>
                                         <Text type="secondary">Current Plan</Text>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
                                             <Title level={2} style={{ margin: 0, textTransform: 'capitalize', color: '#1890ff' }}>
@@ -243,13 +187,14 @@ const BillingPage: React.FC = () => {
                                             </Tag>
                                         </div>
                                     </div>
-
-                                    <div style={{ marginBottom: 24 }}>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                    <div style={{ marginBottom: 12 }}>
                                         <Text type="secondary">Expiry Date</Text>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                                             <Clock size={16} color="#666" />
                                             <Text strong>
-                                                {subInfo?.expiryDate ? dayjs(subInfo.expiryDate).format('MMMM D, YYYY') : 'Lifetime'}
+                                                {subInfo?.expiryDate ? dayjs(subInfo.expiryDate).format('MMMM D, YYYY') : 'Lifetime Access'}
                                             </Text>
                                         </div>
                                         {subInfo?.expiryDate && (
@@ -259,57 +204,115 @@ const BillingPage: React.FC = () => {
                                         )}
                                     </div>
                                 </Col>
-                                <Col xs={24} md={12}>
-                                    <div style={{
-                                        padding: '20px',
-                                        backgroundColor: '#e6f7ff',
-                                        borderRadius: '12px',
-                                        border: '1px solid #91d5ff'
-                                    }}>
-                                        <Title level={5} style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <Zap size={18} fill="#1890ff" color="#1890ff" />
-                                            Upgrade Selection
-                                        </Title>
-                                        <Text type="secondary">Select your plan and initiate an invoice for activation.</Text>
-                                        <Space direction="vertical" style={{ width: '100%', marginTop: 16 }}>
-                                            <Button
-                                                type="primary"
-                                                block
-                                                icon={<FileText size={16} />}
-                                                disabled={subInfo?.plan === 'pro' || subInfo?.plan === 'team' || !!pendingSub}
-                                                loading={submitting}
-                                                onClick={() => handleRequestSubscription('pro')}
-                                            >
-                                                Request PRO Plan
-                                            </Button>
-                                            <Button
-                                                block
-                                                icon={<FileText size={16} />}
-                                                disabled={subInfo?.plan === 'team' || !!pendingSub}
-                                                loading={submitting}
-                                                onClick={() => handleRequestSubscription('team')}
-                                            >
-                                                Request TEAM Plan
-                                            </Button>
-                                        </Space>
-                                    </div>
-                                </Col>
                             </Row>
                         </Card>
 
-                        <Card
-                            title="Plan Comparison"
-                            style={{ marginTop: 24 }}
-                            bodyStyle={{ padding: 0 }}
-                        >
-                            <Table
-                                columns={columns}
-                                dataSource={planData}
-                                pagination={false}
-                                size="middle"
-                                scroll={{ x: 600 }}
-                            />
-                        </Card>
+                        <Title level={4} style={{ marginTop: 32, marginBottom: 16 }}>Select a Package</Title>
+                        <Row gutter={[16, 16]}>
+                            {/* Starter Plan Card */}
+                            <Col xs={24} md={8}>
+                                <Card
+                                    hoverable
+                                    style={{ height: '100%', borderRadius: 12, border: subInfo?.plan === 'free' ? '2px solid #1890ff' : '1px solid #f0f0f0' }}
+                                    bodyStyle={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+                                >
+                                    <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                                        <Title level={4}>Starter</Title>
+                                        <div style={{ margin: '16px 0' }}>
+                                            <span style={{ fontSize: 32, fontWeight: 'bold' }}>Free</span>
+                                        </div>
+                                        <Text type="secondary">For small teams starting out</Text>
+                                    </div>
+                                    <Divider style={{ margin: '0 0 24px 0' }} />
+                                    <div style={{ flex: 1 }}>
+                                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Up to 10 active users</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Face & QR Verification</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Shared Storage (500MB)</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Leave Management</Text></div>
+                                        </Space>
+                                    </div>
+                                    <Button block disabled style={{ marginTop: 24 }}>Default Plan</Button>
+                                </Card>
+                            </Col>
+
+                            {/* Pro Plan Card */}
+                            <Col xs={24} md={8}>
+                                <Card
+                                    hoverable
+                                    style={{ height: '100%', borderRadius: 12, border: subInfo?.plan === 'pro' ? '2px solid #1890ff' : '1px solid #f0f0f0' }}
+                                    bodyStyle={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+                                >
+                                    <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                                        <div style={{ position: 'absolute', top: 12, right: 12 }}><Tag color="blue">Best Value</Tag></div>
+                                        <Title level={4}>Professional</Title>
+                                        <div style={{ margin: '16px 0' }}>
+                                            <span style={{ fontSize: 24, fontWeight: 'bold', verticalAlign: 'top' }}>$</span>
+                                            <span style={{ fontSize: 40, fontWeight: 'bold' }}>{billingCycle === 'monthly' ? '25' : '250'}</span>
+                                            <span style={{ color: '#8c8c8c' }}>/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                                        </div>
+                                        <Text type="secondary">Advanced tools for growth</Text>
+                                    </div>
+                                    <Divider style={{ margin: '0 0 24px 0' }} />
+                                    <div style={{ flex: 1 }}>
+                                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Up to 50 active users</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Full Security Suite</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Shared Storage (5GB)</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Priority Support</Text></div>
+                                        </Space>
+                                    </div>
+                                    <Button
+                                        type="primary"
+                                        block
+                                        style={{ marginTop: 24 }}
+                                        loading={submitting}
+                                        disabled={subInfo?.plan === 'pro' || subInfo?.plan === 'team' || !!pendingSub}
+                                        onClick={() => handleRequestSubscription('pro')}
+                                    >
+                                        {subInfo?.plan === 'pro' ? 'Current Plan' : 'Select Pro'}
+                                    </Button>
+                                </Card>
+                            </Col>
+
+                            {/* Team Plan Card */}
+                            <Col xs={24} md={8}>
+                                <Card
+                                    hoverable
+                                    style={{ height: '100%', borderRadius: 12, border: subInfo?.plan === 'team' ? '2px solid #1890ff' : '1px solid #f0f0f0' }}
+                                    bodyStyle={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+                                >
+                                    <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                                        <Title level={4}>Team Enterprise</Title>
+                                        <div style={{ margin: '16px 0' }}>
+                                            <span style={{ fontSize: 24, fontWeight: 'bold', verticalAlign: 'top' }}>$</span>
+                                            <span style={{ fontSize: 40, fontWeight: 'bold' }}>{billingCycle === 'monthly' ? '599' : '5,990'}</span>
+                                            <span style={{ color: '#8c8c8c' }}>/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+                                        </div>
+                                        <Text type="secondary">Maximum scale & storage</Text>
+                                    </div>
+                                    <Divider style={{ margin: '0 0 24px 0' }} />
+                                    <div style={{ flex: 1 }}>
+                                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Unlimited Users*</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Vehicle Tracking API</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Shared Storage (50GB)</Text></div>
+                                            <div style={{ display: 'flex', gap: 8 }}><CheckCircle size={16} color="#52c41a" /> <Text>Custom Integration</Text></div>
+                                        </Space>
+                                    </div>
+                                    <Button
+                                        block
+                                        style={{ marginTop: 24 }}
+                                        loading={submitting}
+                                        disabled={subInfo?.plan === 'team' || !!pendingSub}
+                                        onClick={() => handleRequestSubscription('team')}
+                                    >
+                                        {subInfo?.plan === 'team' ? 'Current Plan' : 'Select Team'}
+                                    </Button>
+                                </Card>
+                            </Col>
+                        </Row>
+
                     </Col>
 
                     <Col xs={24} lg={8}>
