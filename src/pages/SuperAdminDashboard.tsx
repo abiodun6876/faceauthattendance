@@ -16,8 +16,7 @@ import {
     Input,
     message,
     Tabs,
-    Badge,
-    Alert
+    Badge
 } from 'antd';
 import {
     LayoutDashboard,
@@ -46,7 +45,6 @@ const SuperAdminDashboard: React.FC = () => {
     const [subscriptions, setSubscriptions] = useState<any[]>([]);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [password, setPassword] = useState('');
-    const [adminEmail, setAdminEmail] = useState('nigeramventures@gmail.com');
     const [allAdmins, setAllAdmins] = useState<any[]>([]);
     const [adminModalVisible, setAdminModalVisible] = useState(false);
     const [editingAdmin, setEditingAdmin] = useState<any>(null);
@@ -102,31 +100,14 @@ const SuperAdminDashboard: React.FC = () => {
     };
 
     useEffect(() => {
-        const checkAuth = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
+        const checkAuth = () => {
+            const isVerified = sessionStorage.getItem('super_admin_verified') === 'true';
+            if (isVerified) {
+                setIsAuthenticated(true);
+                loadData();
+            } else {
                 setLoading(false);
-                setIsAuthenticated(false);
-                return;
             }
-
-            // Query platform_admins for this email
-            const { data: adminRecord, error: adminError } = await (supabase as any)
-                .from('platform_admins')
-                .select('*')
-                .eq('email', user.email)
-                .single();
-
-            if (adminError || !adminRecord) {
-                message.error('Access Denied: You are not authorized as a platform admin.');
-                setIsAuthenticated(false);
-                setLoading(false);
-                return;
-            }
-
-            setIsAuthenticated(true);
-            loadData();
         };
 
         checkAuth();
@@ -135,31 +116,25 @@ const SuperAdminDashboard: React.FC = () => {
     const handleLogin = async () => {
         try {
             setLoading(true);
-            const { error } = await supabase.auth.signInWithPassword({
-                email: adminEmail,
-                password: password
-            });
+
+            // Check password directly in platform_admins table
+            // This works with anonymous access enabled for this table
+            const { data: adminRecord, error } = await (supabase as any)
+                .from('platform_admins')
+                .select('*')
+                .eq('secondary_password', password)
+                .maybeSingle();
 
             if (error) throw error;
 
-            // Re-check auth after login to verify they are in the platform_admins table
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data: adminRecord } = await (supabase as any)
-                    .from('platform_admins')
-                    .select('*')
-                    .eq('email', user.email)
-                    .single();
-
-                if (!adminRecord) {
-                    message.error('This account is not authorized for admin access.');
-                    await supabase.auth.signOut();
-                    setIsAuthenticated(false);
-                    return;
-                }
+            if (!adminRecord) {
+                message.error('Invalid Credentials: Access Denied');
+                setLoading(false);
+                return;
             }
 
             setIsAuthenticated(true);
+            sessionStorage.setItem('super_admin_verified', 'true');
             message.success('Authorized Access Granted');
             loadData();
         } catch (error: any) {
@@ -447,23 +422,9 @@ const SuperAdminDashboard: React.FC = () => {
 
                     <Space direction="vertical" style={{ width: '100%' }} size="large">
                         <div>
-                            <Text strong>Admin Email</Text>
-                            <Input
-                                placeholder="nigeramventures@gmail.com"
-                                style={{ marginTop: 8 }}
-                                value={adminEmail}
-                                onChange={(e) => setAdminEmail(e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text strong>Dashboard Password</Text>
-                                <Button type="link" size="small" onClick={() => window.open('https://app.supabase.com/project/vpliofrxoalpihmebhrk/settings/auth', '_blank')} style={{ padding: 0, height: 'auto' }}>
-                                    Reset?
-                                </Button>
-                            </div>
+                            <Text strong>Dashboard Password</Text>
                             <Input.Password
-                                placeholder="Enter your password"
+                                placeholder="Enter your secret key"
                                 style={{ marginTop: 8 }}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
@@ -510,7 +471,13 @@ const SuperAdminDashboard: React.FC = () => {
                         <Badge count={stats.pendingApprovals}>
                             <CreditCard size={20} color="#666" />
                         </Badge>
-                        <Title level={5} style={{ margin: 0 }}>Administrator</Title>
+                        <Button type="text" block onClick={() => {
+                            sessionStorage.removeItem('super_admin_verified');
+                            setIsAuthenticated(false);
+                            navigate('/');
+                        }}>
+                            Logout and Exit
+                        </Button>
                     </Space>
                 </Header>
                 <Content style={{ margin: '24px 16px', padding: 24, background: '#f0f2f5', minHeight: 280 }}>
