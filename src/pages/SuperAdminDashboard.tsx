@@ -28,7 +28,8 @@ import {
     ArrowLeft,
     TrendingUp,
     ShieldCheck,
-    Clock
+    Clock,
+    Users
 } from 'lucide-react';
 import { billingService } from '../services/billingService';
 import { supabase } from '../lib/supabase';
@@ -48,6 +49,11 @@ const SuperAdminDashboard: React.FC = () => {
     const [adminPassword, setAdminPassword] = useState('');
     const [supabasePassword, setSupabasePassword] = useState('');
     const [adminEmail, setAdminEmail] = useState('nigeramventures@gmail.com');
+    const [allAdmins, setAllAdmins] = useState<any[]>([]);
+    const [adminModalVisible, setAdminModalVisible] = useState(false);
+    const [editingAdmin, setEditingAdmin] = useState<any>(null);
+    const [newAdminEmail, setNewAdminEmail] = useState('');
+    const [newAdminPassword, setNewAdminPassword] = useState('');
     const [stats, setStats] = useState({
         totalOrgs: 0,
         activeSubs: 0,
@@ -68,10 +74,17 @@ const SuperAdminDashboard: React.FC = () => {
             // 2. Load Subscriptions
             const { data: subs } = await billingService.getAllSubscriptions();
 
+            // 3. Load Admins
+            const { data: admins } = await (supabase as any)
+                .from('platform_admins')
+                .select('*')
+                .order('created_at', { ascending: false });
+
             setOrganizations(orgs || []);
             setSubscriptions(subs || []);
+            setAllAdmins(admins || []);
 
-            // 3. Calculate Stats
+            // 4. Calculate Stats
             const active = orgs?.filter((o: any) => o.subscription_status === 'active' && o.subscription_plan !== 'free').length || 0;
             const revenue = subs?.filter((s: any) => s.status === 'active').reduce((acc: number, s: any) => acc + Number(s.amount), 0) || 0;
             const pending = subs?.filter((s: any) => s.status === 'pending').length || 0;
@@ -100,9 +113,19 @@ const SuperAdminDashboard: React.FC = () => {
                 return;
             }
 
-            if (user.email !== 'nigeramventures@gmail.com') {
-                message.error('Access Denied: Restricted to system owner.');
-                navigate('/');
+            // Query platform_admins for this email
+            const { data: adminRecord, error: adminError } = await (supabase as any)
+                .from('platform_admins')
+                .select('*')
+                .eq('email', user.email)
+                .single();
+
+            if (adminError || !adminRecord) {
+                message.error('Access Denied: You are not authorized as a platform admin.');
+                // Don't sign out automatically here to allow the user to see the error, 
+                // but prevent access.
+                setIsSupabaseAuthenticated(false);
+                setLoading(false);
                 return;
             }
 
@@ -131,6 +154,23 @@ const SuperAdminDashboard: React.FC = () => {
 
             if (error) throw error;
 
+            // Re-check auth after login to verify they are in the platform_admins table
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: adminRecord } = await (supabase as any)
+                    .from('platform_admins')
+                    .select('*')
+                    .eq('email', user.email)
+                    .single();
+
+                if (!adminRecord) {
+                    message.error('This account is not authorized for admin access.');
+                    await supabase.auth.signOut();
+                    setIsSupabaseAuthenticated(false);
+                    return;
+                }
+            }
+
             setIsSupabaseAuthenticated(true);
             message.success('Account Authenticated');
 
@@ -148,14 +188,30 @@ const SuperAdminDashboard: React.FC = () => {
         }
     };
 
-    const handlePasswordSubmit = () => {
-        if (adminPassword === 'Nigeram2026@?') {
-            setIsAuthenticated(true);
-            sessionStorage.setItem('super_admin_verified', 'true');
-            loadData();
-            message.success('Dashboard Unlocked');
-        } else {
-            message.error('Invalid Password');
+    const handlePasswordSubmit = async () => {
+        setLoading(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('User session not found');
+
+            const { data: adminRecord } = await (supabase as any)
+                .from('platform_admins')
+                .select('secondary_password')
+                .eq('email', user.email)
+                .single();
+
+            if (adminRecord && adminPassword === adminRecord.secondary_password) {
+                setIsAuthenticated(true);
+                sessionStorage.setItem('super_admin_verified', 'true');
+                loadData();
+                message.success('Dashboard Unlocked');
+            } else {
+                message.error('Invalid Security Password');
+            }
+        } catch (error: any) {
+            message.error('Verification failed: ' + error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -272,9 +328,72 @@ const SuperAdminDashboard: React.FC = () => {
         }
     ];
 
+    const adminColumns = [
+        {
+            title: 'Email',
+            dataIndex: 'email',
+            key: 'email',
+            render: (text: string) => <Text strong>{text}</Text>
+        },
+        {
+            title: 'Role',
+            dataIndex: 'role',
+            key: 'role',
+            render: (role: string) => <Tag color="purple">{role.toUpperCase()}</Tag>
+        },
+        {
+            title: 'Security Code',
+            dataIndex: 'secondary_password',
+            key: 'password',
+            render: (pass: string) => <Text code>{pass}</Text>
+        },
+        {
+            title: 'Added On',
+            dataIndex: 'created_at',
+            key: 'created',
+            render: (date: string) => dayjs(date).format('MMM D, YYYY')
+        },
+        {
+            title: 'Action',
+            key: 'action',
+            render: (record: any) => (
+                <Space>
+                    <Button
+                        size="small"
+                        onClick={() => {
+                            setEditingAdmin(record);
+                            setNewAdminEmail(record.email);
+                            setNewAdminPassword(record.secondary_password);
+                            setAdminModalVisible(true);
+                        }}
+                    >
+                        Edit
+                    </Button>
+                    <Button
+                        danger
+                        size="small"
+                        onClick={() => {
+                            Modal.confirm({
+                                title: 'Remove Admin',
+                                content: `Are you sure you want to remove ${record.email}?`,
+                                onOk: async () => {
+                                    await (supabase as any).from('platform_admins').delete().eq('id', record.id);
+                                    message.success('Admin removed');
+                                    loadData();
+                                }
+                            });
+                        }}
+                    >
+                        Delete
+                    </Button>
+                </Space>
+            )
+        }
+    ];
+
     const orgColumns = [
         {
-            title: 'Name',
+            title: 'Organization',
             dataIndex: 'name',
             key: 'name',
             render: (text: string) => <Text strong>{text}</Text>
@@ -283,13 +402,22 @@ const SuperAdminDashboard: React.FC = () => {
             title: 'Subdomain',
             dataIndex: 'subdomain',
             key: 'subdomain',
+            render: (text: string) => <Tag color="blue">{text}</Tag>
+        },
+        {
+            title: 'Type',
+            dataIndex: 'type',
+            key: 'type',
+            render: (type: string) => <Tag>{(type || 'N/A').toUpperCase()}</Tag>
         },
         {
             title: 'Plan',
             dataIndex: 'subscription_plan',
             key: 'plan',
             render: (plan: string) => (
-                <Tag color={plan === 'free' ? 'default' : 'blue'}>{plan?.toUpperCase() || 'FREE'}</Tag>
+                <Tag color={plan === 'free' ? 'default' : (plan === 'pro' ? 'gold' : 'purple')}>
+                    {(plan || 'free').toUpperCase()}
+                </Tag>
             )
         },
         {
@@ -297,16 +425,55 @@ const SuperAdminDashboard: React.FC = () => {
             dataIndex: 'subscription_status',
             key: 'status',
             render: (status: string) => (
-                <Tag color={status === 'active' ? 'green' : 'red'}>{status?.toUpperCase() || 'ACTIVE'}</Tag>
+                <Tag color={status === 'active' ? 'green' : 'red'}>
+                    {(status || 'active').toUpperCase()}
+                </Tag>
             )
         },
         {
-            title: 'Expiry',
-            dataIndex: 'subscription_expiry',
-            key: 'expiry',
-            render: (date: string) => date ? dayjs(date).format('MMM D, YYYY') : 'Never'
+            title: 'Created',
+            dataIndex: 'created_at',
+            key: 'created',
+            render: (date: string) => dayjs(date).format('MMM D, YYYY')
         }
     ];
+
+
+    const handleSaveAdmin = async () => {
+        try {
+            if (!newAdminEmail || !newAdminPassword) {
+                message.error('Please fill all fields');
+                return;
+            }
+
+            if (editingAdmin) {
+                const { error } = await (supabase as any)
+                    .from('platform_admins')
+                    .update({
+                        secondary_password: newAdminPassword
+                    })
+                    .eq('id', editingAdmin.id);
+                if (error) throw error;
+                message.success('Admin updated');
+            } else {
+                const { error } = await (supabase as any)
+                    .from('platform_admins')
+                    .insert({
+                        email: newAdminEmail,
+                        secondary_password: newAdminPassword
+                    });
+                if (error) throw error;
+                message.success('Admin added successfully');
+            }
+            setAdminModalVisible(false);
+            setEditingAdmin(null);
+            setNewAdminEmail('');
+            setNewAdminPassword('');
+            loadData();
+        } catch (error: any) {
+            message.error('Error saving admin: ' + error.message);
+        }
+    };
 
     if (!isSupabaseAuthenticated) {
         return (
@@ -429,6 +596,7 @@ const SuperAdminDashboard: React.FC = () => {
                     <Menu.Item key="1" icon={<LayoutDashboard size={18} />}>Dashboard</Menu.Item>
                     <Menu.Item key="2" icon={<Building2 size={18} />}>Organizations</Menu.Item>
                     <Menu.Item key="3" icon={<CreditCard size={18} />}>Subscriptions</Menu.Item>
+                    <Menu.Item key="4" icon={<Users size={18} />}>Managers</Menu.Item>
                 </Menu>
             </Sider>
             <Layout>
@@ -509,8 +677,71 @@ const SuperAdminDashboard: React.FC = () => {
                                     rowKey="id"
                                 />
                             </TabPane>
+                            <TabPane
+                                tab={
+                                    <span>
+                                        <Users size={14} style={{ marginRight: 8 }} />
+                                        Platform Admins
+                                    </span>
+                                }
+                                key="admins"
+                            >
+                                <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                                    <Button
+                                        type="primary"
+                                        onClick={() => {
+                                            setEditingAdmin(null);
+                                            setNewAdminEmail('');
+                                            setNewAdminPassword('');
+                                            setAdminModalVisible(true);
+                                        }}
+                                        icon={<ShieldCheck size={16} />}
+                                    >
+                                        Add New Admin
+                                    </Button>
+                                </div>
+                                <Table
+                                    columns={adminColumns}
+                                    dataSource={allAdmins}
+                                    loading={loading}
+                                    rowKey="id"
+                                />
+                            </TabPane>
                         </Tabs>
                     </Card>
+
+                    <Modal
+                        title={editingAdmin ? "Edit Admin Password" : "Add New Platform Admin"}
+                        visible={adminModalVisible}
+                        onOk={handleSaveAdmin}
+                        onCancel={() => setAdminModalVisible(false)}
+                        okText={editingAdmin ? "Update Password" : "Add Admin"}
+                    >
+                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                            <div>
+                                <Text strong>Email Address</Text>
+                                <Input
+                                    placeholder="email@example.com"
+                                    value={newAdminEmail}
+                                    onChange={(e) => setNewAdminEmail(e.target.value)}
+                                    disabled={!!editingAdmin}
+                                    style={{ marginTop: 8 }}
+                                />
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                    User must already have a Supabase account to log in.
+                                </Text>
+                            </div>
+                            <div>
+                                <Text strong>Secondary Security Code</Text>
+                                <Input
+                                    placeholder="Security password for Stage 2"
+                                    value={newAdminPassword}
+                                    onChange={(e) => setNewAdminPassword(e.target.value)}
+                                    style={{ marginTop: 8 }}
+                                />
+                            </div>
+                        </Space>
+                    </Modal>
                 </Content>
             </Layout>
         </Layout>
