@@ -84,7 +84,15 @@ const LeaveManagementPage: React.FC = () => {
 
             // Filter based on active tab
             if (activeTab === 'my-requests') {
-                query = query.eq('user_id', userId);
+                if (userId && userId !== 'null') {
+                    query = query.eq('user_id', userId);
+                } else {
+                    // If no user identified, we can't show their requests
+                    // but we shouldn't send a broken query
+                    setLeaveRequests([]);
+                    setLoading(false);
+                    return;
+                }
             }
 
             const { data, error } = await query;
@@ -430,6 +438,7 @@ const LeaveManagementPage: React.FC = () => {
                             loading={loading}
                             rowKey="id"
                             pagination={{ pageSize: 10 }}
+                            scroll={{ x: 800 }}
                         />
                     </TabPane>
                     <TabPane tab="All Requests (Manager)" key="all-requests">
@@ -439,6 +448,7 @@ const LeaveManagementPage: React.FC = () => {
                             loading={loading}
                             rowKey="id"
                             pagination={{ pageSize: 10 }}
+                            scroll={{ x: 800 }}
                         />
                     </TabPane>
                 </Tabs>
