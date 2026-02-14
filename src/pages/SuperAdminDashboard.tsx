@@ -16,7 +16,8 @@ import {
     Input,
     message,
     Tabs,
-    Badge
+    Badge,
+    Alert
 } from 'antd';
 import {
     LayoutDashboard,
@@ -142,7 +143,7 @@ const SuperAdminDashboard: React.FC = () => {
                 setLoading(false);
             }
         } catch (error: any) {
-            message.error('Login Failed: ' + error.message);
+            message.error('Supabase Login Failed: ' + error.message);
             setLoading(false);
         }
     };
@@ -317,11 +318,19 @@ const SuperAdminDashboard: React.FC = () => {
                 alignItems: 'center',
                 flexDirection: 'column'
             }}>
-                <Card style={{ width: 400, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+                <Card style={{ width: 450, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
                     <div style={{ textAlign: 'center', marginBottom: 24 }}>
                         <ShieldCheck size={48} color="#1890ff" style={{ margin: '0 auto' }} />
-                        <Title level={3} style={{ marginTop: 16 }}>System Owner Login</Title>
-                        <Text type="secondary">Sign in with your platform owner account.</Text>
+                        <Title level={3} style={{ marginTop: 16 }}>Stage 1: Owner Account Login</Title>
+                        <Text type="secondary">Sign in with your <b>Supabase Account Password</b>.</Text>
+                        <div style={{ marginTop: 8 }}>
+                            <Alert
+                                message="Note: This is NOT the security code (Nigeram2026@?)"
+                                type="info"
+                                showIcon
+                                style={{ fontSize: 12 }}
+                            />
+                        </div>
                     </div>
                     <Space direction="vertical" style={{ width: '100%' }} size="large">
                         <div>
@@ -371,17 +380,17 @@ const SuperAdminDashboard: React.FC = () => {
                 alignItems: 'center',
                 flexDirection: 'column'
             }}>
-                <Card style={{ width: 400, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+                <Card style={{ width: 450, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
                     <div style={{ textAlign: 'center', marginBottom: 24 }}>
                         <ShieldCheck size={48} color="#faad14" style={{ margin: '0 auto' }} />
-                        <Title level={3} style={{ marginTop: 16 }}>Secondary Verification</Title>
-                        <Text type="secondary">Enter the dashboard security code to unlock.</Text>
+                        <Title level={3} style={{ marginTop: 16 }}>Stage 2: Dashboard Security</Title>
+                        <Text type="secondary">Enter the secondary security code to unlock.</Text>
                     </div>
                     <Space direction="vertical" style={{ width: '100%' }} size="large">
                         <div>
-                            <Text strong>Security Password</Text>
+                            <Text strong>Security Password (Nigeram2026@?)</Text>
                             <Input.Password
-                                placeholder="Nigeram2026@?"
+                                placeholder="Enter security code"
                                 style={{ marginTop: 8 }}
                                 value={adminPassword}
                                 onChange={(e) => setAdminPassword(e.target.value)}
