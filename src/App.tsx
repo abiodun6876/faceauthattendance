@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Avatar, Menu, Drawer, Space, Tag, Table } from 'antd';
+import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Menu, Drawer, Space, Tag } from 'antd';
 import {
   UserPlus,
   Camera,
