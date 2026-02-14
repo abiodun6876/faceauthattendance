@@ -117,15 +117,15 @@ const SuperAdminDashboard: React.FC = () => {
         try {
             setLoading(true);
 
-            // Check password directly in platform_admins table
-            // This works with anonymous access enabled for this table
-            const { data: adminRecord, error } = await (supabase as any)
-                .from('platform_admins')
-                .select('*')
-                .eq('secondary_password', password)
-                .maybeSingle();
+            // Call the secure RPC function to verify password without exposing table to anonymous users
+            const { data, error } = await (supabase as any).rpc('verify_platform_admin', {
+                input_password: password
+            });
 
             if (error) throw error;
+
+            // RPC returns 1 row as an array element
+            const adminRecord = Array.isArray(data) && data.length > 0 ? data[0] : null;
 
             if (!adminRecord) {
                 message.error('Invalid Credentials: Access Denied');
