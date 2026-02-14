@@ -13,8 +13,7 @@ import {
     Divider,
     Space,
     Radio,
-    message,
-    Modal
+    message
 } from 'antd';
 import {
     CreditCard,
@@ -24,7 +23,6 @@ import {
     Users,
     HardDrive,
     Info,
-    ExternalLink,
     Zap,
     FileText
 } from 'lucide-react';
@@ -80,7 +78,7 @@ const BillingPage: React.FC = () => {
                 ? (billingCycle === 'monthly' ? 25 : 250)
                 : (billingCycle === 'monthly' ? 599 : 5990);
 
-            const { data, error } = await billingService.initiateSubscription({
+            const { error } = await billingService.initiateSubscription({
                 organizationId: orgId,
                 planType,
                 billingCycle,
