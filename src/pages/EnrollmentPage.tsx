@@ -22,7 +22,9 @@ import {
   Divider,
   Avatar,
   Progress,
-  Image
+  Image,
+  QRCode,
+  Badge
 } from 'antd';
 import {
   Camera,
@@ -50,6 +52,7 @@ import { userService } from '../services/userService';
 import { attendanceService } from '../services/attendanceService';
 import faceService from '../utils/faceService';
 import dayjs from 'dayjs';
+import { v4 as uuidv4 } from 'uuid';
 
 
 const { Title, Text } = Typography;
@@ -154,6 +157,12 @@ const EnrollmentPage: React.FC = () => {
         const newId = generateUserId(values.user_role);
         form.setFieldValue('staff_id', newId);
         values.staff_id = newId;
+      }
+
+      if (!values.qr_code) {
+        const newQRCode = uuidv4().slice(0, 8).toUpperCase(); // Short unique code
+        form.setFieldValue('qr_code', newQRCode);
+        values.qr_code = newQRCode;
       }
 
       if (values.email && !/\S+@\S+\.\S+/.test(values.email)) {
@@ -510,8 +519,8 @@ const EnrollmentPage: React.FC = () => {
             </Col>
 
             <Col span={24}>
-              <Form.Item label="QR Code Value" name="qr_code" extra="Optional: Unique value to be encoded in QR code">
-                <Input size="large" placeholder="Enter QR code value" prefix={<QrCode size={16} />} />
+              <Form.Item label="QR Code Value" name="qr_code" extra="Automatically generated for attendance tracking">
+                <Input size="large" placeholder="Will be auto-generated" prefix={<QrCode size={16} />} readOnly />
               </Form.Item>
             </Col>
 
@@ -806,52 +815,55 @@ const EnrollmentPage: React.FC = () => {
                         percent={enrollmentResult.quality}
                         size="small"
                         style={{ width: 120 }}
-                        status="success"
                       />
-                      <Text strong>{enrollmentResult.quality}% Match Quality</Text>
+                      <Badge status="success" text="Enrolled" />
                     </Space>
                   </Descriptions.Item>
                 </Descriptions>
 
-                <div style={{ marginTop: 24 }}>
-                  <Alert
-                    message="Biometric Security Active"
-                    description="This user can now perform face-recognition based clock-ins and clock-outs on any authorized device."
-                    type="success"
-                    showIcon
+                <div style={{ textAlign: 'center', marginTop: 24, padding: 24, background: '#f8f9fa', borderRadius: 8 }}>
+                  <Text strong style={{ display: 'block', marginBottom: 16 }}>Attendance QR Code</Text>
+                  <QRCode
+                    value={formData.qr_code}
+                    size={200}
+                    status="active"
                   />
+                  <div style={{ marginTop: 16 }}>
+                    <Text type="secondary">Save or print this QR code for the user to use for attendance.</Text>
+                  </div>
                 </div>
+
+                <Divider />
+
+                <Space style={{ width: '100%', justifyContent: 'center' }} size="large">
+                  <Button
+                    type="primary"
+                    size="large"
+                    onClick={() => {
+                      // Reset everything properly
+                      form.resetFields();
+                      setFormData({});
+                      setPhotoData('');
+                      setPhotoPreview('');
+                      setFaceProcessingResult(null);
+                      setFaceProcessing(false);
+                      setProcessingProgress(0);
+                      setEnrollmentResult(null);
+                      setCurrentStep(0);
+                      initializeForm();
+                    }}
+                    icon={<UserPlus size={18} />}
+                  >
+                    Enroll Another User
+                  </Button>
+                  <Button
+                    size="large"
+                    onClick={() => window.location.href = '/attendance'}
+                  >
+                    Go to Attendance
+                  </Button>
+                </Space>
               </Card>
-
-              <Space style={{ width: '100%', justifyContent: 'center' }} size="large">
-
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={() => {
-                    // Reset everything properly
-                    form.resetFields();
-                    setFormData({});
-                    setPhotoData('');
-                    setPhotoPreview('');
-                    setFaceProcessingResult(null);
-                    setFaceProcessing(false);
-                    setProcessingProgress(0);
-                    setEnrollmentResult(null);
-                    setCurrentStep(0);
-                    initializeForm();
-                  }}
-                  icon={<UserPlus size={18} />}
-                >
-                  Enroll Another User
-                </Button>
-                <Button
-                  size="large"
-                  onClick={() => window.location.href = '/attendance'}
-                >
-                  Go to Attendance
-                </Button>
-              </Space>
             </div>
           ) : (
             <>
@@ -875,8 +887,9 @@ const EnrollmentPage: React.FC = () => {
                 </Button>
               </Space>
             </>
-          )}
-        </div>
+          )
+          }
+        </div >
       ) : (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Spin size="large" />

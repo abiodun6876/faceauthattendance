@@ -12,8 +12,9 @@ import {
     Select,
     Switch,
     Avatar,
+    Divider,
     Space,
-    Divider
+    QRCode
 } from 'antd';
 import {
     User,
@@ -23,8 +24,10 @@ import {
     Mail,
     Phone,
     IdCard,
-    QrCode
+    QrCode,
+    RefreshCw
 } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 
 const { Title, Text } = Typography;
@@ -293,13 +296,39 @@ const UserProfilePage: React.FC = () => {
                     <Form.Item
                         label="QR Code Value"
                         name="qr_code"
+                        extra="Used for QR code attendance verification"
                     >
                         <Input
                             prefix={<QrCode size={16} />}
                             placeholder="Enter QR code value"
                             size="large"
+                            readOnly
+                            suffix={
+                                <Button
+                                    type="text"
+                                    icon={<RefreshCw size={14} />}
+                                    onClick={() => {
+                                        const newCode = uuidv4().slice(0, 8).toUpperCase();
+                                        form.setFieldsValue({ qr_code: newCode });
+                                    }}
+                                >
+                                    Generate
+                                </Button>
+                            }
                         />
                     </Form.Item>
+
+                    {form.getFieldValue('qr_code') && (
+                        <div style={{ textAlign: 'center', marginBottom: 24, padding: 16, background: '#f8f9fa', borderRadius: 8 }}>
+                            <QRCode
+                                value={form.getFieldValue('qr_code')}
+                                size={160}
+                            />
+                            <div style={{ marginTop: 8 }}>
+                                <Text type="secondary">User's Attendance QR Code</Text>
+                            </div>
+                        </div>
+                    )}
 
                     <Form.Item
                         label="Gender"
