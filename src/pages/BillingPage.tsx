@@ -6,13 +6,15 @@ import {
     Button,
     Row,
     Col,
-    Statistic,
     Table,
     Tag,
     Alert,
     Progress,
     Divider,
-    Space
+    Space,
+    Radio,
+    message,
+    Modal
 } from 'antd';
 import {
     CreditCard,
@@ -22,7 +24,9 @@ import {
     Users,
     HardDrive,
     Info,
-    ExternalLink
+    ExternalLink,
+    Zap,
+    FileText
 } from 'lucide-react';
 import { billingService, SubscriptionInfo, UsageStats } from '../services/billingService';
 import dayjs from 'dayjs';
@@ -35,20 +39,25 @@ const BillingPage: React.FC = () => {
     const isExpired = searchParams.get('expired') === 'true';
 
     const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
     const [subInfo, setSubInfo] = useState<SubscriptionInfo | null>(null);
     const [usage, setUsage] = useState<UsageStats | null>(null);
+    const [pendingSub, setPendingSub] = useState<any>(null);
+    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
 
     const loadData = async () => {
         try {
             setLoading(true);
             const orgId = localStorage.getItem('organization_id');
             if (orgId) {
-                const [info, stats] = await Promise.all([
+                const [info, stats, pending] = await Promise.all([
                     billingService.getSubscriptionInfo(orgId),
-                    billingService.getUsageStats(orgId)
+                    billingService.getUsageStats(orgId),
+                    billingService.getPendingSubscription(orgId)
                 ]);
                 setSubInfo(info);
                 setUsage(stats);
+                setPendingSub(pending.data);
             }
         } catch (error) {
             console.error('Error loading billing data:', error);
@@ -60,6 +69,34 @@ const BillingPage: React.FC = () => {
     useEffect(() => {
         loadData();
     }, []);
+
+    const handleRequestSubscription = async (planType: 'pro' | 'team') => {
+        try {
+            const orgId = localStorage.getItem('organization_id');
+            if (!orgId) return;
+
+            setSubmitting(true);
+            const amount = planType === 'pro'
+                ? (billingCycle === 'monthly' ? 25 : 250)
+                : (billingCycle === 'monthly' ? 599 : 5990);
+
+            const { data, error } = await billingService.initiateSubscription({
+                organizationId: orgId,
+                planType,
+                billingCycle,
+                amount
+            });
+
+            if (error) throw error;
+
+            message.success('Subscription request initiated! Please contact admin for payment verification.');
+            loadData();
+        } catch (error: any) {
+            message.error('Failed to initiate request: ' + error.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     const planData = [
         {
@@ -96,12 +133,16 @@ const BillingPage: React.FC = () => {
         { title: 'Feature', dataIndex: 'feature', key: 'feature' },
         { title: 'Free ($0)', dataIndex: 'free', key: 'free' },
         {
-            title: 'Pro ($25)',
+            title: billingCycle === 'yearly' ? 'Pro ($250/yr)' : 'Pro ($25/mo)',
             dataIndex: 'pro',
             key: 'pro',
-            render: (text: string) => <Text strong color="#1890ff">{text}</Text>
+            render: (text: string) => <Text strong style={{ color: '#1890ff' }}>{text}</Text>
         },
-        { title: 'Team ($599)', dataIndex: 'team', key: 'team' }
+        {
+            title: billingCycle === 'yearly' ? 'Team ($5990/yr)' : 'Team ($599/mo)',
+            dataIndex: 'team',
+            key: 'team'
+        }
     ];
 
     const formatBytes = (bytes: number) => {
@@ -141,6 +182,23 @@ const BillingPage: React.FC = () => {
                     />
                 )}
 
+                {pendingSub && (
+                    <Alert
+                        message="Subscription Request Pending"
+                        description={
+                            <div>
+                                <p>You have a pending request for the <strong>{pendingSub.plan_type.toUpperCase()} ({pendingSub.billing_cycle})</strong> plan.</p>
+                                <p>Invoice: <strong>{pendingSub.invoice_number}</strong> | Amount: <strong>${pendingSub.amount}</strong></p>
+                                <p>Please finalize your payment and contact the platform administrator for activation.</p>
+                            </div>
+                        }
+                        type="warning"
+                        showIcon
+                        icon={<Clock />}
+                        style={{ marginBottom: 24 }}
+                    />
+                )}
+
                 <Row gutter={[24, 24]}>
                     <Col xs={24} lg={16}>
                         <Card
@@ -150,6 +208,17 @@ const BillingPage: React.FC = () => {
                                     <span>Subscription Plan</span>
                                 </Space>
                             }
+                            extra={
+                                <Radio.Group
+                                    value={billingCycle}
+                                    onChange={(e) => setBillingCycle(e.target.value)}
+                                    buttonStyle="solid"
+                                    size="small"
+                                >
+                                    <Radio.Button value="monthly">Monthly</Radio.Button>
+                                    <Radio.Button value="yearly">Yearly (Save 15%)</Radio.Button>
+                                </Radio.Group>
+                            }
                             loading={loading}
                         >
                             <Row gutter={16} align="middle">
@@ -157,11 +226,11 @@ const BillingPage: React.FC = () => {
                                     <div style={{ marginBottom: 24 }}>
                                         <Text type="secondary">Current Plan</Text>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-                                            <Title level={2} style={{ margin: 0, textTransform: 'capitalize' }}>
+                                            <Title level={2} style={{ margin: 0, textTransform: 'capitalize', color: '#1890ff' }}>
                                                 {subInfo?.plan || 'Free'}
                                             </Title>
-                                            <Tag color={subInfo?.status === 'active' ? 'green' : 'red'}>
-                                                {subInfo?.status?.toUpperCase()}
+                                            <Tag color={subInfo?.status === 'active' ? 'green' : (subInfo?.status === 'expired' ? 'red' : 'orange')}>
+                                                {subInfo?.status?.toUpperCase() || 'ACTIVE'}
                                             </Tag>
                                         </div>
                                     </div>
@@ -174,29 +243,46 @@ const BillingPage: React.FC = () => {
                                                 {subInfo?.expiryDate ? dayjs(subInfo.expiryDate).format('MMMM D, YYYY') : 'Lifetime'}
                                             </Text>
                                         </div>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>
-                                            ({getRemainingDays()} days remaining)
-                                        </Text>
+                                        {subInfo?.expiryDate && (
+                                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                                ({getRemainingDays()} days remaining)
+                                            </Text>
+                                        )}
                                     </div>
                                 </Col>
                                 <Col xs={24} md={12}>
                                     <div style={{
                                         padding: '20px',
-                                        backgroundColor: '#f6ffed',
-                                        borderRadius: '8px',
-                                        border: '1px solid #b7eb8f'
+                                        backgroundColor: '#e6f7ff',
+                                        borderRadius: '12px',
+                                        border: '1px solid #91d5ff'
                                     }}>
-                                        <Title level={5} style={{ marginTop: 0 }}>Need to upgrade?</Title>
-                                        <Text>Upgrade to Pro for more users, storage, and prioritized support.</Text>
-                                        <Button
-                                            type="primary"
-                                            block
-                                            icon={<ExternalLink size={16} />}
-                                            style={{ marginTop: 16 }}
-                                            onClick={() => window.open('https://supabase.com/dashboard', '_blank')}
-                                        >
-                                            Manage Payment
-                                        </Button>
+                                        <Title level={5} style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <Zap size={18} fill="#1890ff" color="#1890ff" />
+                                            Upgrade Selection
+                                        </Title>
+                                        <Text type="secondary">Select your plan and initiate an invoice for activation.</Text>
+                                        <Space direction="vertical" style={{ width: '100%', marginTop: 16 }}>
+                                            <Button
+                                                type="primary"
+                                                block
+                                                icon={<FileText size={16} />}
+                                                disabled={subInfo?.plan === 'pro' || subInfo?.plan === 'team' || !!pendingSub}
+                                                loading={submitting}
+                                                onClick={() => handleRequestSubscription('pro')}
+                                            >
+                                                Request PRO Plan
+                                            </Button>
+                                            <Button
+                                                block
+                                                icon={<FileText size={16} />}
+                                                disabled={subInfo?.plan === 'team' || !!pendingSub}
+                                                loading={submitting}
+                                                onClick={() => handleRequestSubscription('team')}
+                                            >
+                                                Request TEAM Plan
+                                            </Button>
+                                        </Space>
                                     </div>
                                 </Col>
                             </Row>

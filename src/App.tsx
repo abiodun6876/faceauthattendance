@@ -36,6 +36,7 @@ import LeaveManagementPage from './pages/LeaveManagementPage';
 import VehicleManagementPage from './pages/VehicleManagementPage'; // Add this import
 import DriverTripPage from './pages/DriverTripPage'; // Add this import
 import BillingPage from './pages/BillingPage';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import { supabase } from './lib/supabase';
 import { deviceService } from './services/deviceService';
 import { billingService } from './services/billingService';
@@ -839,6 +840,11 @@ function App() {
           <Route path="/billing" element={
             <ProtectedRoute>
               <BillingPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/super-admin" element={
+            <ProtectedRoute>
+              <SuperAdminDashboard />
             </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" />} />
