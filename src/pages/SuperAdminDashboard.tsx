@@ -488,20 +488,26 @@ const SuperAdminDashboard: React.FC = () => {
                 <Card style={{ width: 450, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
                     <div style={{ textAlign: 'center', marginBottom: 24 }}>
                         <ShieldCheck size={48} color="#1890ff" style={{ margin: '0 auto' }} />
-                        <Title level={3} style={{ marginTop: 16 }}>Stage 1: Owner Account Login</Title>
-                        <Text type="secondary">Sign in with your <b>Supabase Account Password</b>.</Text>
-                        <div style={{ marginTop: 8 }}>
-                            <Alert
-                                message="Note: This is NOT the security code (Nigeram2026@?)"
-                                type="info"
-                                showIcon
-                                style={{ fontSize: 12 }}
-                            />
-                        </div>
+                        <Title level={3} style={{ marginTop: 16 }}>Step 1 of 2: Main Account Access</Title>
+                        <Text type="secondary">Sign in with your <b>Main Supabase Account Password</b>.</Text>
                     </div>
+
+                    <Alert
+                        message="Password Clarification"
+                        description={
+                            <span>
+                                This is <b>NOT</b> the security code <i>(Nigeram2026@?)</i>.<br />
+                                Use the password you use to log into the Supabase Dashboard.
+                            </span>
+                        }
+                        type="warning"
+                        showIcon
+                        style={{ marginBottom: 24 }}
+                    />
+
                     <Space direction="vertical" style={{ width: '100%' }} size="large">
                         <div>
-                            <Text strong>Owner Email</Text>
+                            <Text strong>Account Email</Text>
                             <Input
                                 placeholder="nigeramventures@gmail.com"
                                 style={{ marginTop: 8 }}
@@ -510,9 +516,14 @@ const SuperAdminDashboard: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <Text strong>Account Password</Text>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Text strong>Supabase Account Password</Text>
+                                <Button type="link" size="small" onClick={() => window.open('https://app.supabase.com/project/vpliofrxoalpihmebhrk/settings/auth', '_blank')} style={{ padding: 0, height: 'auto' }}>
+                                    Reset Password?
+                                </Button>
+                            </div>
                             <Input.Password
-                                placeholder="Your account password"
+                                placeholder="NOT the security code"
                                 style={{ marginTop: 8 }}
                                 value={supabasePassword}
                                 onChange={(e) => setSupabasePassword(e.target.value)}
@@ -526,13 +537,14 @@ const SuperAdminDashboard: React.FC = () => {
                             onClick={handleSupabaseLogin}
                             loading={loading}
                         >
-                            Log In to Dashboard
+                            Authenticate Main Account
                         </Button>
                         <Button type="text" block onClick={() => navigate('/')}>
                             Return to App
                         </Button>
                     </Space>
                 </Card>
+
             </div>
         );
     }
@@ -550,12 +562,12 @@ const SuperAdminDashboard: React.FC = () => {
                 <Card style={{ width: 450, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
                     <div style={{ textAlign: 'center', marginBottom: 24 }}>
                         <ShieldCheck size={48} color="#faad14" style={{ margin: '0 auto' }} />
-                        <Title level={3} style={{ marginTop: 16 }}>Stage 2: Dashboard Security</Title>
-                        <Text type="secondary">Enter the secondary security code to unlock.</Text>
+                        <Title level={3} style={{ marginTop: 16 }}>Step 2 of 2: Dashboard Security</Title>
+                        <Text type="secondary">Enter your **Secondary Security Code** to unlock.</Text>
                     </div>
                     <Space direction="vertical" style={{ width: '100%' }} size="large">
                         <div>
-                            <Text strong>Security Password (Nigeram2026@?)</Text>
+                            <Text strong>Dashboard Security Code (Nigeram2026@?)</Text>
                             <Input.Password
                                 placeholder="Enter security code"
                                 style={{ marginTop: 8 }}
@@ -570,6 +582,7 @@ const SuperAdminDashboard: React.FC = () => {
                             size="large"
                             onClick={handlePasswordSubmit}
                             icon={<ShieldCheck size={18} />}
+                            style={{ background: '#faad14', borderColor: '#faad14' }}
                         >
                             Unlock Dashboard
                         </Button>
@@ -581,6 +594,7 @@ const SuperAdminDashboard: React.FC = () => {
                         </Button>
                     </Space>
                 </Card>
+
             </div>
         );
     }
