@@ -8,6 +8,15 @@ const { Title, Text } = Typography;
 const ThankYouPage: React.FC = () => {
     const navigate = useNavigate();
 
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            window.close();
+            // Fallback for browsers
+            window.location.href = "about:blank";
+        }, 10000);
+        return () => clearTimeout(timer);
+    }, []);
+
     return (
         <div style={{
             height: '100vh',
@@ -23,17 +32,33 @@ const ThankYouPage: React.FC = () => {
                     <Space direction="vertical">
                         <Text strong style={{ fontSize: '18px' }}>Your registration has been completed successfully.</Text>
                         <Text type="secondary" style={{ fontSize: '14px' }}>We look forward to seeing you at the event.</Text>
+                        <Text type="secondary" style={{ fontSize: '12px', marginTop: '16px', display: 'block' }}>
+                            This window will attempt to close automatically in 10 seconds.
+                        </Text>
                     </Space>
                 }
                 extra={[
                     <Button
                         type="primary"
-                        key="home"
+                        key="close"
                         size="large"
                         icon={<Home size={18} />}
+                        onClick={() => {
+                            window.close();
+                            // Fallback if window.close() is blocked
+                            setTimeout(() => {
+                                window.location.href = "about:blank";
+                            }, 500);
+                        }}
+                    >
+                        Close Window
+                    </Button>,
+                    <Button
+                        key="home"
+                        size="large"
                         onClick={() => navigate('/')}
                     >
-                        Back to Home
+                        Return to Dashboard
                     </Button>
                 ]}
             />
