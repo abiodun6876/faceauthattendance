@@ -30,9 +30,11 @@ import UserProfilePage from './pages/UserProfilePage';
 import VisitorManagementPage from './pages/VisitorManagementPage';
 import CustomerManagementPage from './pages/CustomerManagementPage';
 import LeaveManagementPage from './pages/LeaveManagementPage';
-import VehicleManagementPage from './pages/VehicleManagementPage'; // Add this import
-import DriverTripPage from './pages/DriverTripPage'; // Add this import
+import VehicleManagementPage from './pages/VehicleManagementPage';
+import DriverTripPage from './pages/DriverTripPage';
 import BillingPage from './pages/BillingPage';
+import EventsManagementPage from './pages/EventsManagementPage';
+import EventRegistrationPage from './pages/EventRegistrationPage';
 import SuperAdminLayout from './pages/super-admin/SuperAdminLayout';
 import SuperAdminDashboardPage from './pages/super-admin/Dashboard';
 import SuperAdminLogin from './pages/super-admin/Login';
@@ -152,6 +154,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
     { key: '/leave', icon: <CalendarDays size={18} />, label: 'Leave' },
     { key: '/customers', icon: <Briefcase size={18} />, label: 'Customers' },
     { key: '/vehicles', icon: <Truck size={18} />, label: 'Vehicle Management' },
+    { key: '/events', icon: <CalendarDays size={18} />, label: 'Events Management' },
     { key: 'https://trackmycar.netlify.app/', icon: <Map size={18} />, label: 'Track Vehicles' },
     { key: '/org-settings', icon: <Settings size={18} />, label: 'Settings' },
   ];
@@ -444,6 +447,14 @@ const DashboardPage = () => {
       icon: <Settings size={32} />,
       path: '/org-settings',
       color: '#2f54eb',
+    },
+    {
+      key: 'events',
+      title: 'Events Management',
+      description: 'Create & track organization events',
+      icon: <CalendarDays size={32} />,
+      path: '/events',
+      color: '#1890ff',
     },
     {
       key: 'settings',
@@ -809,6 +820,14 @@ function App() {
               </OrganizationLayout>
             </ProtectedRoute>
           } />
+          <Route path="/events" element={
+            <ProtectedRoute>
+              <OrganizationLayout>
+                <EventsManagementPage />
+              </OrganizationLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/register-event/:eventId" element={<EventRegistrationPage />} />
           <Route path="/driver-trip" element={
             <ProtectedRoute>
               <DriverTripPage />
