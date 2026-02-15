@@ -12,6 +12,7 @@ import {
 } from 'antd';
 import { Users, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { auditService } from '../../services/auditService';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -61,6 +62,14 @@ const Managers: React.FC = () => {
                     })
                     .eq('id', editingAdmin.id);
                 if (error) throw error;
+
+                await auditService.logAction({
+                    action: 'update_admin_security_code',
+                    target_type: 'admin',
+                    target_id: editingAdmin.id,
+                    details: { email: editingAdmin.email }
+                });
+
                 message.success('Admin updated');
             } else {
                 const { error } = await (supabase as any)
@@ -70,6 +79,13 @@ const Managers: React.FC = () => {
                         secondary_password: newAdminPassword
                     });
                 if (error) throw error;
+
+                await auditService.logAction({
+                    action: 'create_admin',
+                    target_type: 'admin',
+                    details: { email: newAdminEmail }
+                });
+
                 message.success('Admin added successfully');
             }
             setAdminModalVisible(false);
@@ -91,6 +107,12 @@ const Managers: React.FC = () => {
                 if (error) {
                     message.error('Delete failed: ' + error.message);
                 } else {
+                    await auditService.logAction({
+                        action: 'delete_admin',
+                        target_type: 'admin',
+                        target_id: record.id,
+                        details: { email: record.email }
+                    });
                     message.success('Admin removed');
                     loadData();
                 }

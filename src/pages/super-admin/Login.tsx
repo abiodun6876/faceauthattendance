@@ -39,6 +39,7 @@ const Login: React.FC = () => {
 
             sessionStorage.setItem('super_admin_verified', 'true');
             sessionStorage.setItem('super_admin_password', password); // Store for later RPC calls
+            sessionStorage.setItem('super_admin_email', adminRecord.email); // Store for audit logs
             message.success('Authorized Access Granted');
             navigate('/super-admin/dashboard');
         } catch (error: any) {

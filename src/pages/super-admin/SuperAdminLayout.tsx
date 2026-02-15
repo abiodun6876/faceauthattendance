@@ -8,6 +8,7 @@ import {
     Space,
     Badge,
     Spin,
+    message
 } from 'antd';
 import {
     LayoutDashboard,
@@ -16,7 +17,9 @@ import {
     Users,
     ArrowLeft,
     ShieldCheck,
-    LogOut
+    LogOut,
+    ClipboardList,
+    Settings
 } from 'lucide-react';
 import { billingService } from '../../services/billingService';
 
@@ -60,23 +63,11 @@ const SuperAdminLayout: React.FC = () => {
     const handleLogout = () => {
         sessionStorage.removeItem('super_admin_verified');
         sessionStorage.removeItem('super_admin_password');
+        sessionStorage.removeItem('super_admin_email');
         setIsAuthenticated(false);
+        message.success('Logged out successfully');
         navigate('/');
     };
-
-    if (loading) {
-        return (
-            <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <Spin size="large" />
-            </div>
-        );
-    }
-
-    if (!isAuthenticated && location.pathname === '/super-admin/login') {
-        return <Outlet />;
-    }
-
-    if (!isAuthenticated) return null;
 
     const menuItems = [
         {
@@ -104,7 +95,31 @@ const SuperAdminLayout: React.FC = () => {
             icon: <Users size={18} />,
             label: <Link to="/super-admin/managers">Managers</Link>,
         },
+        {
+            key: '/super-admin/audit-logs',
+            icon: <ClipboardList size={18} />,
+            label: <Link to="/super-admin/audit-logs">Audit Logs</Link>,
+        },
+        {
+            key: '/super-admin/settings',
+            icon: <Settings size={18} />,
+            label: <Link to="/super-admin/settings">Settings</Link>,
+        },
     ];
+
+    if (loading) {
+        return (
+            <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <Spin size="large" />
+            </div>
+        );
+    }
+
+    if (!isAuthenticated && location.pathname === '/super-admin/login') {
+        return <Outlet />;
+    }
+
+    if (!isAuthenticated) return null;
 
     return (
         <Layout style={{ minHeight: '100vh' }}>

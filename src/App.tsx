@@ -39,6 +39,9 @@ import SuperAdminLogin from './pages/super-admin/Login';
 import SuperAdminOrganizations from './pages/super-admin/Organizations';
 import SuperAdminSubscriptions from './pages/super-admin/Subscriptions';
 import SuperAdminManagers from './pages/super-admin/Managers';
+import AuditLogs from './pages/super-admin/AuditLogs';
+import PlatformSettings from './pages/super-admin/PlatformSettings';
+import OrganizationDetail from './pages/super-admin/OrganizationDetail';
 import { supabase } from './lib/supabase';
 import { deviceService } from './services/deviceService';
 import { billingService } from './services/billingService';
@@ -822,8 +825,11 @@ function App() {
             <Route path="login" element={<SuperAdminLogin />} />
             <Route path="dashboard" element={<SuperAdminDashboardPage />} />
             <Route path="organizations" element={<SuperAdminOrganizations />} />
+            <Route path="organizations/:id" element={<OrganizationDetail />} />
             <Route path="subscriptions" element={<SuperAdminSubscriptions />} />
             <Route path="managers" element={<SuperAdminManagers />} />
+            <Route path="audit-logs" element={<AuditLogs />} />
+            <Route path="settings" element={<PlatformSettings />} />
           </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

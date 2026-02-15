@@ -12,6 +12,7 @@ import {
 } from 'antd';
 import { CreditCard, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { auditService } from '../../services/auditService';
 import { billingService } from '../../services/billingService';
 import dayjs from 'dayjs';
 
@@ -54,6 +55,13 @@ const Subscriptions: React.FC = () => {
 
                     if (error) throw error;
 
+                    await auditService.logAction({
+                        action: 'approve_subscription',
+                        target_type: 'subscription',
+                        target_id: sub.id,
+                        details: { org: sub.organization?.name, plan: sub.plan_type }
+                    });
+
                     message.success('Subscription activated and organization updated!');
                     loadData();
                 } catch (error: any) {
@@ -80,6 +88,14 @@ const Subscriptions: React.FC = () => {
             onOk: async () => {
                 try {
                     await billingService.updateSubscriptionStatus(sub.id, 'rejected', reason);
+
+                    await auditService.logAction({
+                        action: 'reject_subscription',
+                        target_type: 'subscription',
+                        target_id: sub.id,
+                        details: { org: sub.organization?.name, plan: sub.plan_type, reason }
+                    });
+
                     message.success('Subscription rejected.');
                     loadData();
                 } catch (error: any) {

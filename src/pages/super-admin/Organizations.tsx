@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Table,
     Tag,
     Typography,
     Card,
-    message
+    message,
+    Button
 } from 'antd';
 import { Building2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -15,6 +17,7 @@ const { Title, Text } = Typography;
 const Organizations: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [organizations, setOrganizations] = useState<any[]>([]);
+    const navigate = useNavigate();
 
     useEffect(() => {
         loadData();
@@ -62,7 +65,7 @@ const Organizations: React.FC = () => {
             dataIndex: 'subscription_plan',
             key: 'plan',
             render: (plan: string) => (
-                <Tag color={plan === 'free' ? 'default' : (plan === 'pro' ? 'gold' : 'purple')}>
+                <Tag color={plan === 'free' ? 'gold' : (plan === 'pro' ? 'blue' : 'purple')}>
                     {(plan || 'free').toUpperCase()}
                 </Tag>
             )
@@ -82,6 +85,19 @@ const Organizations: React.FC = () => {
             dataIndex: 'created_at',
             key: 'created',
             render: (date: string) => dayjs(date).format('MMM D, YYYY')
+        },
+        {
+            title: 'Action',
+            key: 'action',
+            render: (record: any) => (
+                <Button
+                    type="link"
+                    size="small"
+                    onClick={() => navigate(`/super-admin/organizations/${record.id}`)}
+                >
+                    View Details
+                </Button>
+            )
         }
     ];
 
