@@ -149,11 +149,17 @@ const SuperAdminDashboard: React.FC = () => {
             content: `Are you sure you want to activate the ${sub.plan_type.toUpperCase()} plan for ${sub.organization?.name}? This will update their expiry date.`,
             onOk: async () => {
                 try {
-                    await billingService.updateSubscriptionStatus(sub.id, 'active');
-                    message.success('Subscription activated successfully!');
+                    const { error } = await (supabase as any).rpc('approve_subscription_admin', {
+                        sub_id: sub.id,
+                        admin_secret: password
+                    });
+
+                    if (error) throw error;
+
+                    message.success('Subscription activated and organization updated!');
                     loadData();
                 } catch (error: any) {
-                    message.error('Error: ' + error.message);
+                    message.error('Activation Failed: ' + error.message);
                 }
             }
         });

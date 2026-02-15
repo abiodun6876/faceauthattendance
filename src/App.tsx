@@ -33,7 +33,12 @@ import LeaveManagementPage from './pages/LeaveManagementPage';
 import VehicleManagementPage from './pages/VehicleManagementPage'; // Add this import
 import DriverTripPage from './pages/DriverTripPage'; // Add this import
 import BillingPage from './pages/BillingPage';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import SuperAdminLayout from './pages/super-admin/SuperAdminLayout';
+import SuperAdminDashboardPage from './pages/super-admin/Dashboard';
+import SuperAdminLogin from './pages/super-admin/Login';
+import SuperAdminOrganizations from './pages/super-admin/Organizations';
+import SuperAdminSubscriptions from './pages/super-admin/Subscriptions';
+import SuperAdminManagers from './pages/super-admin/Managers';
 import { supabase } from './lib/supabase';
 import { deviceService } from './services/deviceService';
 import { billingService } from './services/billingService';
@@ -811,11 +816,15 @@ function App() {
               <BillingPage />
             </ProtectedRoute>
           } />
-          <Route path="/super-admin" element={
-            <ProtectedRoute>
-              <SuperAdminDashboard />
-            </ProtectedRoute>
-          } />
+          {/* Super Admin Routes */}
+          <Route path="/super-admin" element={<SuperAdminLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="login" element={<SuperAdminLogin />} />
+            <Route path="dashboard" element={<SuperAdminDashboardPage />} />
+            <Route path="organizations" element={<SuperAdminOrganizations />} />
+            <Route path="subscriptions" element={<SuperAdminSubscriptions />} />
+            <Route path="managers" element={<SuperAdminManagers />} />
+          </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>
