@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     event_id UUID REFERENCES events(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     registration_date TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    checked_in_at TIMESTAMP WITH TIME ZONE,
     status TEXT DEFAULT 'registered', -- 'registered', 'checked_in', 'cancelled'
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),

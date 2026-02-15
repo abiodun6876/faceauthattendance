@@ -97,8 +97,8 @@ const EventCheckInPage: React.FC = () => {
         const { error } = await (supabase
             .from('event_registrations' as any)
             .update({
-                checked_in_at: new Date().toISOString(),
-                status: 'attended'
+                status: 'checked_in',
+                updated_at: new Date().toISOString()
             } as any)
             .eq('id', registrationId) as any);
 
@@ -131,7 +131,7 @@ const EventCheckInPage: React.FC = () => {
             // Check if registered for THIS event
             const { data: registration, error: regError } = await (supabase
                 .from('event_registrations' as any)
-                .select('id, checked_in_at')
+                .select('id, status')
                 .eq('event_id', event.id)
                 .eq('user_id', matchedUser.id)
                 .maybeSingle() as any);
@@ -141,7 +141,7 @@ const EventCheckInPage: React.FC = () => {
                 throw new Error(`${matchedUser.full_name} is not registered for this event.`);
             }
 
-            if (registration.checked_in_at) {
+            if (registration.status === 'checked_in') {
                 handleCheckInSuccess(matchedUser.full_name);
                 message.info('Already checked in.');
                 return;
@@ -175,7 +175,7 @@ const EventCheckInPage: React.FC = () => {
             // Check registration
             const { data: registration, error: regError } = await (supabase
                 .from('event_registrations' as any)
-                .select('id, checked_in_at')
+                .select('id, status')
                 .eq('event_id', event.id)
                 .eq('user_id', user.id)
                 .maybeSingle() as any);
@@ -183,7 +183,7 @@ const EventCheckInPage: React.FC = () => {
             if (regError) throw regError;
             if (!registration) throw new Error(`${user.full_name} is not registered for this event.`);
 
-            if (registration.checked_in_at) {
+            if (registration.status === 'checked_in') {
                 handleCheckInSuccess(user.full_name);
                 message.info('Already checked in.');
                 return;
@@ -217,7 +217,7 @@ const EventCheckInPage: React.FC = () => {
             // Check registration
             const { data: registration, error: regError } = await (supabase
                 .from('event_registrations' as any)
-                .select('id, checked_in_at')
+                .select('id, status')
                 .eq('event_id', event.id)
                 .eq('user_id', user.id)
                 .maybeSingle() as any);
@@ -225,7 +225,7 @@ const EventCheckInPage: React.FC = () => {
             if (regError) throw regError;
             if (!registration) throw new Error(`${user.full_name} is not registered for this event.`);
 
-            if (registration.checked_in_at) {
+            if (registration.status === 'checked_in') {
                 handleCheckInSuccess(user.full_name);
                 message.info('Already checked in.');
                 return;
