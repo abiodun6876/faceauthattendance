@@ -13,7 +13,7 @@ export const speak = (text: string) => {
     // const voices = window.speechSynthesis.getVoices();
     // utterance.voice = voices.find(voice => voice.lang.includes('en')) || null;
 
-    utterance.rate = 1;
+    utterance.rate = 1.2;
     utterance.pitch = 1;
     utterance.volume = 1;
 

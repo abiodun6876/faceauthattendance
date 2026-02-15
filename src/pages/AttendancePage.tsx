@@ -1,5 +1,6 @@
 // pages/AttendancePage.tsx - Complete Multi-tenant Attendance System
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import {
   Row,
@@ -19,7 +20,8 @@ import {
   Camera,
   QrCode,
   User,
-  Scan
+  Scan,
+  ArrowLeft
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -137,6 +139,7 @@ const AttendancePage: React.FC = () => {
   const [verificationMethod, setVerificationMethod] = useState<'face' | 'qr' | 'manual'>('face');
   const [_manualLoading, setManualLoading] = useState(false);
   const [_showHistory, _setShowHistory] = useState(false);
+  const navigate = useNavigate();
 
 
   // Helper function to extract organization settings
@@ -891,6 +894,31 @@ const AttendancePage: React.FC = () => {
                 deviceInfo={deviceInfo}
                 organizationName={deviceInfo.organization?.name}
               />
+
+              {/* Floating Back Button */}
+              <div style={{
+                position: 'absolute',
+                top: 24,
+                left: 24,
+                zIndex: 30
+              }}>
+                <Button
+                  type="text"
+                  icon={<ArrowLeft size={24} color="white" />}
+                  onClick={() => navigate('/')}
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    backdropFilter: 'blur(10px)',
+                    height: 50,
+                    width: 50,
+                    borderRadius: '50%',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                />
+              </div>
 
               {!autoScan && !processing && (
                 <div style={{
