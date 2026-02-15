@@ -33,9 +33,11 @@ export interface EventRegistration {
     };
 }
 
+const supabaseAny = supabase as any;
+
 export const eventService = {
     async getEvents(organizationId: string, branchId?: string) {
-        let query = supabase
+        let query = supabaseAny
             .from('events')
             .select('*')
             .eq('organization_id', organizationId)
@@ -49,7 +51,7 @@ export const eventService = {
     },
 
     async getEventById(eventId: string) {
-        return await supabase
+        return await supabaseAny
             .from('events')
             .select('*')
             .eq('id', eventId)
@@ -57,7 +59,7 @@ export const eventService = {
     },
 
     async createEvent(eventData: Partial<Event>) {
-        return await supabase
+        return await supabaseAny
             .from('events')
             .insert([eventData])
             .select()
@@ -65,7 +67,7 @@ export const eventService = {
     },
 
     async updateEvent(eventId: string, updates: Partial<Event>) {
-        return await supabase
+        return await supabaseAny
             .from('events')
             .update(updates)
             .eq('id', eventId)
@@ -74,7 +76,7 @@ export const eventService = {
     },
 
     async registerUser(eventId: string, userId: string, notes?: string) {
-        return await supabase
+        return await supabaseAny
             .from('event_registrations')
             .insert([
                 {
@@ -89,7 +91,7 @@ export const eventService = {
     },
 
     async getRegistrations(eventId: string) {
-        return await supabase
+        return await supabaseAny
             .from('event_registrations')
             .select(`
                 *,
@@ -100,7 +102,7 @@ export const eventService = {
     },
 
     async checkInAttendee(registrationId: string) {
-        return await supabase
+        return await supabaseAny
             .from('event_registrations')
             .update({ status: 'checked_in', updated_at: new Date().toISOString() })
             .eq('id', registrationId)

@@ -1,0 +1,131 @@
+# FaceAuthAttendance - Page Documentation Master List
+
+This document provides a summary and explanation of every page and component in the system.
+
+## Organization Management Pages (src/pages/)
+
+1. AttendanceManagementPage.tsx
+- **Purpose**: A comprehensive reporting interface for organization managers.
+- **Functionality**: 
+  - Displays attendance logs with daily totals.
+  - Filters by Date Range, Department, Branch, and Status (Present, Late, Absent).
+  - Shows face capture photos for verification.
+  - Allows exporting data to CSV.
+
+2. AttendancePage.tsx
+- **Purpose**: The main client-facing kiosk for clocking attendance.
+- **Functionality**:
+  - Uses AI face recognition to automatically identify users.
+  - Supports three modes: Toggle (Auto IN/OUT), Explicit (Button-based), and Event (Single-mark).
+  - Provides real-time voice feedback (e.g., "Hello [Name], clocked in").
+  - Includes a QR code fallback if face recognition fails.
+
+3. EnrollmentPage.tsx
+- **Purpose**: Onboarding new staff, students, or guests.
+- **Functionality**:
+  - Captures personal details and contact info.
+  - Real-time face scanner that ensures high-quality biometric data capture.
+  - Generates 128D face embeddings for secure database storage.
+
+4. EventsManagementPage.tsx
+- **Purpose**: Special event planning and attendee monitoring.
+- **Functionality**:
+  - Creation of events (Weddings, Parties, etc.).
+  - Tracks specific guest lists and registration counts.
+  - Provides registration links for guests.
+
+5. EventRegistrationPage.tsx
+- **Purpose**: Public registration portal for guests.
+- **Functionality**:
+  - Guest sign-up form.
+  - Biometric face enrollment specifically for event access.
+  - Automated guest account creation.
+
+6. VisitorManagementPage.tsx
+- **Purpose**: Managing external visitors and temporary access.
+- **Functionality**:
+  - Pre-booking appointments.
+  - Security check-in/check-out workflow.
+  - ID/Pass code generation.
+
+7. UsersManagementPage.tsx
+- **Purpose**: Central database for all organization members.
+- **Functionality**:
+  - Management of roles (Staff, Students, Guests).
+  - ID card generation with QR codes.
+  - Mass account status updates (Active/Inactive).
+
+8. VehicleManagementPage.tsx
+- **Purpose**: Fleet and logistics management.
+- **Functionality**:
+  - Registering vehicles and tracking mileage.
+  - Assigning drivers and scheduling trips.
+  - Monitoring trip status (Ongoing, Completed, Cancelled).
+
+9. DriverTripPage.tsx
+- **Purpose**: Mobile companion for drivers.
+- **Functionality**:
+  - One-click start/stop for assigned trips.
+  - Live link sharing for trip tracking.
+
+10. LeaveManagementPage.tsx
+- **Purpose**: HR and absence tracking.
+- **Functionality**:
+  - Leave application form for employees.
+  - Multi-status approval workflow for managers.
+
+11. BillingPage.tsx
+- **Purpose**: Account subscription and usage monitoring.
+- **Functionality**:
+  - Real-time usage stats (Storage, User count).
+  - Plan upgrading and renewal information.
+
+12. OrganizationSettingsPage.tsx
+- **Purpose**: Configuration of organization-wide rules.
+- **Functionality**:
+  - Setting clock-in thresholds and late grace periods.
+  - Business hours setup.
+  - Branding and notification preferences.
+
+13. DeviceSetupPage.tsx
+- **Purpose**: Initial terminal pairing.
+- **Functionality**:
+  - Log in to authorize a specific hardware device.
+  - Link device to a specific physical branch.
+
+14. SyncPage.tsx
+- **Purpose**: Resilience and data integrity.
+- **Functionality**:
+  - Monitors local storage for unsynced biometric records.
+  - Background synchronization when internet connection is restored.
+
+15. UserProfilePage.tsx
+- **Purpose**: Individual account management.
+- **Functionality**:
+  - Personal info updates.
+  - Face biometric re-enrollment.
+  - Viewing personal QR ID card.
+
+---
+
+## Super Admin Pages (src/pages/super-admin/)
+
+1. Dashboard.tsx
+- **Purpose**: Global platform health and commercial monitoring.
+- **Functionality**: Total organizations count, active vs. pending subscriptions, and revenue analytics.
+
+2. Organizations.tsx
+- **Purpose**: Tenant management.
+- **Functionality**: Master list of all companies using the platform.
+
+3. Subscriptions.tsx
+- **Purpose**: Revenue and plan management.
+- **Functionality**: Approving/rejecting pending upgrade requests.
+
+4. AuditLogs.tsx
+- **Purpose**: Security accountability.
+- **Functionality**: Tracking every administrative action performed by platform managers.
+
+5. PlatformSettings.tsx
+- **Purpose**: Global defaults and platform-wide configuration.
+- **Functionality**: SEO, plan limits, and global maintenance modes.

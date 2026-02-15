@@ -15,7 +15,6 @@ import {
     Row,
     Col,
     Statistic,
-    Empty
 } from 'antd';
 import {
     Calendar,
@@ -25,11 +24,8 @@ import {
     Clock,
     MoreHorizontal,
     Edit,
-    CheckCircle,
-    XCircle
 } from 'lucide-react';
 import { eventService, Event } from '../services/eventService';
-import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -58,7 +54,7 @@ const EventsManagementPage: React.FC = () => {
         try {
             const { data, error } = await eventService.getEvents(deviceInfo.organization_id);
             if (error) throw error;
-            setEvents(data || []);
+            setEvents((data as any) || []);
         } catch (error: any) {
             message.error('Failed to load events: ' + error.message);
         } finally {
@@ -204,7 +200,7 @@ const EventsManagementPage: React.FC = () => {
                     <div>
                         <Text strong>{record.user?.full_name}</Text>
                         <br />
-                        <Text type="secondary" size="small">{record.user?.email}</Text>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>{record.user?.email}</Text>
                     </div>
                 </Space>
             )
