@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Table,
     Button,
@@ -24,6 +25,7 @@ import {
     Clock,
     Edit,
     Copy,
+    UserCheck,
 } from 'lucide-react';
 import { eventService, Event } from '../services/eventService';
 import { deviceService } from '../services/deviceService';
@@ -41,6 +43,7 @@ const EventsManagementPage: React.FC = () => {
     const [editingEvent, setEditingEvent] = useState<Event | null>(null);
     const [registrations, setRegistrations] = useState<any[]>([]);
     const [form] = Form.useForm();
+    const navigate = useNavigate();
     const [deviceInfo, setDeviceInfo] = useState<any>(null);
 
     const loadDeviceInfo = useCallback(async () => {
@@ -222,6 +225,15 @@ const EventsManagementPage: React.FC = () => {
             key: 'actions',
             render: (record: Event) => (
                 <Space>
+                    <Button
+                        icon={<UserCheck size={16} />}
+                        onClick={() => navigate(`/events/${record.id}/check-in`)}
+                        title="Face/QR Check-In"
+                        type="primary"
+                        ghost
+                    >
+                        Check-In
+                    </Button>
                     <Button
                         icon={<Users size={16} />}
                         onClick={() => showRegistrations(record)}

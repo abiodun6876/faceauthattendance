@@ -34,6 +34,7 @@ import VehicleManagementPage from './pages/VehicleManagementPage';
 import DriverTripPage from './pages/DriverTripPage';
 import BillingPage from './pages/BillingPage';
 import EventsManagementPage from './pages/EventsManagementPage';
+import EventCheckInPage from './pages/EventCheckInPage';
 // EventRegistrationPage is lazy loaded below
 import SuperAdminLayout from './pages/super-admin/SuperAdminLayout';
 import SuperAdminDashboardPage from './pages/super-admin/Dashboard';
@@ -80,7 +81,6 @@ const useDeviceRegistration = () => {
 
 const EventRegistrationPage = lazy(() => import('./pages/EventRegistrationPage'));
 const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
-const EventCheckInPage = lazy(() => import('./pages/EventCheckInPage'));
 
 // Wrapper for protected routes
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -159,6 +159,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
     { key: '/customers', icon: <Briefcase size={18} />, label: 'Customers' },
     { key: '/vehicles', icon: <Truck size={18} />, label: 'Vehicle Management' },
     { key: '/events', icon: <CalendarDays size={18} />, label: 'Events Management' },
+    { key: '/events', icon: <UserCheck size={18} />, label: 'Event Check-In' },
     { key: 'https://trackmycar.netlify.app/', icon: <Map size={18} />, label: 'Track Vehicles' },
     { key: '/org-settings', icon: <Settings size={18} />, label: 'Settings' },
   ];
@@ -459,6 +460,14 @@ const DashboardPage = () => {
       icon: <CalendarDays size={32} />,
       path: '/events',
       color: '#1890ff',
+    },
+    {
+      key: 'event-checkin',
+      title: 'Event Check-In',
+      description: 'Face/QR check-in for event attendees',
+      icon: <UserCheck size={32} />,
+      path: '/events',
+      color: '#52c41a',
     },
     {
       key: 'settings',
@@ -829,6 +838,13 @@ function App() {
               <OrganizationLayout>
                 <EventsManagementPage />
               </OrganizationLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/events/:eventId/check-in" element={
+            <ProtectedRoute>
+              <Suspense fallback={<div style={{ padding: 20, textAlign: 'center' }}><Spin /></div>}>
+                <EventCheckInPage />
+              </Suspense>
             </ProtectedRoute>
           } />
           <Route path="/register-event/:eventId" element={
