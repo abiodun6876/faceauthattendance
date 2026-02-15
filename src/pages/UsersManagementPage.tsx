@@ -17,7 +17,8 @@ import {
     message,
     Modal,
     Descriptions,
-    Image
+    Image,
+    QRCode
 } from 'antd';
 import {
     Users,
@@ -34,6 +35,20 @@ import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+
+const downloadQRCode = (id: string, fileName: string) => {
+    const canvas = document.getElementById(id)?.querySelector('canvas');
+    if (canvas) {
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.download = fileName;
+        a.href = url;
+        a.click();
+        message.success('QR Code downloaded');
+    } else {
+        message.error('Failed to download QR code');
+    }
+};
 
 const UsersManagementPage: React.FC = () => {
     const navigate = useNavigate();
@@ -427,7 +442,22 @@ const UsersManagementPage: React.FC = () => {
                                 {selectedUser.staff_id || selectedUser.student_id || '-'}
                             </Descriptions.Item>
                             <Descriptions.Item label="QR Code">
-                                {selectedUser.qr_code || '-'}
+                                <Space direction="vertical" align="center" style={{ width: '100%', padding: '16px 0' }}>
+                                    <div id="user-detail-qr" style={{ padding: 12, background: 'white', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                                        <QRCode
+                                            value={selectedUser.qr_code || 'no-code'}
+                                            size={160}
+                                        />
+                                    </div>
+                                    <Button
+                                        icon={<Download size={14} />}
+                                        size="small"
+                                        onClick={() => downloadQRCode('user-detail-qr', `QR_${selectedUser.full_name}_${selectedUser.staff_id || selectedUser.student_id}.png`)}
+                                    >
+                                        Download QR
+                                    </Button>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>{selectedUser.qr_code}</Text>
+                                </Space>
                             </Descriptions.Item>
                             <Descriptions.Item label="Gender">
                                 {selectedUser.gender || '-'}

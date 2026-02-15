@@ -43,7 +43,8 @@ import {
   AlertCircle,
   Zap,
   Home,
-  QrCode
+  QrCode,
+  Download
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -58,6 +59,20 @@ import { v4 as uuidv4 } from 'uuid';
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { Dragger } = Upload;
+
+const downloadQRCode = (id: string, fileName: string) => {
+  const canvas = document.getElementById(id)?.querySelector('canvas');
+  if (canvas) {
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.download = fileName;
+    a.href = url;
+    a.click();
+    message.success('QR Code downloaded');
+  } else {
+    message.error('Failed to download QR code');
+  }
+};
 
 interface OrganizationSettings {
   id_label?: string;
@@ -451,8 +466,15 @@ const EnrollmentPage: React.FC = () => {
 
   useEffect(() => {
     loadDeviceInfo();
-    initializeForm();
+  }, [loadDeviceInfo]);
 
+  useEffect(() => {
+    if (deviceInfo) {
+      initializeForm();
+    }
+  }, [deviceInfo, initializeForm]);
+
+  useEffect(() => {
     // Check for drafts on mount, but only if not already processing
     const isProcessing = localStorage.getItem('processing_draft');
     if (isProcessing !== 'true') {
@@ -463,7 +485,7 @@ const EnrollmentPage: React.FC = () => {
     return () => {
       localStorage.removeItem('processing_draft');
     };
-  }, [loadDeviceInfo, initializeForm, syncPendingDraft]);
+  }, [syncPendingDraft]);
 
 
 
@@ -823,12 +845,22 @@ const EnrollmentPage: React.FC = () => {
 
                 <div style={{ textAlign: 'center', marginTop: 24, padding: 24, background: '#f8f9fa', borderRadius: 8 }}>
                   <Text strong style={{ display: 'block', marginBottom: 16 }}>Attendance QR Code</Text>
-                  <QRCode
-                    value={formData.qr_code}
-                    size={200}
-                    status="active"
-                  />
+                  <div id="enrollment-qr" style={{ display: 'inline-block', padding: 12, background: 'white', borderRadius: 8 }}>
+                    <QRCode
+                      value={formData.qr_code}
+                      size={200}
+                      status="active"
+                    />
+                  </div>
                   <div style={{ marginTop: 16 }}>
+                    <Button
+                      icon={<Download size={16} />}
+                      onClick={() => downloadQRCode('enrollment-qr', `QR_${formData.full_name}_${formData.staff_id}.png`)}
+                    >
+                      Download QR Code
+                    </Button>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
                     <Text type="secondary">Save or print this QR code for the user to use for attendance.</Text>
                   </div>
                 </div>
