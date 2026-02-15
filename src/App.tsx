@@ -828,6 +828,7 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/register-event/:eventId" element={<EventRegistrationPage />} />
+          <Route path="/thank-you" element={<ThankYouPage />} />
           <Route path="/driver-trip" element={
             <ProtectedRoute>
               <DriverTripPage />

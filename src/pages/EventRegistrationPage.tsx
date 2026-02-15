@@ -24,8 +24,12 @@ import {
     ChevronRight,
     CheckCircle,
     Camera,
-    Clock
+    Clock,
+    Download,
+    Share2,
+    Check
 } from 'lucide-react';
+import * as htmlToImage from 'html-to-image';
 import { eventService, Event } from '../services/eventService';
 import { userService } from '../services/userService';
 import FaceCamera from '../components/FaceCamera';
@@ -268,25 +272,69 @@ const EventRegistrationPage: React.FC = () => {
                 )}
 
                 {currentStep === 3 && registrationSuccess && (
-                    <Result
-                        status="success"
-                        title="Successfully Registered!"
-                        subTitle={
-                            <Space direction="vertical">
-                                <Text>You are now registered for {event.name}.</Text>
-                                <Card size="small" style={{ background: '#f6ffed', border: '1px solid #b7eb8f', marginTop: 16 }}>
-                                    <Text strong>Your Check-in PIN: </Text>
-                                    <Title level={2} style={{ margin: '8px 0', color: '#52c41a' }}>{generatedPin}</Title>
-                                    <Text type="secondary">Save this PIN! You will need it or your QR code for entry on the day of the event.</Text>
-                                </Card>
-                            </Space>
-                        }
-                        extra={[
-                            <Button type="primary" key="home" onClick={() => navigate('/')}>
-                                Back to Home
-                            </Button>
-                        ]}
-                    />
+                    <div id="registration-success-card">
+                        <Result
+                            status="success"
+                            title="Successfully Registered!"
+                            subTitle={
+                                <Space direction="vertical">
+                                    <Text>You are now registered for {event.name}.</Text>
+                                    <Card size="small" style={{ background: '#f6ffed', border: '1px solid #b7eb8f', marginTop: 16 }}>
+                                        <Text strong>Your Check-in PIN: </Text>
+                                        <Title level={2} style={{ margin: '8px 0', color: '#52c41a' }}>{generatedPin}</Title>
+                                        <Text type="secondary">Save this PIN! You will need it or your QR code for entry on the day of the event.</Text>
+                                    </Card>
+                                </Space>
+                            }
+                            extra={[
+                                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                    <Button
+                                        type="primary"
+                                        icon={<Download size={18} />}
+                                        size="large"
+                                        block
+                                        onClick={async () => {
+                                            const element = document.getElementById('registration-success-card');
+                                            if (element) {
+                                                try {
+                                                    const dataUrl = await htmlToImage.toPng(element);
+                                                    const link = document.createElement('a');
+                                                    link.download = `Event_Registration_${event.name}.png`;
+                                                    link.href = dataUrl;
+                                                    link.click();
+                                                    message.success('Registration details saved as image!');
+                                                } catch (err) {
+                                                    message.error('Failed to save image');
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        Save as Image
+                                    </Button>
+                                    <Button
+                                        size="large"
+                                        block
+                                        onClick={() => {
+                                            setCurrentStep(0);
+                                            setRegistrationSuccess(false);
+                                            setFormValues({});
+                                            setFaceData(null);
+                                        }}
+                                    >
+                                        Register Another
+                                    </Button>
+                                    <Button
+                                        danger
+                                        size="large"
+                                        block
+                                        onClick={() => navigate('/thank-you')}
+                                    >
+                                        Close / Exit
+                                    </Button>
+                                </Space>
+                            ]}
+                        />
+                    </div>
                 )}
             </Card>
         </div>
