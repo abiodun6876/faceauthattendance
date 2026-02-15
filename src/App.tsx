@@ -78,7 +78,6 @@ const useDeviceRegistration = () => {
   return { isRegistered, device, loading };
 };
 
-const SuperAdminDashboard = lazy(() => import('./pages/super-admin/Dashboard'));
 const EventRegistrationPage = lazy(() => import('./pages/EventRegistrationPage'));
 const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
 const EventCheckInPage = lazy(() => import('./pages/EventCheckInPage'));

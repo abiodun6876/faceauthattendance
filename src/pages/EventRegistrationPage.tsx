@@ -25,9 +25,7 @@ import {
     CheckCircle,
     Camera,
     Clock,
-    Download,
-    Share2,
-    Check
+    Download
 } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { eventService, Event } from '../services/eventService';
