@@ -106,7 +106,7 @@ export const userService = {
                 .from('users')
                 .insert({
                     organization_id: params.organizationId,
-                    branch_id: params.branchId,
+                    branch_id: params.branchId || null,
                     department_id: params.departmentId || null,
                     staff_id: params.staffId,
                     full_name: params.fullName,
