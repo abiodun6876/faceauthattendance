@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Select, Button, Typography, Space, Alert, Row, Col, message } from 'antd';
-import { Camera, Settings, CheckCircle, RefreshCcw, ArrowLeft } from 'lucide-react';
+import { Camera, CheckCircle, RefreshCcw, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 
