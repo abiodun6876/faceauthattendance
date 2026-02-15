@@ -25,6 +25,7 @@ import {
     Edit,
 } from 'lucide-react';
 import { eventService, Event } from '../services/eventService';
+import { deviceService } from '../services/deviceService';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -41,9 +42,30 @@ const EventsManagementPage: React.FC = () => {
     const [deviceInfo, setDeviceInfo] = useState<any>(null);
 
     const loadDeviceInfo = useCallback(async () => {
-        const storedDevice = localStorage.getItem('attendance_device');
+        // 1. Try deviceService checkRegistration (most reliable for real devices)
+        const { isRegistered, device: registeredDevice } = await deviceService.checkRegistration();
+        if (isRegistered && registeredDevice) {
+            setDeviceInfo(registeredDevice);
+            return;
+        }
+
+        // 2. Try localStorage fallbacks
+        const storedDevice = localStorage.getItem('attendance_device') ||
+            localStorage.getItem('device_info') ||
+            localStorage.getItem('cached_device_info');
+
         if (storedDevice) {
-            setDeviceInfo(JSON.parse(storedDevice));
+            try {
+                setDeviceInfo(JSON.parse(storedDevice));
+            } catch (e) {
+                console.error('Error parsing stored device info');
+            }
+        } else {
+            // 3. Last resort: direct ID lookup
+            const directOrgId = localStorage.getItem('organization_id');
+            if (directOrgId) {
+                setDeviceInfo({ organization_id: directOrgId });
+            }
         }
     }, []);
 
@@ -73,9 +95,15 @@ const EventsManagementPage: React.FC = () => {
 
     const handleCreateEvent = async (values: any) => {
         try {
+            const orgId = deviceInfo?.organization_id || localStorage.getItem('organization_id');
+            if (!orgId) {
+                message.error('No organization context found. Please setup device first.');
+                return;
+            }
+
             const newEvent = {
                 ...values,
-                organization_id: deviceInfo.organization_id,
+                organization_id: orgId,
                 start_date: values.dateRange[0].toISOString(),
                 end_date: values.dateRange[1].toISOString(),
                 status: 'upcoming',
