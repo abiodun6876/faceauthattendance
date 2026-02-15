@@ -189,10 +189,10 @@ const BillingPage: React.FC = () => {
                                         <Text type="secondary">Current Plan</Text>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
                                             <Title level={2} style={{ margin: 0, textTransform: 'capitalize', color: '#1890ff' }}>
-                                                {usage && usage.activeUsers < 10 ? 'Starter (Free)' : (subInfo?.plan || 'Free')}
+                                                {subInfo?.plan && subInfo.plan !== 'free' ? subInfo.plan : (usage && usage.activeUsers < 10 ? 'Starter (Free)' : 'Free')}
                                             </Title>
-                                            <Tag color={(subInfo?.status === 'active' || (usage && usage.activeUsers < 10)) ? 'green' : (subInfo?.status === 'expired' ? 'red' : 'orange')}>
-                                                {(usage && usage.activeUsers < 10) ? 'COMPLIMENTARY' : (subInfo?.status?.toUpperCase() || 'INACTIVE')}
+                                            <Tag color={subInfo?.status === 'active' ? 'green' : (usage && usage.activeUsers < 10 ? 'green' : (subInfo?.status === 'expired' ? 'red' : 'orange'))}>
+                                                {subInfo?.status === 'active' && subInfo.plan !== 'free' ? 'ACTIVE' : (usage && usage.activeUsers < 10 ? 'COMPLIMENTARY' : (subInfo?.status?.toUpperCase() || 'INACTIVE'))}
                                             </Tag>
                                         </div>
                                     </div>

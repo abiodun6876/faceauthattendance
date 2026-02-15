@@ -43,24 +43,29 @@ export const billingService = {
         // 1. Get usage stats (to check user count)
         const usage = await this.getUsageStats(organizationId);
 
-        // 2. Free Tier: < 10 users
+        // 2. Check Subscription Info
+        const info = await this.getSubscriptionInfo(organizationId);
+
+        // 3. Paid Tier: If they have an active paid plan, they always have access
+        const isPaid = info && info.plan !== 'free' && info.status === 'active';
+        const expiry = info?.expiryDate ? new Date(info.expiryDate) : null;
+        const isExpired = expiry ? expiry < new Date() : false;
+
+        if (isPaid && !isExpired) {
+            return { hasAccess: true, reason: 'none' };
+        }
+
+        // 4. Free Tier fallback: < 10 users
         if (usage.activeUsers < 10) {
             return { hasAccess: true, reason: 'free_tier' };
         }
-
-        // 3. Check Subscription for others
-        const info = await this.getSubscriptionInfo(organizationId);
         if (!info) return { hasAccess: false, reason: 'not_found' };
 
         if (info.status === 'suspended') {
             return { hasAccess: false, reason: 'suspended' };
         }
 
-        const isPaid = info.plan !== 'free' && info.status === 'active';
-        const expiry = info.expiryDate ? new Date(info.expiryDate) : null;
-        const isExpired = expiry ? expiry < new Date() : true;
-
-        // 4. Paid Threshold: >= 20 users MUST have active paid sub
+        // 5. Paid Threshold: >= 20 users MUST have active paid sub
         if (usage.activeUsers >= 20) {
             if (isPaid && !isExpired) {
                 return { hasAccess: true, reason: 'none' };
@@ -68,7 +73,7 @@ export const billingService = {
             return { hasAccess: false, reason: 'subscription_required' };
         }
 
-        // 5. Grace/Warning Tier: 10 - 19 users
+        // 6. Grace/Warning Tier: 10 - 19 users
         if (isPaid && !isExpired) {
             return { hasAccess: true, reason: 'none' };
         }
