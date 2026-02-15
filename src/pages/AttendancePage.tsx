@@ -552,24 +552,33 @@ const AttendancePage: React.FC = () => {
   const handleQRDetected = useCallback(async (qrData: string) => {
     if (processing) return;
 
-    // Simple validation (assuming QR data is staff_id or user_id)
-    if (!qrData || qrData.length < 3) return;
+    console.log('🔍 QR Detected:', qrData);
+    if (!deviceInfo?.organization_id) {
+      console.error('❌ Device info or Org ID missing');
+      return;
+    }
 
     setProcessing(true);
     try {
       // Find user by staff_id, qr_code, or id
-      let query = supabase
+      console.log('📡 Matching QR against Org:', deviceInfo.organization_id);
+
+      const { data: user, error } = await supabase
         .from('users')
         .select('*')
-        .or(`qr_code.eq.${qrData},staff_id.eq.${qrData},id.eq.${qrData}`)
-        .eq('organization_id', deviceInfo?.organization_id)
-        .eq('is_active', true);
+        .eq('organization_id', deviceInfo.organization_id)
+        .eq('is_active', true)
+        .or(`qr_code.eq."${qrData}",staff_id.eq."${qrData}",student_id.eq."${qrData}",id.eq."${qrData}"`)
+        .maybeSingle();
 
-      const { data: user, error } = await query.maybeSingle();
+      if (error) throw error;
 
-      if (error || !user) {
-        throw new Error('User not recognized from QR code');
+      if (!user) {
+        console.warn('⚠️ User not found for QR:', qrData);
+        throw new Error(`User not recognized for value: ${qrData}`);
       }
+
+      console.log('✅ User matched:', user.full_name);
 
       const action = await determineAttendanceAction(user.id);
       const attendanceRecord = await recordAttendance(
@@ -627,9 +636,9 @@ const AttendancePage: React.FC = () => {
       let query = supabase
         .from('users')
         .select('*')
-        .or(`staff_id.eq.${manualId},email.eq.${manualId}`)
         .eq('organization_id', deviceInfo?.organization_id)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .or(`staff_id.eq."${manualId}",student_id.eq."${manualId}",email.eq."${manualId}",qr_code.eq."${manualId}"`);
 
       if (deviceInfo?.branch_id) {
         query = query.eq('branch_id', deviceInfo.branch_id);

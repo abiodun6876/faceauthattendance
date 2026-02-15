@@ -167,6 +167,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           });
 
           if (code && onQRCodeDetected) {
+            console.log('📷 QR Scanned by Camera:', code.data);
             onQRCodeDetected(code.data);
             // Throttle detection to avoid multiple triggers
             setTimeout(() => {
