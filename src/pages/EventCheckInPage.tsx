@@ -162,12 +162,12 @@ const EventCheckInPage: React.FC = () => {
 
         try {
             // Find user by PIN in organization
-            const { data: user, error: userError } = await supabase
-                .from('users')
+            const { data: user, error: userError } = await (supabase
+                .from('users' as any)
                 .select('id, full_name')
                 .eq('organization_id', event.organization_id)
                 .eq('pin', pinCode)
-                .maybeSingle();
+                .maybeSingle() as any);
 
             if (userError) throw userError;
             if (!user) throw new Error('Invalid PIN. Please check and try again.');
@@ -204,12 +204,12 @@ const EventCheckInPage: React.FC = () => {
         setProcessing(true);
         try {
             // Find user by QR (could be qr_code or staff_id) in organization
-            const { data: user, error: userError } = await supabase
-                .from('users')
+            const { data: user, error: userError } = await (supabase
+                .from('users' as any)
                 .select('id, full_name')
                 .eq('organization_id', event.organization_id)
                 .or(`qr_code.eq.${qrData},staff_id.eq.${qrData}`)
-                .maybeSingle();
+                .maybeSingle() as any);
 
             if (userError) throw userError;
             if (!user) throw new Error('User not recognized or not registered.');
