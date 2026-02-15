@@ -142,6 +142,15 @@ const BillingPage: React.FC = () => {
                             <div>
                                 <p>You have a pending request for the <strong>{pendingSub.plan_type.toUpperCase()} ({pendingSub.billing_cycle})</strong> plan.</p>
                                 <p>Invoice: <strong>{pendingSub.invoice_number}</strong> | Amount: <strong>${pendingSub.amount}</strong></p>
+                                <Divider style={{ margin: '12px 0' }} />
+                                <div style={{ marginBottom: 12 }}>
+                                    <Text strong>Payment Instructions:</Text>
+                                    <div style={{ marginTop: 8, padding: '8px 16px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 4 }}>
+                                        <p style={{ margin: 0 }}>Bank: <strong>Access Bank</strong></p>
+                                        <p style={{ margin: 0 }}>Account Number: <strong>1857808562</strong></p>
+                                        <p style={{ margin: 0 }}>Account Name: <strong>AKINPELU ABIODUN MOSES</strong></p>
+                                    </div>
+                                </div>
                                 <p>Please finalize your payment and send your <b>Invoice Number</b> and <b>Evidence of Payment</b> to our WhatsApp: <b>+2348102922615</b> or Email: <b>nigeramventures@gmail.com</b> for activation confirmation.</p>
                             </div>
                         }
