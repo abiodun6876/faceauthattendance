@@ -568,7 +568,7 @@ const AttendancePage: React.FC = () => {
         .select('*')
         .eq('organization_id', deviceInfo.organization_id)
         .eq('is_active', true)
-        .or(`qr_code.eq."${qrData}",staff_id.eq."${qrData}",student_id.eq."${qrData}",id.eq."${qrData}"`)
+        .or(`qr_code.eq."${qrData}",staff_id.eq."${qrData}",id.eq."${qrData}"`)
         .maybeSingle();
 
       if (error) throw error;
@@ -638,7 +638,7 @@ const AttendancePage: React.FC = () => {
         .select('*')
         .eq('organization_id', deviceInfo?.organization_id)
         .eq('is_active', true)
-        .or(`staff_id.eq."${manualId}",student_id.eq."${manualId}",email.eq."${manualId}",qr_code.eq."${manualId}"`);
+        .or(`staff_id.eq."${manualId}",email.eq."${manualId}",qr_code.eq."${manualId}"`);
 
       if (deviceInfo?.branch_id) {
         query = query.eq('branch_id', deviceInfo.branch_id);

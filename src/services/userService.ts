@@ -108,7 +108,6 @@ export const userService = {
                     branch_id: params.branchId,
                     department_id: params.departmentId || null,
                     staff_id: params.staffId,
-                    student_id: params.studentId,
                     full_name: params.fullName,
                     email: params.email,
                     phone: params.phone,
@@ -171,6 +170,6 @@ export const userService = {
             .from('users')
             .select('*')
             .eq('organization_id', organizationId)
-            .or(`full_name.ilike.%${term}%,email.ilike.%${term}%,staff_id.ilike.%${term}%,student_id.ilike.%${term}%,qr_code.ilike.%${term}%`);
+            .or(`full_name.ilike.%${term}%,email.ilike.%${term}%,staff_id.ilike.%${term}%,qr_code.ilike.%${term}%`);
     }
 };

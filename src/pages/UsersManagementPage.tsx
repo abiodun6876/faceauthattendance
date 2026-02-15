@@ -117,7 +117,6 @@ const UsersManagementPage: React.FC = () => {
                 user.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
                 user.email?.toLowerCase().includes(searchText.toLowerCase()) ||
                 user.staff_id?.toLowerCase().includes(searchText.toLowerCase()) ||
-                user.student_id?.toLowerCase().includes(searchText.toLowerCase()) ||
                 user.qr_code?.toLowerCase().includes(searchText.toLowerCase())
             );
         }
@@ -139,7 +138,7 @@ const UsersManagementPage: React.FC = () => {
         const headers = ['Name', 'ID', 'Email', 'Role', 'Branch', 'Status', 'Created'];
         const rows = filteredUsers.map(user => [
             user.full_name,
-            user.staff_id || user.student_id || '',
+            user.staff_id || '',
             user.email || '',
             user.user_role,
             user.branch?.name || '',
@@ -189,7 +188,7 @@ const UsersManagementPage: React.FC = () => {
             key: 'id_qr',
             render: (record: any) => (
                 <Space direction="vertical" size={0}>
-                    <Text strong>{record.staff_id || record.student_id || '-'}</Text>
+                    <Text strong>{record.staff_id || '-'}</Text>
                     {record.qr_code && <Text type="secondary" style={{ fontSize: '11px' }}>QR: {record.qr_code}</Text>}
                 </Space>
             ),
@@ -439,7 +438,7 @@ const UsersManagementPage: React.FC = () => {
                                 </Tag>
                             </Descriptions.Item>
                             <Descriptions.Item label="ID">
-                                {selectedUser.staff_id || selectedUser.student_id || '-'}
+                                {selectedUser.staff_id || '-'}
                             </Descriptions.Item>
                             <Descriptions.Item label="QR Code">
                                 <Space direction="vertical" align="center" style={{ width: '100%', padding: '16px 0' }}>
@@ -452,7 +451,7 @@ const UsersManagementPage: React.FC = () => {
                                     <Button
                                         icon={<Download size={14} />}
                                         size="small"
-                                        onClick={() => downloadQRCode('user-detail-qr', `QR_${selectedUser.full_name}_${selectedUser.staff_id || selectedUser.student_id}.png`)}
+                                        onClick={() => downloadQRCode('user-detail-qr', `QR_${selectedUser.full_name}_${selectedUser.staff_id || 'ID'}.png`)}
                                     >
                                         Download QR
                                     </Button>

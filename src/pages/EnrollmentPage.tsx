@@ -185,6 +185,7 @@ const EnrollmentPage: React.FC = () => {
       }
 
       // Check if user already exists
+      console.log('Checking existence for:', values.staff_id);
       const { data: existingUser } = await userService.getUserByStaffId(values.staff_id, deviceInfo?.organization_id);
 
       if (existingUser) {
