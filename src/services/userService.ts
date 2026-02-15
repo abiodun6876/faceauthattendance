@@ -96,6 +96,7 @@ export const userService = {
         userRole?: string;
         departmentId?: string | null;
         qrCode?: string | null;
+        pin?: string | null;
     }) {
         try {
             const embeddingString = JSON.stringify(params.embedding);
@@ -119,6 +120,7 @@ export const userService = {
                     face_photo_url: params.photoUrl,
                     face_embedding: embeddingString,
                     qr_code: params.qrCode,
+                    pin: params.pin,
                     updated_at: new Date().toISOString()
                 } as any)
                 .select()

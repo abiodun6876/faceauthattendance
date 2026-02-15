@@ -44,6 +44,7 @@ const EventRegistrationPage: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [faceData, setFaceData] = useState<any>(null);
     const [registrationSuccess, setRegistrationSuccess] = useState(false);
+    const [generatedPin, setGeneratedPin] = useState<string>('');
 
     const loadEvent = useCallback(async () => {
         if (!eventId) return;
@@ -108,8 +109,11 @@ const EventRegistrationPage: React.FC = () => {
                 embedding: faceData.embedding,
                 userRole: 'guest',
                 gender: formValues.gender,
-                qrCode: Math.random().toString(36).substring(2, 10).toUpperCase()
+                qrCode: Math.random().toString(36).substring(2, 10).toUpperCase(),
+                pin: Math.floor(1000 + Math.random() * 9000).toString()
             };
+
+            setGeneratedPin(enrollmentParams.pin);
 
             const { user, error: enrollError } = await userService.enrollUser(enrollmentParams);
             if (enrollError) throw enrollError;
@@ -267,7 +271,16 @@ const EventRegistrationPage: React.FC = () => {
                     <Result
                         status="success"
                         title="Successfully Registered!"
-                        subTitle={`You are now registered for ${event.name}. Please present your face at the entrance on the day of the event.`}
+                        subTitle={
+                            <Space direction="vertical">
+                                <Text>You are now registered for {event.name}.</Text>
+                                <Card size="small" style={{ background: '#f6ffed', border: '1px solid #b7eb8f', marginTop: 16 }}>
+                                    <Text strong>Your Check-in PIN: </Text>
+                                    <Title level={2} style={{ margin: '8px 0', color: '#52c41a' }}>{generatedPin}</Title>
+                                    <Text type="secondary">Save this PIN! You will need it or your QR code for entry on the day of the event.</Text>
+                                </Card>
+                            </Space>
+                        }
                         extra={[
                             <Button type="primary" key="home" onClick={() => navigate('/')}>
                                 Back to Home

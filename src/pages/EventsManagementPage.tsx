@@ -23,6 +23,7 @@ import {
     MapPin,
     Clock,
     Edit,
+    Copy,
 } from 'lucide-react';
 import { eventService, Event } from '../services/eventService';
 import { deviceService } from '../services/deviceService';
@@ -37,6 +38,7 @@ const EventsManagementPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+    const [editingEvent, setEditingEvent] = useState<Event | null>(null);
     const [registrations, setRegistrations] = useState<any[]>([]);
     const [form] = Form.useForm();
     const [deviceInfo, setDeviceInfo] = useState<any>(null);
@@ -111,16 +113,43 @@ const EventsManagementPage: React.FC = () => {
             };
             delete newEvent.dateRange;
 
-            const { error } = await eventService.createEvent(newEvent);
-            if (error) throw error;
+            if (editingEvent) {
+                const { error } = await eventService.updateEvent(editingEvent.id, newEvent);
+                if (error) throw error;
+                message.success('Event updated successfully');
+            } else {
+                const { error } = await eventService.createEvent(newEvent);
+                if (error) throw error;
+                message.success('Event created successfully');
+            }
 
             message.success('Event created successfully');
             setIsModalOpen(false);
+            setEditingEvent(null);
             form.resetFields();
             loadEvents();
         } catch (error: any) {
             message.error('Failed to create event: ' + error.message);
         }
+    };
+
+    const showEditModal = (event: Event) => {
+        setEditingEvent(event);
+        form.setFieldsValue({
+            ...event,
+            dateRange: [dayjs(event.start_date), dayjs(event.end_date)]
+        });
+        setIsModalOpen(true);
+    };
+
+    const copyRegistrationLink = (eventId: string) => {
+        const link = `${window.location.origin}/register-event/${eventId}`;
+        navigator.clipboard.writeText(link).then(() => {
+            message.success('Registration link copied to clipboard!');
+        }).catch(err => {
+            console.error('Copy failed: ', err);
+            message.error('Failed to copy link');
+        });
     };
 
     const showRegistrations = async (event: Event) => {
@@ -199,7 +228,15 @@ const EventsManagementPage: React.FC = () => {
                     >
                         Attendees
                     </Button>
-                    <Button icon={<Edit size={16} />} />
+                    <Button
+                        icon={<Edit size={16} />}
+                        onClick={() => showEditModal(record)}
+                    />
+                    <Button
+                        icon={<Copy size={16} />}
+                        onClick={() => copyRegistrationLink(record.id)}
+                        title="Copy Registration Link"
+                    />
                 </Space>
             )
         }
@@ -253,16 +290,17 @@ const EventsManagementPage: React.FC = () => {
     return (
         <div style={{ padding: '24px' }}>
             <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 24 }}>
-                <Col flex="auto">
-                    <Title level={2}>Events Management</Title>
+                <Col xs={24} md={18}>
+                    <Title level={2} style={{ margin: 0 }}>Events Management</Title>
                     <Text type="secondary">Manage your organization's events and registrations</Text>
                 </Col>
-                <Col>
+                <Col xs={24} md={6} style={{ textAlign: 'right' }}>
                     <Button
                         type="primary"
                         icon={<Plus size={18} />}
                         size="large"
                         onClick={() => setIsModalOpen(true)}
+                        block
                     >
                         Create Event
                     </Button>
@@ -270,7 +308,7 @@ const EventsManagementPage: React.FC = () => {
             </Row>
 
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col span={6}>
+                <Col xs={24} sm={8} md={8}>
                     <Card>
                         <Statistic
                             title="Total Events"
@@ -279,7 +317,7 @@ const EventsManagementPage: React.FC = () => {
                         />
                     </Card>
                 </Col>
-                <Col span={6}>
+                <Col xs={12} sm={8} md={8}>
                     <Card>
                         <Statistic
                             title="Upcoming"
@@ -288,7 +326,7 @@ const EventsManagementPage: React.FC = () => {
                         />
                     </Card>
                 </Col>
-                <Col span={6}>
+                <Col xs={12} sm={8} md={8}>
                     <Card>
                         <Statistic
                             title="Active"
@@ -299,20 +337,25 @@ const EventsManagementPage: React.FC = () => {
                 </Col>
             </Row>
 
-            <Card>
+            <Card bodyStyle={{ padding: 0 }}>
                 <Table
                     columns={columns}
                     dataSource={events}
                     loading={loading}
                     rowKey="id"
+                    scroll={{ x: 'max-content' }}
                 />
             </Card>
 
-            {/* Create Event Modal */}
+            {/* Create/Edit Event Modal */}
             <Modal
-                title="Create New Event"
+                title={editingEvent ? "Edit Event" : "Create New Event"}
                 open={isModalOpen}
-                onCancel={() => setIsModalOpen(false)}
+                onCancel={() => {
+                    setIsModalOpen(false);
+                    setEditingEvent(null);
+                    form.resetFields();
+                }}
                 onOk={() => form.submit()}
                 width={600}
             >
