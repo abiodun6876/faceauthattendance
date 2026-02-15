@@ -34,7 +34,6 @@ import VehicleManagementPage from './pages/VehicleManagementPage';
 import DriverTripPage from './pages/DriverTripPage';
 import BillingPage from './pages/BillingPage';
 import EventsManagementPage from './pages/EventsManagementPage';
-import EventCheckInPage from './pages/EventCheckInPage';
 // EventRegistrationPage is lazy loaded below
 import SuperAdminLayout from './pages/super-admin/SuperAdminLayout';
 import SuperAdminDashboardPage from './pages/super-admin/Dashboard';
@@ -80,6 +79,8 @@ const useDeviceRegistration = () => {
 };
 
 const EventRegistrationPage = lazy(() => import('./pages/EventRegistrationPage'));
+const EventCheckInPage = lazy(() => import('./pages/EventCheckInPage'));
+const CameraSettingsPage = lazy(() => import('./pages/CameraSettingsPage'));
 const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
 
 // Wrapper for protected routes
@@ -162,6 +163,7 @@ const OrganizationLayout = ({ children }: { children: React.ReactNode }) => {
     { key: '/events', icon: <UserCheck size={18} />, label: 'Event Check-In' },
     { key: 'https://trackmycar.netlify.app/', icon: <Map size={18} />, label: 'Track Vehicles' },
     { key: '/org-settings', icon: <Settings size={18} />, label: 'Settings' },
+    { key: '/camera-settings', icon: <Camera size={18} />, label: 'Camera Settings' },
   ];
 
   const handleMenuClick = (e: any) => {
@@ -476,6 +478,14 @@ const DashboardPage = () => {
       icon: <Settings size={32} />,
       path: '/device-setup',
       color: '#595959',
+    },
+    {
+      key: 'camera-settings',
+      title: 'Camera Settings',
+      description: 'Choose external/inbuilt camera',
+      icon: <Camera size={32} />,
+      path: '/camera-settings',
+      color: '#13c2c2',
     },
   ];
 
@@ -845,6 +855,15 @@ function App() {
               <Suspense fallback={<div style={{ padding: 20, textAlign: 'center' }}><Spin /></div>}>
                 <EventCheckInPage />
               </Suspense>
+            </ProtectedRoute>
+          } />
+          <Route path="/camera-settings" element={
+            <ProtectedRoute>
+              <OrganizationLayout>
+                <Suspense fallback={<div style={{ padding: 20, textAlign: 'center' }}><Spin /></div>}>
+                  <CameraSettingsPage />
+                </Suspense>
+              </OrganizationLayout>
             </ProtectedRoute>
           } />
           <Route path="/register-event/:eventId" element={

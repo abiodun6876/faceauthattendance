@@ -187,7 +187,8 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   const videoConstraints = {
     width: { ideal: 1280 },
     height: { ideal: 720 },
-    facingMode: "user" as const
+    facingMode: "user" as const,
+    deviceId: localStorage.getItem('preferred_camera_id') || undefined
   };
 
   // Show camera error message
