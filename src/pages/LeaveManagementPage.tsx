@@ -25,7 +25,8 @@ import {
     ArrowLeft,
     CheckCircle,
     XCircle,
-    Clock
+    Clock,
+    Search
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { deviceService } from '../services/deviceService';
@@ -43,6 +44,8 @@ const LeaveManagementPage: React.FC = () => {
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+    const [filteredLeaveRequests, setFilteredLeaveRequests] = useState<any[]>([]);
+    const [searchText, setSearchText] = useState('');
     const [modalVisible, setModalVisible] = useState(false);
     const [activeTab, setActiveTab] = useState('my-requests');
     const [organizationId, setOrganizationId] = useState<string>('');
@@ -100,6 +103,7 @@ const LeaveManagementPage: React.FC = () => {
             if (error) throw error;
             const leaveData = data as any[];
             setLeaveRequests(leaveData || []);
+            setFilteredLeaveRequests(leaveData || []);
 
             // Calculate stats
             const pending = leaveData?.filter(l => l.status === 'pending').length || 0;
@@ -115,6 +119,17 @@ const LeaveManagementPage: React.FC = () => {
             setLoading(false);
         }
     }, [activeTab]);
+
+    useEffect(() => {
+        const filtered = leaveRequests.filter(request =>
+            request.user?.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+            request.user?.staff_id?.toLowerCase().includes(searchText.toLowerCase()) ||
+            request.leave_type?.toLowerCase().includes(searchText.toLowerCase()) ||
+            request.reason?.toLowerCase().includes(searchText.toLowerCase()) ||
+            request.status?.toLowerCase().includes(searchText.toLowerCase())
+        );
+        setFilteredLeaveRequests(filtered);
+    }, [searchText, leaveRequests]);
 
     useEffect(() => {
         loadLeaveRequests();
@@ -418,14 +433,24 @@ const LeaveManagementPage: React.FC = () => {
 
             {/* Actions */}
             <Card style={{ marginBottom: 24 }}>
-                <Button
-                    type="primary"
-                    icon={<Plus size={16} />}
-                    onClick={() => setModalVisible(true)}
-                    size="large"
-                >
-                    Request Leave
-                </Button>
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <Input
+                        placeholder="Search by employee name, staff ID, leave type, reason, or status..."
+                        prefix={<Search size={16} />}
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        size="large"
+                        allowClear
+                    />
+                    <Button
+                        type="primary"
+                        icon={<Plus size={16} />}
+                        onClick={() => setModalVisible(true)}
+                        size="large"
+                    >
+                        Request Leave
+                    </Button>
+                </Space>
             </Card>
 
             {/* Leave Requests Table */}
@@ -434,7 +459,7 @@ const LeaveManagementPage: React.FC = () => {
                     <TabPane tab="My Requests" key="my-requests">
                         <Table
                             columns={columns.filter(c => c.key !== 'actions')}
-                            dataSource={leaveRequests}
+                            dataSource={filteredLeaveRequests}
                             loading={loading}
                             rowKey="id"
                             pagination={{ pageSize: 10 }}
@@ -444,7 +469,7 @@ const LeaveManagementPage: React.FC = () => {
                     <TabPane tab="All Requests (Manager)" key="all-requests">
                         <Table
                             columns={columns}
-                            dataSource={leaveRequests}
+                            dataSource={filteredLeaveRequests}
                             loading={loading}
                             rowKey="id"
                             pagination={{ pageSize: 10 }}

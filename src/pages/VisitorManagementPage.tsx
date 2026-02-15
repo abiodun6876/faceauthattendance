@@ -40,7 +40,8 @@ import {
     MoreVertical,
     UserCheck,
     Eye,
-    FileText
+    FileText,
+    Search
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import dayjs from 'dayjs';
@@ -58,6 +59,8 @@ const VisitorManagementPage: React.FC = () => {
     const [checkInForm] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [appointments, setAppointments] = useState<any[]>([]);
+    const [filteredAppointments, setFilteredAppointments] = useState<any[]>([]);
+    const [searchText, setSearchText] = useState('');
     const [staff, setStaff] = useState<any[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [checkInModalVisible, setCheckInModalVisible] = useState(false);
@@ -121,6 +124,7 @@ const VisitorManagementPage: React.FC = () => {
             if (error) throw error;
             const appData = data as any[];
             setAppointments(appData || []);
+            setFilteredAppointments(appData || []);
 
             // Calculate stats
             const today = dayjs().format('YYYY-MM-DD');
@@ -167,6 +171,18 @@ const VisitorManagementPage: React.FC = () => {
             loadStaff()
         ]);
     }, [loadAppointments, loadStaff]);
+
+    useEffect(() => {
+        const filtered = appointments.filter(appointment =>
+            appointment.visitor?.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+            appointment.visitor?.email?.toLowerCase().includes(searchText.toLowerCase()) ||
+            appointment.visitor?.phone?.toLowerCase().includes(searchText.toLowerCase()) ||
+            appointment.visitor?.company?.toLowerCase().includes(searchText.toLowerCase()) ||
+            appointment.pass_code?.toLowerCase().includes(searchText.toLowerCase()) ||
+            appointment.host?.full_name?.toLowerCase().includes(searchText.toLowerCase())
+        );
+        setFilteredAppointments(filtered);
+    }, [searchText, appointments]);
 
     useEffect(() => {
         loadData();
@@ -504,7 +520,7 @@ const VisitorManagementPage: React.FC = () => {
                 <Pagination
                     simple
                     size="small"
-                    total={appointments.length}
+                    total={filteredAppointments.length}
                     pageSize={10}
                     showSizeChanger={false}
                     showQuickJumper={false}
@@ -614,8 +630,18 @@ const VisitorManagementPage: React.FC = () => {
                 <div style={{
                     display: 'flex',
                     flexDirection: isMobile ? 'column' : 'row',
-                    gap: isMobile ? 12 : 16
+                    gap: isMobile ? 12 : 16,
+                    alignItems: 'stretch'
                 }}>
+                    <Input
+                        placeholder="Search by visitor name, company, email, phone, or pass code..."
+                        prefix={<Search size={isMobile ? 14 : 16} />}
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        size={isMobile ? 'middle' : 'large'}
+                        allowClear
+                        style={{ flex: 1 }}
+                    />
                     <Button
                         type="primary"
                         icon={<UserPlus size={isMobile ? 14 : 16} />}
@@ -641,7 +667,7 @@ const VisitorManagementPage: React.FC = () => {
                 title={<Text strong>Appointments</Text>}
                 extra={
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                        {appointments.length} total
+                        {filteredAppointments.length} of {appointments.length} total
                     </Text>
                 }
                 bodyStyle={{
@@ -654,7 +680,7 @@ const VisitorManagementPage: React.FC = () => {
                     <div style={{ overflowX: 'auto' }}>
                         <Table
                             columns={columns}
-                            dataSource={appointments}
+                            dataSource={filteredAppointments}
                             loading={loading}
                             rowKey="id"
                             pagination={{

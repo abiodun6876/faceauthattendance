@@ -26,12 +26,13 @@ import {
     Edit,
     Copy,
     UserCheck,
+    Search
 } from 'lucide-react';
 import { eventService, Event } from '../services/eventService';
 import { deviceService } from '../services/deviceService';
 import dayjs from 'dayjs';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Option } = Select;
 
 const EventsManagementPage: React.FC = () => {
@@ -42,6 +43,8 @@ const EventsManagementPage: React.FC = () => {
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
     const [editingEvent, setEditingEvent] = useState<Event | null>(null);
     const [registrations, setRegistrations] = useState<any[]>([]);
+    const [searchText, setSearchText] = useState('');
+    const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
     const [form] = Form.useForm();
     const navigate = useNavigate();
     const [deviceInfo, setDeviceInfo] = useState<any>(null);
@@ -81,6 +84,7 @@ const EventsManagementPage: React.FC = () => {
             const { data, error } = await eventService.getEvents(deviceInfo.organization_id);
             if (error) throw error;
             setEvents((data as any) || []);
+            setFilteredEvents((data as any) || []);
         } catch (error: any) {
             message.error('Failed to load events: ' + error.message);
         } finally {
@@ -97,6 +101,15 @@ const EventsManagementPage: React.FC = () => {
             loadEvents();
         }
     }, [deviceInfo, loadEvents]);
+
+    useEffect(() => {
+        const filtered = events.filter(event =>
+            event.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+            event.event_type?.toLowerCase().includes(searchText.toLowerCase()) ||
+            event.location?.toLowerCase().includes(searchText.toLowerCase())
+        );
+        setFilteredEvents(filtered);
+    }, [searchText, events]);
 
     const handleCreateEvent = async (values: any) => {
         try {
@@ -302,17 +315,22 @@ const EventsManagementPage: React.FC = () => {
     return (
         <div style={{ padding: '24px' }}>
             <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 24 }}>
-                <Col xs={24} md={18}>
-                    <Title level={2} style={{ margin: 0 }}>Events Management</Title>
-                    <Text type="secondary">Manage your organization's events and registrations</Text>
+                <Col xs={24} md={12}>
+                    <Input
+                        placeholder="Search events by name, type, or location..."
+                        value={searchText}
+                        onChange={e => setSearchText(e.target.value)}
+                        prefix={<Search size={16} />}
+                        size="large"
+                        allowClear
+                    />
                 </Col>
-                <Col xs={24} md={6} style={{ textAlign: 'right' }}>
+                <Col xs={24} md={12} style={{ textAlign: 'right' }}>
                     <Button
                         type="primary"
                         icon={<Plus size={18} />}
                         size="large"
                         onClick={() => setIsModalOpen(true)}
-                        block
                     >
                         Create Event
                     </Button>
@@ -352,7 +370,7 @@ const EventsManagementPage: React.FC = () => {
             <Card bodyStyle={{ padding: 0 }}>
                 <Table
                     columns={columns}
-                    dataSource={events}
+                    dataSource={filteredEvents}
                     loading={loading}
                     rowKey="id"
                     scroll={{ x: 'max-content' }}
