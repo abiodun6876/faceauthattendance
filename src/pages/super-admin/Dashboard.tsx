@@ -17,6 +17,16 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { billingService } from '../../services/billingService';
+import {
+    AreaChart,
+    Area,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer
+} from 'recharts';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 
@@ -28,6 +38,7 @@ const Dashboard: React.FC = () => {
         totalRevenue: 0,
         pendingApprovals: 0
     });
+    const [growthData, setGrowthData] = useState<any[]>([]);
 
     useEffect(() => {
         loadData();
@@ -38,6 +49,31 @@ const Dashboard: React.FC = () => {
             setLoading(true);
             const { data: orgs } = await supabase.from('organizations').select('*');
             const { data: subs } = await billingService.getAllSubscriptions();
+
+            if (orgs) {
+                // Transform data for growth chart
+                const groups: any = {};
+                orgs.forEach((org: any) => {
+                    const month = dayjs(org.created_at).format('MMM YYYY');
+                    groups[month] = (groups[month] || 0) + 1;
+                });
+
+                // Convert to sorted array
+                const chartData = Object.keys(groups).map(month => ({
+                    month,
+                    count: groups[month],
+                    date: dayjs(month, 'MMM YYYY').toDate()
+                })).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+                // Cumulative growth
+                let cumulative = 0;
+                const finalData = chartData.map(d => {
+                    cumulative += d.count;
+                    return { ...d, total: cumulative };
+                });
+
+                setGrowthData(finalData);
+            }
 
             const active = orgs?.filter((o: any) => o.subscription_status === 'active' && o.subscription_plan !== 'free').length || 0;
             const revenue = subs?.filter((s: any) => s.status === 'active').reduce((acc: number, s: any) => acc + Number(s.amount), 0) || 0;
@@ -104,6 +140,41 @@ const Dashboard: React.FC = () => {
                             valueStyle={{ color: stats.pendingApprovals > 0 ? '#cf1322' : 'inherit' }}
                             prefix={<Clock size={24} color={stats.pendingApprovals > 0 ? '#cf1322' : '#d9d9d9'} />}
                         />
+                    </Card>
+                </Col>
+            </Row>
+
+            <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+                <Col span={24}>
+                    <Card title="Organization Growth" bordered={false}>
+                        <div style={{ height: 350, width: '100%' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={growthData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#1890ff" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#1890ff" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#8c8c8c' }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#8c8c8c' }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                        labelStyle={{ fontWeight: 'bold', marginBottom: 4 }}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="total"
+                                        name="Total Organizations"
+                                        stroke="#1890ff"
+                                        strokeWidth={3}
+                                        fillOpacity={1}
+                                        fill="url(#colorTotal)"
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
                     </Card>
                 </Col>
             </Row>
