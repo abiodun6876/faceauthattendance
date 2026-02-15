@@ -568,7 +568,7 @@ const AttendancePage: React.FC = () => {
         .select('*')
         .eq('organization_id', deviceInfo.organization_id)
         .eq('is_active', true)
-        .or(`qr_code.eq."${qrData}",staff_id.eq."${qrData}",id.eq."${qrData}"`)
+        .or(`qr_code.eq."${qrData}",staff_id.eq."${qrData}"`)
         .maybeSingle();
 
       if (error) throw error;
