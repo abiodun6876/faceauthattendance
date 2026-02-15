@@ -22,7 +22,6 @@ import {
     Users,
     MapPin,
     Clock,
-    MoreHorizontal,
     Edit,
 } from 'lucide-react';
 import { eventService, Event } from '../services/eventService';
