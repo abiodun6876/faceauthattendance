@@ -21,8 +21,8 @@ const ThankYouPage: React.FC = () => {
                 title={<Title level={2}>Thank You!</Title>}
                 subTitle={
                     <Space direction="vertical">
-                        <Text size="large">Your registration has been completed successfully.</Text>
-                        <Text type="secondary">We look forward to seeing you at the event.</Text>
+                        <Text strong style={{ fontSize: '18px' }}>Your registration has been completed successfully.</Text>
+                        <Text type="secondary" style={{ fontSize: '14px' }}>We look forward to seeing you at the event.</Text>
                     </Space>
                 }
                 extra={[

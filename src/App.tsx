@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Spin, Alert, Typography, ConfigProvider, theme, Card, Row, Col, Button, Layout, Menu, Drawer, Space, Tag } from 'antd';
 import {
@@ -34,7 +34,7 @@ import VehicleManagementPage from './pages/VehicleManagementPage';
 import DriverTripPage from './pages/DriverTripPage';
 import BillingPage from './pages/BillingPage';
 import EventsManagementPage from './pages/EventsManagementPage';
-import EventRegistrationPage from './pages/EventRegistrationPage';
+// EventRegistrationPage is lazy loaded below
 import SuperAdminLayout from './pages/super-admin/SuperAdminLayout';
 import SuperAdminDashboardPage from './pages/super-admin/Dashboard';
 import SuperAdminLogin from './pages/super-admin/Login';
@@ -77,6 +77,11 @@ const useDeviceRegistration = () => {
 
   return { isRegistered, device, loading };
 };
+
+const SuperAdminDashboard = lazy(() => import('./pages/super-admin/Dashboard'));
+const EventRegistrationPage = lazy(() => import('./pages/EventRegistrationPage'));
+const ThankYouPage = lazy(() => import('./pages/ThankYouPage'));
+const EventCheckInPage = lazy(() => import('./pages/EventCheckInPage'));
 
 // Wrapper for protected routes
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -827,8 +832,21 @@ function App() {
               </OrganizationLayout>
             </ProtectedRoute>
           } />
-          <Route path="/register-event/:eventId" element={<EventRegistrationPage />} />
-          <Route path="/thank-you" element={<ThankYouPage />} />
+          <Route path="/register-event/:eventId" element={
+            <Suspense fallback={<Spin size="large" spinning />}>
+              <EventRegistrationPage />
+            </Suspense>
+          } />
+          <Route path="/thank-you" element={
+            <Suspense fallback={<Spin size="large" spinning />}>
+              <ThankYouPage />
+            </Suspense>
+          } />
+          <Route path="/event-checkin/:eventId" element={
+            <Suspense fallback={<Spin size="large" spinning />}>
+              <EventCheckInPage />
+            </Suspense>
+          } />
           <Route path="/driver-trip" element={
             <ProtectedRoute>
               <DriverTripPage />
