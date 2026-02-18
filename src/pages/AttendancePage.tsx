@@ -550,7 +550,9 @@ const AttendancePage: React.FC = () => {
     determineAttendanceAction,
     recordAttendance,
     loadStats,
-    load
+    load,
+    setFaceStatus,
+    setProcessing
   ]);
 
   // Handle QR Detection — local-first lookup, fallback to Supabase

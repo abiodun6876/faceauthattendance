@@ -113,7 +113,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     if (!loading) {
       checkSub();
     }
-  }, [isRegistered, loading, navigate]);
+  }, [isRegistered, loading, navigate, setCheckingSub]);
 
   if (loading || checkingSub) {
     return (
@@ -343,7 +343,7 @@ const DashboardPage = () => {
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
     }
-  }, [device]);
+  }, [device, setStats]);
 
   useEffect(() => {
     if (device?.organization_id) {

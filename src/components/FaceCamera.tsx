@@ -45,8 +45,14 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   const [cameraError, setCameraError] = useState<string>('');
   const [cameraReady, setCameraReady] = useState(false);
   const [internalScanStatus, setInternalScanStatus] = useState<'idle' | 'scanning' | 'processing' | 'boosting'>('idle');
+
+  // Use prop status if provided, otherwise internal status
   const currentStatus = status || internalScanStatus;
-  const setScanStatus = (s: typeof internalScanStatus) => setInternalScanStatus(s);
+
+  // Memoize setScanStatus to avoid unnecessary hook re-renders
+  const setScanStatus = useCallback((s: typeof internalScanStatus) => {
+    setInternalScanStatus(s);
+  }, []);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isProcessingRef = useRef(false); // Prevents overlapping captures
 
@@ -149,7 +155,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       isProcessingRef.current = false;
       setScanStatus('idle');
     }
-  }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete]);
+  }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete, setScanStatus]);
 
   useEffect(() => {
     if (autoCapture && isCameraActive && cameraReady && mode === 'attendance' && scanningMode === 'face') {
@@ -166,7 +172,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, [autoCapture, isCameraActive, mode, captureInterval, cameraReady, handleCapture, scanningMode]);
+  }, [autoCapture, isCameraActive, mode, captureInterval, cameraReady, handleCapture, scanningMode, setScanStatus]);
 
   // QR Code Scanning Logic
   useEffect(() => {
