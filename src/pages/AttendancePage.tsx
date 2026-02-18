@@ -463,14 +463,21 @@ const AttendancePage: React.FC = () => {
     return finalResult.data as AttendanceRecord;
   }, [deviceInfo]);
 
+  const [faceStatus, setFaceStatus] = useState<'idle' | 'scanning' | 'processing' | 'boosting'>('scanning');
+
   // Handle face capture — uses local embedding matching for speed & reliability
   const handleFaceCapture = useCallback(async (photoData: string) => {
     if (processing) return;
 
     setProcessing(true);
+    setFaceStatus('processing');
     try {
       // 1. Extract face embedding from captured photo
       const faceResult = await faceService.processImage(photoData);
+
+      if (faceResult.isEnhanced) {
+        setFaceStatus('boosting');
+      }
 
       if (!faceResult.success || !faceResult.embedding) {
         throw new Error(faceResult.error || 'Face not detected. Please ensure good lighting and face the camera directly.');
@@ -535,6 +542,7 @@ const AttendancePage: React.FC = () => {
       }
     } finally {
       setProcessing(false);
+      setFaceStatus('scanning');
     }
   }, [
     processing,
@@ -890,6 +898,7 @@ const AttendancePage: React.FC = () => {
                 autoCapture={autoScan && verificationMethod === 'face'}
                 captureInterval={1500}
                 loading={processing}
+                status={faceStatus}
                 deviceInfo={deviceInfo}
                 organizationName={deviceInfo.organization?.name}
               />

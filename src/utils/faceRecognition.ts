@@ -141,14 +141,14 @@ class FaceRecognition {
         return null;
       }
 
-      // Detect face
-      console.log('Detecting face...');
+      // 1. Pass 1: Standard Detection
+      console.log('Detecting face (Pass 1)...');
       let detection;
 
       if (this.useTinyModel) {
         detection = await faceapi
           .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({
-            inputSize: 320, // Increased from 160 to 320 for better reliability
+            inputSize: 320,
             scoreThreshold: 0.3
           }))
           .withFaceLandmarks()
@@ -160,8 +160,34 @@ class FaceRecognition {
           .withFaceDescriptor();
       }
 
+      // 2. Pass 2: Low-Light Boosting (if Pass 1 fails)
       if (!detection) {
-        console.log('No face detected');
+        console.log('No face detected in Pass 1. Attempting Low-Light Boosting (Pass 2)...');
+
+        const enhancedImg = await this.enhanceImage(img);
+
+        if (this.useTinyModel) {
+          detection = await faceapi
+            .detectSingleFace(enhancedImg, new faceapi.TinyFaceDetectorOptions({
+              inputSize: 320,
+              scoreThreshold: 0.15 // Lower threshold for boost pass
+            }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        } else {
+          detection = await faceapi
+            .detectSingleFace(enhancedImg)
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+        }
+
+        if (detection) {
+          console.log('Face successfully detected after low-light boosting!');
+        }
+      }
+
+      if (!detection) {
+        console.log('No face detected after both passes');
         return null;
       }
 
@@ -171,6 +197,31 @@ class FaceRecognition {
     } catch (error) {
       console.error('Error extracting face descriptor:', error);
       return null;
+    }
+  }
+
+  /**
+   * Enhances image brightness and contrast using a virtual canvas.
+   * This is used as a fallback for low-light conditions.
+   */
+  private async enhanceImage(img: HTMLImageElement): Promise<HTMLCanvasElement | HTMLImageElement> {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return img;
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      // Apply brightness and contrast filters
+      // Brightness: 1.5x, Contrast: 1.2x
+      ctx.filter = 'brightness(150%) contrast(120%)';
+      ctx.drawImage(img, 0, 0);
+
+      return canvas;
+    } catch (e) {
+      console.warn('Image enhancement failed, falling back to original:', e);
+      return img;
     }
   }
 

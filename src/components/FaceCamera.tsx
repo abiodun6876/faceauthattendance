@@ -24,6 +24,7 @@ interface FaceCameraProps {
   loading?: boolean;
   deviceInfo?: any;
   organizationName?: string;
+  status?: 'idle' | 'scanning' | 'processing' | 'boosting'; // Parent can override status
 }
 
 const FaceCamera: React.FC<FaceCameraProps> = ({
@@ -36,13 +37,16 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   captureInterval = 1500,
   loading = false,
   deviceInfo,
-  organizationName
+  organizationName,
+  status
 }) => {
   const webcamRef = useRef<any>(null);
   const [isCameraActive, setIsCameraActive] = useState(true);
   const [cameraError, setCameraError] = useState<string>('');
   const [cameraReady, setCameraReady] = useState(false);
-  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'processing'>('idle');
+  const [internalScanStatus, setInternalScanStatus] = useState<'idle' | 'scanning' | 'processing' | 'boosting'>('idle');
+  const currentStatus = status || internalScanStatus;
+  const setScanStatus = (s: typeof internalScanStatus) => setInternalScanStatus(s);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isProcessingRef = useRef(false); // Prevents overlapping captures
 
@@ -365,7 +369,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               gap: 8,
               background: 'rgba(0,0,0,0.55)',
               backdropFilter: 'blur(6px)',
-              border: `1px solid ${scanStatus === 'processing' ? 'rgba(0,255,100,0.6)' : 'rgba(0,243,255,0.4)'}`,
+              border: `1px solid ${currentStatus === 'processing' ? 'rgba(0,255,100,0.6)' : currentStatus === 'boosting' ? 'rgba(255,152,0,0.6)' : 'rgba(0,243,255,0.4)'}`,
               borderRadius: 20,
               padding: '5px 14px'
             }}>
@@ -373,18 +377,18 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                background: scanStatus === 'processing' ? '#0aff60' : '#00f3ff',
-                boxShadow: scanStatus === 'processing' ? '0 0 8px #0aff60' : '0 0 8px #00f3ff',
+                background: currentStatus === 'processing' ? '#0aff60' : currentStatus === 'boosting' ? '#ff9800' : '#00f3ff',
+                boxShadow: currentStatus === 'processing' ? '0 0 8px #0aff60' : currentStatus === 'boosting' ? '0 0 8px #ff9800' : '#00f3ff',
                 animation: 'pulse 1s ease-in-out infinite'
               }} />
               <span style={{
-                color: scanStatus === 'processing' ? '#0aff60' : '#00f3ff',
+                color: currentStatus === 'processing' ? '#0aff60' : currentStatus === 'boosting' ? '#ff9800' : '#00f3ff',
                 fontFamily: 'monospace',
                 fontSize: 11,
                 letterSpacing: '2px',
-                textShadow: scanStatus === 'processing' ? '0 0 8px #0aff60' : '0 0 8px #00f3ff'
+                textShadow: currentStatus === 'processing' ? '0 0 8px #0aff60' : currentStatus === 'boosting' ? '0 0 8px #ff9800' : '#00f3ff'
               }}>
-                {scanStatus === 'processing' ? 'MATCHING...' : 'SCANNING'}
+                {currentStatus === 'processing' ? 'MATCHING...' : currentStatus === 'boosting' ? 'BOOSTING...' : 'SCANNING'}
               </span>
             </div>
           )}

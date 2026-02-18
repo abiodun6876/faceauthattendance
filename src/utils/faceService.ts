@@ -8,6 +8,7 @@ interface FaceDetectionResult {
   quality?: number;
   error?: string;
   faceDetected?: boolean;
+  isEnhanced?: boolean;
   faceBox?: {
     x: number;
     y: number;
@@ -77,21 +78,37 @@ class FaceService {
       // Create image element
       const img = await this.loadImage(photoData);
 
+      // 1. Pass 1: Standard Detection
       const detectionOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 320, // Increased for better reliability
+        inputSize: 320,
         scoreThreshold: 0.3
       });
 
-      // detectSingleFace stops after first face found — faster than detectAllFaces
-      const detection = await faceapi.detectSingleFace(img, detectionOptions)
+      let detection = await faceapi.detectSingleFace(img, detectionOptions)
         .withFaceLandmarks()
         .withFaceDescriptor();
+
+      let isEnhanced = false;
+
+      // 2. Pass 2: Low-Light Boosting (if Pass 1 fails)
+      if (!detection) {
+        console.log('[FaceService] Low light detected. Boosting image...');
+        const enhancedImg = await this.enhanceImage(img);
+        isEnhanced = true;
+
+        detection = await faceapi.detectSingleFace(enhancedImg, new faceapi.TinyFaceDetectorOptions({
+          inputSize: 320,
+          scoreThreshold: 0.15 // Higher sensitivity for boosted pass
+        }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+      }
 
       if (!detection) {
         return {
           success: false,
           faceDetected: false,
-          error: 'No face detected. Please ensure you are in a well-lit area and looking directly at the camera.'
+          error: 'No face detected. Please ensure you are in a well-lit area or facing the camera directly.'
         };
       }
 
@@ -106,6 +123,7 @@ class FaceService {
           success: false,
           faceDetected: true,
           quality,
+          isEnhanced,
           error: 'Face quality too low. Please use a clearer, well-lit frontal image.'
         };
       }
@@ -231,6 +249,31 @@ class FaceService {
     } catch (e) {
       console.error('Error comparing faces:', e);
       return false;
+    }
+  }
+
+  /**
+   * Enhances image brightness and contrast using a virtual canvas.
+   * This is used as a fallback for low-light conditions.
+   */
+  private async enhanceImage(img: HTMLImageElement): Promise<HTMLCanvasElement | HTMLImageElement> {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return img;
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      // Apply brightness and contrast filters
+      // Brightness: 1.5x, Contrast: 1.2x
+      ctx.filter = 'brightness(150%) contrast(120%)';
+      ctx.drawImage(img, 0, 0);
+
+      return canvas;
+    } catch (e) {
+      console.warn('Image enhancement failed, falling back to original:', e);
+      return img;
     }
   }
 
