@@ -29,6 +29,7 @@ import { deviceService } from '../services/deviceService';
 import { attendanceService } from '../services/attendanceService';
 import { userService } from '../services/userService';
 import faceService from '../utils/faceService';
+import offlineStorageService from '../services/offlineStorageService';
 import { speak } from '../utils/speechSynthesis';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -357,6 +358,12 @@ const AttendancePage: React.FC = () => {
         faceService.initializeModels()
       ]);
 
+      // Sync enrolled users to local cache for offline-capable matching
+      await offlineStorageService.syncUsers(
+        typedDevice.organization_id,
+        typedDevice.branch_id
+      );
+
       await determineNextAction();
     } catch (error: any) {
       console.error('Initialization error:', error);
@@ -452,91 +459,75 @@ const AttendancePage: React.FC = () => {
     return finalResult.data as AttendanceRecord;
   }, [deviceInfo]);
 
-  // Handle face capture
+  // Handle face capture — uses local embedding matching for speed & reliability
   const handleFaceCapture = useCallback(async (photoData: string) => {
     if (processing) return;
 
     setProcessing(true);
     try {
-      // Process face
+      // 1. Extract face embedding from captured photo
       const faceResult = await faceService.processImage(photoData);
 
       if (!faceResult.success || !faceResult.embedding) {
-        throw new Error(faceResult.error || 'Face not detected');
+        throw new Error(faceResult.error || 'Face not detected. Please ensure good lighting and face the camera directly.');
       }
 
-      // Find matching user
-      const matchedUser = await userService.findByFaceEmbedding(
-        Array.from(faceResult.embedding),
-        deviceInfo?.organization_id || '',
-        0.70
-      );
+      // 2. Match locally against cached users (fast, no network needed)
+      const localMatch = offlineStorageService.findByFaceEmbedding(faceResult.embedding, 0.55);
 
-      if (!matchedUser) {
+      if (!localMatch) {
         throw new Error('Identity not recognized. Please scan again or enroll first.');
       }
 
-      // Determine action based on mode
+      const matchedUser = localMatch.user;
+      const confidence = Math.round((1 - localMatch.distance) * 100);
+
+      // 3. Determine clock-in or clock-out
       const action = await determineAttendanceAction(matchedUser.id);
 
-      // Record attendance
+      // 4. Record attendance in Supabase
       const attendanceRecord = await recordAttendance(
         matchedUser.id,
         action,
         photoData,
-        faceResult.quality || 0,
+        confidence,
         '',
         'face'
       );
 
-      // Show result
-      const result = {
+      // 5. Show result
+      setAttendanceResult({
         success: true,
         user: matchedUser,
-        confidence: faceResult.quality,
+        confidence,
         action,
         attendance: attendanceRecord,
         photoData
-      };
-
-      setAttendanceResult(result);
+      });
       setShowResultModal(true);
       message.success(`${action === 'clock_in' ? 'Clocked in' : 'Clocked out'} successfully!`);
 
-      // Speak the result
-      const speechText = `Hello ${matchedUser.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`;
-      speak(speechText);
+      speak(`Hello ${matchedUser.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`);
 
-      // Refresh data
-      await Promise.all([
-        loadStats(),
-        load()
-      ]);
+      await Promise.all([loadStats(), load()]);
 
-      // FAST TRACK: Automatically close result and resume scanning after 1.5 seconds
       if (autoScan) {
-        setTimeout(() => {
-          setShowResultModal(false);
-        }, 1500);
+        setTimeout(() => setShowResultModal(false), 1500);
       }
 
     } catch (error: any) {
       console.error('Attendance error:', error);
-      const result = {
+      setAttendanceResult({
         success: false,
         error: error.message || 'Attendance processing failed',
         photoData
-      };
-      setAttendanceResult(result);
+      });
       setShowResultModal(true);
       message.error(error.message || 'Attendance failed');
 
-      // AUTO RECOVERY: Close modal faster for "No face" errors to resume scanning
       if (autoScan) {
-        const isFaceError = error.message?.includes('No face detected');
-        setTimeout(() => {
-          setShowResultModal(false);
-        }, isFaceError ? 1500 : 4000);
+        const isFaceError = error.message?.includes('No face detected') || error.message?.includes('Face not detected');
+        setTimeout(() => setShowResultModal(false), isFaceError ? 1500 : 4000);
       }
     } finally {
       setProcessing(false);
@@ -544,14 +535,13 @@ const AttendancePage: React.FC = () => {
   }, [
     processing,
     autoScan,
-    deviceInfo?.organization_id,
     determineAttendanceAction,
     recordAttendance,
     loadStats,
     load
   ]);
 
-  // Handle QR Detection
+  // Handle QR Detection — local-first lookup, fallback to Supabase
   const handleQRDetected = useCallback(async (qrData: string) => {
     if (processing) return;
 
@@ -563,31 +553,35 @@ const AttendancePage: React.FC = () => {
 
     setProcessing(true);
     try {
-      // Find user by staff_id, qr_code, or id
-      console.log('📡 Matching QR against Org:', deviceInfo.organization_id);
+      // 1. Try local cache first (fast, works offline)
+      let user: any = offlineStorageService.findByIdOrQr(qrData);
 
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('organization_id', deviceInfo.organization_id)
-        .eq('is_active', true)
-        .or(`qr_code.eq."${qrData}",staff_id.eq."${qrData}"`)
-        .maybeSingle();
-
-      if (error) throw error;
-
+      // 2. Fallback to Supabase if not in local cache
       if (!user) {
-        console.warn('⚠️ User not found for QR:', qrData);
-        throw new Error(`User not recognized for value: ${qrData}`);
+        console.log('📡 QR not in local cache, querying Supabase...');
+        const { data: remoteUser, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('organization_id', deviceInfo.organization_id)
+          .eq('is_active', true)
+          .or(`qr_code.eq."${qrData}",staff_id.eq."${qrData}"`)
+          .maybeSingle();
+
+        if (error) throw error;
+        user = remoteUser;
       }
 
-      console.log('✅ User matched:', user.full_name);
+      if (!user) {
+        throw new Error(`User not recognized for QR value: ${qrData}`);
+      }
+
+      console.log('✅ QR matched:', user.full_name);
 
       const action = await determineAttendanceAction(user.id);
       const attendanceRecord = await recordAttendance(
         user.id,
         action,
-        'qr_scan', // Placeholder photo URL
+        'qr_scan',
         100,
         '',
         'qr'
@@ -627,7 +621,7 @@ const AttendancePage: React.FC = () => {
     }
   }, [handleFaceCapture]);
 
-  // Handle manual attendance
+  // Handle manual attendance — local-first lookup, fallback to Supabase
   const handleManualAttendance = useCallback(async () => {
     if (!manualId.trim()) {
       message.error('Please enter a staff/student ID');
@@ -636,21 +630,28 @@ const AttendancePage: React.FC = () => {
 
     setManualLoading(true);
     try {
-      let query = supabase
-        .from('users')
-        .select('*')
-        .eq('organization_id', deviceInfo?.organization_id)
-        .eq('is_active', true)
-        .or(`staff_id.eq."${manualId}",email.eq."${manualId}",qr_code.eq."${manualId}"`);
+      // 1. Try local cache first
+      let user: any = offlineStorageService.findByIdOrQr(manualId.trim());
 
-      if (deviceInfo?.branch_id) {
-        query = query.eq('branch_id', deviceInfo.branch_id);
-      }
+      // 2. Fallback to Supabase
+      if (!user) {
+        console.log('📡 ID not in local cache, querying Supabase...');
+        let query = supabase
+          .from('users')
+          .select('*')
+          .eq('organization_id', deviceInfo?.organization_id)
+          .eq('is_active', true)
+          .or(`staff_id.eq."${manualId}",email.eq."${manualId}",qr_code.eq."${manualId}"`);
 
-      const { data: user, error } = await query.single();
+        if (deviceInfo?.branch_id) {
+          query = query.eq('branch_id', deviceInfo.branch_id);
+        }
 
-      if (error || !user) {
-        throw new Error('User not found');
+        const { data: remoteUser, error } = await query.single();
+        if (error || !remoteUser) {
+          throw new Error('User not found. Please check the ID and try again.');
+        }
+        user = remoteUser;
       }
 
       const action = await determineAttendanceAction(user.id);
@@ -663,24 +664,18 @@ const AttendancePage: React.FC = () => {
         'manual'
       );
 
-      const result = {
+      setAttendanceResult({
         success: true,
         user,
         confidence: 100,
         action,
         attendance: attendanceRecord
-      };
-
-      setAttendanceResult(result);
+      });
       setShowResultModal(true);
 
-      await Promise.all([
-        loadStats(),
-        load()
-      ]);
+      await Promise.all([loadStats(), load()]);
 
       message.success(`Manual ${action} recorded for ${user.full_name}`);
-      // Speak the result
       speak(`Hello ${user.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`);
       setManualId('');
 

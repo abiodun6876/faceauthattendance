@@ -173,5 +173,23 @@ export const userService = {
             .select('*')
             .eq('organization_id', organizationId)
             .or(`full_name.ilike.%${term}%,email.ilike.%${term}%,staff_id.ilike.%${term}%,qr_code.ilike.%${term}%`);
+    },
+
+    /**
+     * Fetch all active users with face embeddings for local caching.
+     * Used by offlineStorageService to populate the local user cache.
+     */
+    async getUsersWithEmbeddings(organizationId: string, branchId?: string) {
+        let query = supabase
+            .from('users')
+            .select('id, full_name, staff_id, qr_code, face_embedding, face_photo_url, department_id, user_role, branch_id, organization_id, is_active')
+            .eq('organization_id', organizationId)
+            .eq('is_active', true);
+
+        if (branchId) {
+            query = query.eq('branch_id', branchId);
+        }
+
+        return await query.order('full_name', { ascending: true });
     }
 };
