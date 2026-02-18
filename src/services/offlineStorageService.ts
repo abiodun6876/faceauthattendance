@@ -108,7 +108,7 @@ class OfflineStorageService {
      */
     findByFaceEmbedding(
         queryEmbedding: Float32Array,
-        threshold = 0.55
+        threshold = 0.6
     ): { user: LocalUser; distance: number } | null {
         if (!this.loaded) this.loadFromCache();
 

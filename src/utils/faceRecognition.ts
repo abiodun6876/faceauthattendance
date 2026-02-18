@@ -148,8 +148,8 @@ class FaceRecognition {
       if (this.useTinyModel) {
         detection = await faceapi
           .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({
-            inputSize: 160, // Optimized for speed — 6.7x faster than 416
-            scoreThreshold: 0.3 // Lower threshold = faster detection
+            inputSize: 320, // Increased from 160 to 320 for better reliability
+            scoreThreshold: 0.3
           }))
           .withFaceLandmarks()
           .withFaceDescriptor();
@@ -318,7 +318,7 @@ class FaceRecognition {
       }
 
       const matches = [];
-      const MATCH_THRESHOLD = 0.65;
+      const MATCH_THRESHOLD = 0.6; // Industry standard distance for tinyFaceDetector
 
       // 3. Compare with each cached embedding (pure in-memory, very fast)
       for (const cached of this.embeddingCache) {

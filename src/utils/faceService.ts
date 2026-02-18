@@ -77,10 +77,9 @@ class FaceService {
       // Create image element
       const img = await this.loadImage(photoData);
 
-      // Optimized for speed: inputSize 160 is 6.7x faster than 416
       const detectionOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 160, // Fast — sufficient for attendance use
-        scoreThreshold: 0.3 // Lower = detects faces faster
+        inputSize: 320, // Increased for better reliability
+        scoreThreshold: 0.3
       });
 
       // detectSingleFace stops after first face found — faster than detectAllFaces

@@ -477,7 +477,7 @@ const AttendancePage: React.FC = () => {
       }
 
       // 2. Match locally against cached users (fast, no network needed)
-      const localMatch = offlineStorageService.findByFaceEmbedding(faceResult.embedding, 0.55);
+      const localMatch = offlineStorageService.findByFaceEmbedding(faceResult.embedding, 0.6);
 
       if (!localMatch) {
         throw new Error('Identity not recognized. Please scan again or enroll first.');

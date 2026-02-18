@@ -85,8 +85,8 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
 
     try {
       const imageSrc = webcamRef.current.getScreenshot({
-        width: 640,
-        height: 480
+        width: 1280,
+        height: 720
       });
 
       console.log('Photo captured successfully');
