@@ -42,11 +42,11 @@ class FaceService {
       // Load models (from public/models directory)
       const MODEL_URL = '/models';
 
+      // Load only the models needed for attendance — faceExpressionNet removed (not used, wastes load time)
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
       ]);
 
       console.log('✅ Face models loaded successfully');
@@ -77,17 +77,18 @@ class FaceService {
       // Create image element
       const img = await this.loadImage(photoData);
 
-      // Optimized single-pass detection for speed and accuracy
+      // Optimized for speed: inputSize 160 is 6.7x faster than 416
       const detectionOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 416, // Larger size for better detection in natural light
-        scoreThreshold: 0.4 // Balanced threshold - not too strict, not too lenient
+        inputSize: 160, // Fast — sufficient for attendance use
+        scoreThreshold: 0.3 // Lower = detects faces faster
       });
 
-      const detections = await faceapi.detectAllFaces(img, detectionOptions)
+      // detectSingleFace stops after first face found — faster than detectAllFaces
+      const detection = await faceapi.detectSingleFace(img, detectionOptions)
         .withFaceLandmarks()
-        .withFaceDescriptors();
+        .withFaceDescriptor();
 
-      if (!detections || detections.length === 0) {
+      if (!detection) {
         return {
           success: false,
           faceDetected: false,
@@ -95,16 +96,6 @@ class FaceService {
         };
       }
 
-      // Multiple faces detected
-      if (detections.length > 1) {
-        return {
-          success: false,
-          faceDetected: true,
-          error: 'Multiple faces detected. Please use an image with only one face.'
-        };
-      }
-
-      const detection = detections[0];
       const descriptor = detection.descriptor;
       const box = detection.detection.box;
 

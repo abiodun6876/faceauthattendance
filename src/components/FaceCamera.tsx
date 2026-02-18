@@ -33,17 +33,18 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   onAttendanceComplete,
   onQRCodeDetected,
   autoCapture = false,
-  captureInterval = 3000,
+  captureInterval = 1500,
   loading = false,
   deviceInfo,
   organizationName
 }) => {
   const webcamRef = useRef<any>(null);
   const [isCameraActive, setIsCameraActive] = useState(true);
-
   const [cameraError, setCameraError] = useState<string>('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'processing'>('idle');
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isProcessingRef = useRef(false); // Prevents overlapping captures
 
   useEffect(() => {
     const checkCameraPermissions = async () => {
@@ -105,11 +106,21 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   }, [webcamRef, cameraReady]);
 
   const handleCapture = useCallback(() => {
+    // Skip if already processing a previous capture
+    if (isProcessingRef.current) {
+      console.log('⏳ Skipping capture — previous scan still in progress');
+      return;
+    }
+
+    isProcessingRef.current = true;
+    setScanStatus('processing');
     console.log('Capture button clicked');
     const photoData = capturePhoto();
 
     if (!photoData) {
       message.error('Failed to capture photo');
+      isProcessingRef.current = false;
+      setScanStatus('idle');
       return;
     }
 
@@ -117,20 +128,33 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
 
     if (mode === 'enrollment' && onEnrollmentComplete) {
       onEnrollmentComplete(photoData);
+      isProcessingRef.current = false;
+      setScanStatus('idle');
     } else if (mode === 'attendance' && onAttendanceComplete) {
       // For attendance mode, we'll handle face matching elsewhere
       onAttendanceComplete({
         success: true,
         photoData: { base64: photoData }
       });
+      // Reset after a short delay to allow the parent to process
+      setTimeout(() => {
+        isProcessingRef.current = false;
+        setScanStatus('idle');
+      }, 800);
+    } else {
+      isProcessingRef.current = false;
+      setScanStatus('idle');
     }
   }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete]);
 
   useEffect(() => {
     if (autoCapture && isCameraActive && cameraReady && mode === 'attendance' && scanningMode === 'face') {
+      setScanStatus('scanning');
       intervalRef.current = setInterval(() => {
         handleCapture();
       }, captureInterval);
+    } else {
+      setScanStatus('idle');
     }
 
     return () => {
@@ -328,12 +352,53 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
             </div>
           )}
 
+          {/* Live Scanning Status Overlay */}
+          {autoCapture && mode === 'attendance' && scanningMode === 'face' && (
+            <div style={{
+              position: 'absolute',
+              top: 12,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'rgba(0,0,0,0.55)',
+              backdropFilter: 'blur(6px)',
+              border: `1px solid ${scanStatus === 'processing' ? 'rgba(0,255,100,0.6)' : 'rgba(0,243,255,0.4)'}`,
+              borderRadius: 20,
+              padding: '5px 14px'
+            }}>
+              <div style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: scanStatus === 'processing' ? '#0aff60' : '#00f3ff',
+                boxShadow: scanStatus === 'processing' ? '0 0 8px #0aff60' : '0 0 8px #00f3ff',
+                animation: 'pulse 1s ease-in-out infinite'
+              }} />
+              <span style={{
+                color: scanStatus === 'processing' ? '#0aff60' : '#00f3ff',
+                fontFamily: 'monospace',
+                fontSize: 11,
+                letterSpacing: '2px',
+                textShadow: scanStatus === 'processing' ? '0 0 8px #0aff60' : '0 0 8px #00f3ff'
+              }}>
+                {scanStatus === 'processing' ? 'MATCHING...' : 'SCANNING'}
+              </span>
+            </div>
+          )}
+
           <style>{`
             @keyframes scanner {
               0% { top: 0%; opacity: 0; }
               10% { opacity: 1; }
               90% { opacity: 1; }
               100% { top: 100%; opacity: 0; }
+            }
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.3; }
             }
           `}</style>
 

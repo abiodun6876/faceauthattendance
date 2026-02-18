@@ -2,10 +2,24 @@ import * as faceapi from 'face-api.js';
 import * as tf from '@tensorflow/tfjs';
 import { supabase } from '../lib/supabase';
 
+// In-memory cache for enrolled user embeddings (avoids Supabase call every scan)
+interface CachedEmbedding {
+  userId: string;
+  name: string;
+  staffId: string;
+  descriptor: Float32Array;
+}
+
 class FaceRecognition {
   private static instance: FaceRecognition;
   private modelsLoaded = false;
   private useTinyModel = true; // Use tiny model for better performance
+  private isProcessing = false; // Debounce guard — prevents overlapping scans
+
+  // In-memory embedding cache
+  private embeddingCache: CachedEmbedding[] = [];
+  private cacheLoadedAt: number = 0;
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   // For local storage of embeddings
   private readonly EMBEDDINGS_KEY = 'face_embeddings';
@@ -134,8 +148,8 @@ class FaceRecognition {
       if (this.useTinyModel) {
         detection = await faceapi
           .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({
-            inputSize: 416, // Increased from 160 for better detection
-            scoreThreshold: 0.4 // Adjusted from 0.3 for better reliability
+            inputSize: 160, // Optimized for speed — 6.7x faster than 416
+            scoreThreshold: 0.3 // Lower threshold = faster detection
           }))
           .withFaceLandmarks()
           .withFaceDescriptor();
@@ -221,10 +235,71 @@ class FaceRecognition {
 
   // ========== ATTENDANCE MATCHING METHODS ==========
 
+  // Load all enrolled user embeddings into memory (call once on startup)
+  async preloadEmbeddings(): Promise<void> {
+    const now = Date.now();
+    if (this.embeddingCache.length > 0 && (now - this.cacheLoadedAt) < this.CACHE_TTL_MS) {
+      console.log(`✅ Embedding cache still fresh (${this.embeddingCache.length} users)`);
+      return;
+    }
+
+    try {
+      console.log('🔄 Loading face embeddings into memory cache...');
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('id, staff_id, full_name, face_embedding, enrollment_status')
+        .eq('enrollment_status', 'enrolled')
+        .eq('is_active', true)
+        .not('face_embedding', 'is', null)
+        .limit(200);
+
+      if (error || !users) {
+        console.error('Failed to preload embeddings:', error);
+        return;
+      }
+
+      this.embeddingCache = [];
+      for (const user of users) {
+        try {
+          if (!user.face_embedding || user.face_embedding.length === 0) continue;
+          const embeddingArray = typeof user.face_embedding === 'string'
+            ? JSON.parse(user.face_embedding)
+            : user.face_embedding;
+          this.embeddingCache.push({
+            userId: user.id,
+            name: user.full_name,
+            staffId: user.staff_id || '',
+            descriptor: new Float32Array(embeddingArray)
+          });
+        } catch (e) {
+          console.warn(`Skipping invalid embedding for user ${user.id}`);
+        }
+      }
+
+      this.cacheLoadedAt = Date.now();
+      console.log(`✅ Cached ${this.embeddingCache.length} face embeddings in memory`);
+    } catch (error) {
+      console.error('Error preloading embeddings:', error);
+    }
+  }
+
+  // Force refresh the embedding cache (call after enrollment)
+  async refreshEmbeddingCache(): Promise<void> {
+    this.cacheLoadedAt = 0; // Invalidate cache
+    await this.preloadEmbeddings();
+  }
+
   async matchFaceForAttendance(
     capturedImage: string,
     maxMatches: number = 5
-  ): Promise<Array<{ userId: string, name: string, staffId: string, confidence: number }>> { // Updated return type
+  ): Promise<Array<{ userId: string, name: string, staffId: string, confidence: number }>> {
+    // Debounce: skip if already processing
+    if (this.isProcessing) {
+      console.log('⏳ Already processing a scan, skipping...');
+      return [];
+    }
+
+    this.isProcessing = true;
     try {
       // 1. Extract face from captured image
       const capturedDescriptor = await this.extractFaceDescriptor(capturedImage);
@@ -234,57 +309,28 @@ class FaceRecognition {
         return [];
       }
 
-      // 2. Get all enrolled users WITH face embeddings
-      const { data: users, error } = await supabase
-        .from('users') // ✅ CHANGED from 'students' to 'users'
-        .select('id, staff_id, full_name, face_embedding, enrollment_status') // ✅ CHANGED columns
-        .eq('enrollment_status', 'enrolled')
-        .eq('is_active', true)
-        .not('face_embedding', 'is', null)
-        .limit(50);
+      // 2. Use in-memory cache — no Supabase call needed per scan!
+      await this.preloadEmbeddings();
 
-      if (error) {
-        console.error('Database error:', error);
-        return [];
-      }
-
-      if (!users || users.length === 0) {
-        console.log('No users with face embeddings found');
+      if (this.embeddingCache.length === 0) {
+        console.log('No users with face embeddings found in cache');
         return [];
       }
 
       const matches = [];
       const MATCH_THRESHOLD = 0.65;
 
-      // 3. Compare with each user's embedding
-      for (const user of users) {
-        try {
-          if (!user.face_embedding || user.face_embedding.length === 0) {
-            continue;
-          }
+      // 3. Compare with each cached embedding (pure in-memory, very fast)
+      for (const cached of this.embeddingCache) {
+        const similarity = this.compareFaces(capturedDescriptor, cached.descriptor);
 
-          // Convert stored array back to Float32Array
-          const embeddingArray = typeof user.face_embedding === 'string'
-            ? JSON.parse(user.face_embedding)
-            : user.face_embedding;
-          const storedDescriptor = new Float32Array(embeddingArray);
-
-          // Compare faces
-          const similarity = this.compareFaces(capturedDescriptor, storedDescriptor);
-
-          console.log(`Comparing with ${user.full_name}: ${similarity.toFixed(3)}`);
-
-          if (similarity > MATCH_THRESHOLD) {
-            matches.push({
-              userId: user.id, // ✅ CHANGED from student.student_id
-              name: user.full_name, // ✅ CHANGED from student.name
-              staffId: user.staff_id || '', // ✅ CHANGED from student.matric_number
-              confidence: similarity
-            });
-          }
-        } catch (error) {
-          console.error(`Error processing user ${user.id}:`, error); // ✅ CHANGED from student.student_id
-          continue;
+        if (similarity > MATCH_THRESHOLD) {
+          matches.push({
+            userId: cached.userId,
+            name: cached.name,
+            staffId: cached.staffId,
+            confidence: similarity
+          });
         }
       }
 
@@ -299,6 +345,8 @@ class FaceRecognition {
     } catch (error) {
       console.error('Error in face matching:', error);
       return [];
+    } finally {
+      this.isProcessing = false;
     }
   }
 

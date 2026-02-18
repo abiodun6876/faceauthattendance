@@ -29,6 +29,7 @@ import { deviceService } from '../services/deviceService';
 import { attendanceService } from '../services/attendanceService';
 import { userService } from '../services/userService';
 import faceService from '../utils/faceService';
+import faceRecognition from '../utils/faceRecognition';
 import offlineStorageService from '../services/offlineStorageService';
 import { speak } from '../utils/speechSynthesis';
 import dayjs from 'dayjs';
@@ -357,6 +358,9 @@ const AttendancePage: React.FC = () => {
         loadUserCount(),
         faceService.initializeModels()
       ]);
+
+      // Preload face embeddings into memory for instant matching (no network delay per scan)
+      faceRecognition.preloadEmbeddings().catch(e => console.warn('Embedding preload failed:', e));
 
       // Sync enrolled users to local cache for offline-capable matching
       await offlineStorageService.syncUsers(
@@ -710,7 +714,7 @@ const AttendancePage: React.FC = () => {
       const interval = setInterval(() => {
         // Auto scan logic here
         console.log('Auto scanning...');
-      }, 3000);
+      }, 1500); // Scan every 1.5s for real-time feel (was 3000ms)
       setScanInterval(interval);
     } else if (!autoScan && scanInterval) {
       clearInterval(scanInterval);
