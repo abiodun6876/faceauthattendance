@@ -135,6 +135,123 @@ body {
   text-transform: uppercase;
 }
 
+/* --- NEW HUD STYLES --- */
+.hud-container {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 243, 255, 0.2);
+}
+
+.hud-corner {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--neon-blue);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.corner-tl {
+  top: 10px;
+  left: 10px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.corner-tr {
+  top: 10px;
+  right: 10px;
+  border-left: none;
+  border-bottom: none;
+}
+
+.corner-bl {
+  bottom: 10px;
+  left: 10px;
+  border-right: none;
+  border-top: none;
+}
+
+.corner-br {
+  bottom: 10px;
+  right: 10px;
+  border-left: none;
+  border-top: none;
+}
+
+.laser-scanner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(to bottom, transparent, var(--neon-blue), transparent);
+  box-shadow: 0 0 15px var(--neon-blue);
+  z-index: 5;
+  animation: scan-move 3s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scan-move {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 1;
+  }
+
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.hud-status {
+  position: absolute;
+  top: 25px;
+  left: 30px;
+  color: var(--neon-blue);
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  text-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px;
+  border-left: 1px solid var(--neon-blue);
+}
+
+.hud-error {
+  color: #ff4d4f;
+  text-shadow: 0 0 10px rgba(255, 77, 79, 0.5);
+}
+
+.hologram-btn {
+  background: rgba(0, 243, 255, 0.1) !important;
+  border: 1px solid var(--neon-blue) !important;
+  color: var(--neon-blue) !important;
+  font-family: 'Courier New', monospace !important;
+  letter-spacing: 2px !important;
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.2) !important;
+  backdrop-filter: blur(4px);
+  transition: all 0.3s ease !important;
+}
+
+.hologram-btn:hover {
+  background: rgba(0, 243, 255, 0.2) !important;
+  box-shadow: 0 0 25px rgba(0, 243, 255, 0.4) !important;
+  transform: scale(1.02);
+}
+
 /* Scoped Component Overrides */
 .intergalactic-theme .ant-table {
   background: transparent !important;

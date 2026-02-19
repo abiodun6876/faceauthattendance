@@ -225,50 +225,50 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
     deviceId: localStorage.getItem('preferred_camera_id') || undefined
   };
 
-  // Show camera error message
   if (cameraError) {
     return (
-      <div style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#f0f0f0',
-        borderRadius: 8,
-        padding: 24
-      }}>
-        <AlertCircle size={48} color="#ff4d4f" style={{ marginBottom: 16 }} />
-        <Alert
-          message="Camera Permission Required"
-          description={cameraError}
-          type="error"
-          showIcon
-          style={{ marginBottom: 24, maxWidth: 400 }}
-        />
+      <div className="hud-container" style={{ height: '400px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+        <div className="hud-corner corner-tl"></div>
+        <div className="hud-corner corner-tr"></div>
+        <div className="hud-corner corner-bl"></div>
+        <div className="hud-corner corner-br"></div>
+        <AlertCircle size={48} className="hud-error" style={{ marginBottom: 16 }} />
+        <div className="hud-error" style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: 24 }}>ACCESS_DENIED</div>
+        <div className="hud-status" style={{ top: '20px', right: '20px' }}>ERROR_CODE: 0x403</div>
         <Button
-          type="primary"
-          onClick={async () => {
-            try {
-              const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-              stream.getTracks().forEach(track => track.stop());
-              setCameraError('');
-              setIsCameraActive(true);
-              setCameraReady(true);
-            } catch (error) {
-              message.error('Still cannot access camera. Please check browser settings.');
-            }
+          className="hologram-btn"
+          onClick={() => {
+            setCameraError('');
+            setIsCameraActive(true);
+            window.location.reload();
           }}
-          size="large"
         >
-          Try Again
+          RETRY_CONNECTION
         </Button>
       </div>
     );
   }
 
   return (
-    <div style={{ position: 'relative', height: '100%' }}>
+    <div className="hud-container" style={{ minHeight: '450px' }}>
+      <div className="hud-corner corner-tl"></div>
+      <div className="hud-corner corner-tr"></div>
+      <div className="hud-corner corner-bl"></div>
+      <div className="hud-corner corner-br"></div>
+
+      <div className="laser-scanner"></div>
+
+      <div className="hud-status">
+        STATUS: {currentStatus.toUpperCase() === 'IDLE' ? 'SYSTEM_READY' : currentStatus.toUpperCase() === 'SCANNING' ? 'MONITORING' : currentStatus.toUpperCase() === 'PROCESSING' ? 'ANALYZING...' : 'BOOSTPASS_ACTIVE'}<br />
+        RESOLUTION: 1280x720<br />
+        ORG: {organizationName || 'CORE_SYSTEM'}<br />
+        MODE: {mode.toUpperCase()}<br />
+        SCAN_TYPE: {scanningMode.toUpperCase()}<br />
+        {currentStatus === 'processing' && (
+          <span style={{ color: '#0aff60' }}>BIO_METRIC_MATCH: PENDING...</span>
+        )}
+      </div>
+
       {isCameraActive ? (
         <>
           <Webcam
@@ -280,8 +280,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              borderRadius: 8,
-              backgroundColor: '#000'
+              display: 'block'
             }}
             onUserMedia={() => {
               console.log('Webcam stream started');
@@ -295,146 +294,62 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
             mirrored={true}
           />
 
-          {/* Sci-Fi HUD Overlay */}
-          {(mode === 'enrollment' || mode === 'attendance') && (
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-              zIndex: 2
-            }}>
-              {/* Corner Brackets */}
-              <div style={{
-                position: 'absolute',
-                top: '15%',
-                left: '20%',
-                width: '60%',
-                height: '70%',
-                border: '1px solid rgba(0, 243, 255, 0.2)',
-                borderTop: 'none',
-                borderBottom: 'none',
-                borderRadius: '40px'
-              }} />
-
-              {/* Central Target - Cleaner */}
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: scanningMode === 'qr' ? '250px' : '300px',
-                height: scanningMode === 'qr' ? '250px' : '400px',
-                border: `2px solid ${scanningMode === 'qr' ? 'rgba(0, 243, 255, 0.8)' : 'rgba(0, 243, 255, 0.4)'}`,
-                borderRadius: scanningMode === 'qr' ? '12px' : '24px',
-                boxShadow: scanningMode === 'qr' ? '0 0 40px rgba(0, 243, 255, 0.3)' : '0 0 30px rgba(0, 243, 255, 0.1)'
-              }}>
-                {/* Scanning Line */}
-                <div style={{
-                  width: '100%',
-                  height: '2px',
-                  background: scanningMode === 'qr'
-                    ? 'linear-gradient(90deg, transparent, #00f3ff, transparent)'
-                    : 'linear-gradient(90deg, transparent, #0aff60, transparent)',
-                  boxShadow: scanningMode === 'qr' ? '0 0 15px #00f3ff' : '0 0 15px #0aff60',
-                  position: 'absolute',
-                  animation: 'scanner 3s ease-in-out infinite'
-                }} />
-
-                {scanningMode === 'qr' && (
-                  <div style={{
-                    position: 'absolute',
-                    bottom: -40,
-                    width: '100%',
-                    textAlign: 'center',
-                    color: '#00f3ff',
-                    fontFamily: 'monospace',
-                    fontSize: '12px',
-                    letterSpacing: '2px',
-                    textShadow: '0 0 10px rgba(0, 243, 255, 0.5)'
-                  }}>
-                    SCAN QR CODE
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Live Scanning Status Overlay */}
-          {autoCapture && mode === 'attendance' && scanningMode === 'face' && (
-            <div style={{
-              position: 'absolute',
-              top: 12,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 10,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'rgba(0,0,0,0.55)',
-              backdropFilter: 'blur(6px)',
-              border: `1px solid ${currentStatus === 'processing' ? 'rgba(0,255,100,0.6)' : currentStatus === 'boosting' ? 'rgba(255,152,0,0.6)' : 'rgba(0,243,255,0.4)'}`,
-              borderRadius: 20,
-              padding: '5px 14px'
-            }}>
-              <div style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: currentStatus === 'processing' ? '#0aff60' : currentStatus === 'boosting' ? '#ff9800' : '#00f3ff',
-                boxShadow: currentStatus === 'processing' ? '0 0 8px #0aff60' : currentStatus === 'boosting' ? '0 0 8px #ff9800' : '#00f3ff',
-                animation: 'pulse 1s ease-in-out infinite'
-              }} />
-              <span style={{
-                color: currentStatus === 'processing' ? '#0aff60' : currentStatus === 'boosting' ? '#ff9800' : '#00f3ff',
-                fontFamily: 'monospace',
-                fontSize: 11,
-                letterSpacing: '2px',
-                textShadow: currentStatus === 'processing' ? '0 0 8px #0aff60' : currentStatus === 'boosting' ? '0 0 8px #ff9800' : '#00f3ff'
-              }}>
-                {currentStatus === 'processing' ? 'MATCHING...' : currentStatus === 'boosting' ? 'BOOSTING...' : 'SCANNING'}
-              </span>
-            </div>
-          )}
-
-          <style>{`
-            @keyframes scanner {
-              0% { top: 0%; opacity: 0; }
-              10% { opacity: 1; }
-              90% { opacity: 1; }
-              100% { top: 100%; opacity: 0; }
-            }
-            @keyframes pulse {
-              0%, 100% { opacity: 1; }
-              50% { opacity: 0.3; }
-            }
-          `}</style>
-
           {loading && (
             <div style={{
               position: 'absolute',
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              zIndex: 20,
+              zIndex: 30,
               textAlign: 'center'
             }}>
               <div style={{
                 width: 100,
                 height: 100,
                 border: '4px solid transparent',
-                borderTopColor: '#00f3ff',
+                borderTopColor: 'var(--neon-blue)',
                 borderRightColor: '#bc13fe',
                 borderRadius: '50%',
                 animation: 'spin 1s linear infinite'
               }} />
+              <div style={{
+                marginTop: 20,
+                color: 'var(--neon-blue)',
+                fontFamily: 'monospace',
+                letterSpacing: '3px',
+                fontSize: '12px',
+                textShadow: '0 0 10px rgba(0, 243, 255, 0.5)'
+              }}>
+                PROCESSING_DATA
+              </div>
             </div>
           )}
 
-          {/* Holographic Controls */}
-          {((mode === 'enrollment' || mode === 'attendance') && !autoCapture && !loading) && (
+          {/* Central Target Frame */}
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: scanningMode === 'qr' ? '250px' : '300px',
+            height: scanningMode === 'qr' ? '250px' : '400px',
+            border: `1px solid ${currentStatus === 'processing' ? 'rgba(10, 255, 96, 0.6)' : 'rgba(0, 243, 255, 0.3)'}`,
+            borderRadius: scanningMode === 'qr' ? '12px' : '40px',
+            boxShadow: currentStatus === 'processing'
+              ? 'inset 0 0 50px rgba(10, 255, 96, 0.1), 0 0 30px rgba(10, 255, 96, 0.2)'
+              : 'inset 0 0 50px rgba(0, 243, 255, 0.05), 0 0 20px rgba(0, 243, 255, 0.1)',
+            transition: 'all 0.5s ease',
+            pointerEvents: 'none',
+            zIndex: 5
+          }}>
+            {/* Corner Indicators for Frame */}
+            <div style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, borderTop: '3px solid var(--neon-blue)', borderLeft: '3px solid var(--neon-blue)', borderRadius: '10px 0 0 0' }} />
+            <div style={{ position: 'absolute', top: -2, right: -2, width: 20, height: 20, borderTop: '3px solid var(--neon-blue)', borderRight: '3px solid var(--neon-blue)', borderRadius: '0 10px 0 0' }} />
+            <div style={{ position: 'absolute', bottom: -2, left: -2, width: 20, height: 20, borderBottom: '3px solid var(--neon-blue)', borderLeft: '3px solid var(--neon-blue)', borderRadius: '0 0 0 10px' }} />
+            <div style={{ position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderBottom: '3px solid var(--neon-blue)', borderRight: '3px solid var(--neon-blue)', borderRadius: '0 0 10px 0' }} />
+          </div>
+
+          {!autoCapture && !loading && (
             <div style={{
               position: 'absolute',
               bottom: 40,
@@ -443,70 +358,43 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
               textAlign: 'center',
               zIndex: 10
             }}>
-              <button
+              <Button
+                className="hologram-btn"
                 onClick={handleCapture}
                 disabled={!cameraReady}
-                style={{
-                  background: 'rgba(0, 243, 255, 0.1)',
-                  border: '1px solid #00f3ff',
-                  color: '#00f3ff',
-                  padding: '12px 40px',
-                  fontSize: '18px',
-                  fontFamily: 'monospace',
-                  letterSpacing: '4px',
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(8px)',
-                  boxShadow: '0 0 30px rgba(0, 243, 255, 0.2)',
-                  transition: 'all 0.3s ease',
-                  borderRadius: '4px'
-                }}
+                size="large"
+                style={{ height: 'auto', padding: '12px 40px' }}
               >
-                {mode === 'enrollment' ? 'ENROLL' : 'SCAN'}
-              </button>
+                {mode === 'enrollment' ? 'START_BIO_CAPTURE' : 'INITIATE_SCAN'}
+              </Button>
             </div>
           )}
         </>
       ) : (
         <div style={{
-          height: '100%',
+          height: '400px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#f0f0f0',
-          borderRadius: 8,
-          gap: 16,
-          padding: 24
+          gap: 16
         }}>
-          <div style={{
-            fontSize: 48,
-            animation: 'pulse 2s infinite'
-          }}>
-            📷
-          </div>
-          <Text type="secondary" style={{ textAlign: 'center' }}>
-            Camera is disabled or not accessible
-          </Text>
+          <Camera size={48} color="rgba(0, 242, 255, 0.3)" />
+          <div className="hud-status" style={{ position: 'static', textAlign: 'center' }}>CAMERA_OFFLINE</div>
           <Button
-            type="primary"
-            onClick={async () => {
-              try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                stream.getTracks().forEach(track => track.stop());
-                setIsCameraActive(true);
-                setCameraReady(true);
-                message.success('Camera enabled');
-              } catch (error) {
-                message.error('Cannot access camera');
-              }
-            }}
-            size="large"
-            icon={<Camera />}
+            className="hologram-btn"
+            onClick={() => setIsCameraActive(true)}
           >
-            Enable Camera
+            RESTORE_LINK
           </Button>
         </div>
       )}
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

@@ -148,7 +148,7 @@ class FaceRecognition {
       if (this.useTinyModel) {
         detection = await faceapi
           .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({
-            inputSize: 320,
+            inputSize: 160,
             scoreThreshold: 0.3
           }))
           .withFaceLandmarks()
@@ -169,8 +169,8 @@ class FaceRecognition {
         if (this.useTinyModel) {
           detection = await faceapi
             .detectSingleFace(enhancedImg, new faceapi.TinyFaceDetectorOptions({
-              inputSize: 320,
-              scoreThreshold: 0.15 // Lower threshold for boost pass
+              inputSize: 160,
+              scoreThreshold: 0.2 // Lower threshold for boost pass
             }))
             .withFaceLandmarks()
             .withFaceDescriptor();
