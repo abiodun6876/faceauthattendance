@@ -13,7 +13,6 @@ import {
   Typography
 } from 'antd';
 
-const { Title, Text } = Typography;
 import {
   Camera,
   QrCode,
@@ -36,6 +35,8 @@ import offlineStorageService from '../services/offlineStorageService';
 import { speak } from '../utils/speechSynthesis';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+
+const { Title, Text } = Typography;
 dayjs.extend(relativeTime);
 
 
