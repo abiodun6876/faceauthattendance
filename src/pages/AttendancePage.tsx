@@ -145,6 +145,7 @@ const AttendancePage: React.FC = () => {
   const [_showCourseSidebar, _setShowCourseSidebar] = useState(false);
   const [_manualLoading, setManualLoading] = useState(false);
   const [_showHistory, _setShowHistory] = useState(false);
+  const [lastCapturedPhoto, setLastCapturedPhoto] = useState<string | null>(null);
   const navigate = useNavigate();
 
 
@@ -475,6 +476,7 @@ const AttendancePage: React.FC = () => {
 
     setProcessing(true);
     setFaceStatus('processing');
+    setLastCapturedPhoto(photoData);
     try {
       // 1. Extract face embedding from captured photo
       const faceResult = await faceService.processImage(photoData);
@@ -673,7 +675,7 @@ const AttendancePage: React.FC = () => {
       const attendanceRecord = await recordAttendance(
         user.id,
         action,
-        'manual_entry',
+        lastCapturedPhoto || 'manual_entry',
         100,
         '',
         'manual'
@@ -692,6 +694,7 @@ const AttendancePage: React.FC = () => {
       message.success(`Manual ${action} recorded for ${user.full_name}`);
       speak(`Hello ${user.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`);
       setManualId('');
+      setLastCapturedPhoto(null);
 
     } catch (error: any) {
       console.error('Manual attendance error:', error);
@@ -1349,38 +1352,75 @@ const AttendancePage: React.FC = () => {
                   <Title level={1} style={{ color: 'white', margin: '0 0 16px 0', fontWeight: 900, letterSpacing: '4px' }}>
                     DENIED_IDENTITY
                   </Title>
-                  <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '18px', display: 'block', marginBottom: 48, letterSpacing: '1px' }}>
+                  <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '18px', display: 'block', marginBottom: 24, letterSpacing: '1px' }}>
                     {attendanceResult?.error || "Neural-match failed to identify subject"}
                   </Text>
-                  <Space size="large">
+
+                  {attendanceResult?.photoData && (
+                    <div style={{
+                      width: 150,
+                      height: 150,
+                      margin: '0 auto 32px',
+                      borderRadius: 16,
+                      overflow: 'hidden',
+                      border: '2px solid rgba(255, 77, 79, 0.3)',
+                      boxShadow: '0 0 20px rgba(255, 77, 79, 0.1)'
+                    }}>
+                      <Image
+                        src={attendanceResult.photoData}
+                        preview={false}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                  )}
+
+                  <Space size="middle" direction="vertical" style={{ width: '100%' }}>
                     <Button
                       type="primary"
                       onClick={() => setAttendanceResult(null)}
                       className="hologram-btn"
                       style={{
-                        height: 60,
-                        padding: '0 40px',
+                        height: 54,
+                        width: '100%',
                         fontSize: '16px',
                         borderRadius: 12,
                         background: '#fff',
-                        color: '#000'
+                        color: '#000',
+                        fontWeight: 'bold',
+                        letterSpacing: '2px'
                       }}
                     >
-                      RE-TRY SCAN
+                      RE-TRY BIO-SCAN
                     </Button>
                     <Button
-                      onClick={() => navigate('/')}
+                      onClick={() => {
+                        setVerificationMethod('manual');
+                        setAttendanceResult(null);
+                      }}
+                      className="hologram-btn"
                       style={{
-                        height: 60,
-                        padding: '0 40px',
+                        height: 54,
+                        width: '100%',
                         fontSize: '16px',
                         borderRadius: 12,
-                        background: 'transparent',
-                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                        color: 'white'
+                        background: 'rgba(0, 243, 255, 0.1)',
+                        borderColor: '#00f3ff',
+                        color: '#00f3ff',
+                        fontWeight: 'bold',
+                        letterSpacing: '2px'
                       }}
                     >
-                      EXIT_SYSTEM
+                      USE MANUAL ID
+                    </Button>
+                    <Button
+                      type="text"
+                      onClick={() => setAttendanceResult(null)}
+                      style={{
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        marginTop: 8
+                      }}
+                    >
+                      DISMISS
                     </Button>
                   </Space>
                 </div>

@@ -342,7 +342,10 @@ const EnrollmentPage: React.FC = () => {
       // Process face
       setProcessingProgress(40);
       const result = await faceService.processImage(capturedPhotoData);
-      setFaceProcessingResult(result);
+      setFaceProcessingResult({
+        ...result,
+        photoData: capturedPhotoData
+      });
 
       if (!result.success) {
         throw new Error(result.error || 'Face processing failed');
@@ -371,7 +374,7 @@ const EnrollmentPage: React.FC = () => {
 
     } catch (error: any) {
       console.error('Face processing error:', error);
-      message.error(error.message || 'Face processing failed');
+      // message.error(error.message || 'Face processing failed'); // Removed to avoid double error display
     } finally {
       setFaceProcessing(false);
       setProcessingProgress(0);
@@ -677,13 +680,39 @@ const EnrollmentPage: React.FC = () => {
           )}
 
           {faceProcessingResult && !faceProcessingResult.success && (
-            <Alert
-              message="Face Detection Failed"
-              description={faceProcessingResult.error}
-              type="error"
-              showIcon
-              style={{ marginBottom: 24 }}
-            />
+            <div style={{ marginBottom: 24 }}>
+              <Alert
+                message="Face Detection Problem"
+                description={
+                  <div>
+                    <Text>{faceProcessingResult.error}</Text>
+                    <div style={{ marginTop: 16 }}>
+                      <Button
+                        type="primary"
+                        ghost
+                        onClick={() => {
+                          const dummyResult: FaceProcessingResult = {
+                            ...faceProcessingResult,
+                            success: true,
+                            embedding: new Float32Array(128).fill(0), // Dummy empty embedding
+                            quality: 0,
+                            faceDetected: false
+                          };
+                          handleEnrollment(formData, faceProcessingResult.photoData || _photoData, dummyResult);
+                        }}
+                      >
+                        Use this photo anyway
+                      </Button>
+                      <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: '12px' }}>
+                        Note: AI matching may not work, but you can still use ID/QR codes.
+                      </Text>
+                    </div>
+                  </div>
+                }
+                type="warning"
+                showIcon
+              />
+            </div>
           )}
 
           {faceProcessingResult?.success && (
