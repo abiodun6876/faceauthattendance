@@ -3,25 +3,27 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
-  Row,
-  Col,
   Button,
   Space,
   Tag,
-  Modal,
   Spin,
-  Result,
   message,
   Input,
-  Switch,
-  Image
+  Image,
+  Typography
 } from 'antd';
+
+const { Title, Text } = Typography;
 import {
   Camera,
   QrCode,
   User,
   Scan,
-  ArrowLeft
+  ArrowLeft,
+  Play,
+  StopCircle,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import FaceCamera from '../components/FaceCamera';
 import { supabase } from '../lib/supabase';
@@ -139,6 +141,7 @@ const AttendancePage: React.FC = () => {
   const [_connectionStatus, setConnectionStatus] = useState<'online' | 'offline'>('online');
   const [manualId, setManualId] = useState('');
   const [verificationMethod, setVerificationMethod] = useState<'face' | 'qr' | 'manual'>('face');
+  const [showCourseSidebar, setShowCourseSidebar] = useState(false);
   const [_manualLoading, setManualLoading] = useState(false);
   const [_showHistory, _setShowHistory] = useState(false);
   const navigate = useNavigate();
@@ -515,7 +518,6 @@ const AttendancePage: React.FC = () => {
         attendance: attendanceRecord,
         photoData
       });
-      setShowResultModal(true);
       message.success(`${action === 'clock_in' ? 'Clocked in' : 'Clocked out'} successfully!`);
 
       speak(`Hello ${matchedUser.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`);
@@ -523,7 +525,7 @@ const AttendancePage: React.FC = () => {
       await Promise.all([loadStats(), load()]);
 
       if (autoScan) {
-        setTimeout(() => setShowResultModal(false), 1500);
+        setTimeout(() => setAttendanceResult(null), 3500);
       }
 
     } catch (error: any) {
@@ -533,12 +535,11 @@ const AttendancePage: React.FC = () => {
         error: error.message || 'Attendance processing failed',
         photoData
       });
-      setShowResultModal(true);
       message.error(error.message || 'Attendance failed');
 
       if (autoScan) {
         const isFaceError = error.message?.includes('No face detected') || error.message?.includes('Face not detected');
-        setTimeout(() => setShowResultModal(false), isFaceError ? 1500 : 4000);
+        setTimeout(() => setAttendanceResult(null), isFaceError ? 2000 : 5000);
       }
     } finally {
       setProcessing(false);
@@ -608,7 +609,6 @@ const AttendancePage: React.FC = () => {
         action,
         attendance: attendanceRecord
       });
-      setShowResultModal(true);
       message.success(`QR ${action} successful!`);
       speak(`Hello ${user.full_name.split(' ')[0]}, ${action === 'clock_in' ? 'clocked in' : 'clocked out'}`);
 
@@ -685,7 +685,6 @@ const AttendancePage: React.FC = () => {
         action,
         attendance: attendanceRecord
       });
-      setShowResultModal(true);
 
       await Promise.all([loadStats(), load()]);
 
@@ -872,276 +871,528 @@ const AttendancePage: React.FC = () => {
 
   if (!deviceInfo) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Spin size="large" />
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#0f172a'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <Spin size="large" style={{ marginBottom: 24, color: '#00f3ff' }} />
+          <Title level={3} style={{ color: 'white', marginBottom: 16 }}>
+            INITIALIZING_SYSTEM
+          </Title>
+          <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 14 }}>
+            CONNECTING TO NEURAL NETWORK
+          </Text>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="intergalactic-theme" style={{ minHeight: '100vh', background: 'transparent' }}>
+    <div className="intergalactic-theme" style={{
+      minHeight: '100vh',
+      backgroundColor: '#000',
+      color: 'white',
+      padding: 0,
+      margin: 0,
+      overflow: 'hidden'
+    }}>
+      {/* Main Container */}
+      <div style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
 
-
-      <div style={{ padding: 0, height: '100vh', width: '100vw', overflow: 'hidden', position: 'relative' }}>
-        <Row style={{ height: '100%', width: '100%' }}>
-          {/* Main Camera Column - True Full Screen */}
-          <Col span={24} style={{ height: '100%' }}>
-            <div style={{
-              height: '100%',
-              backgroundColor: '#000',
-              position: 'relative',
-              overflow: 'hidden'
-            }}>
-              <FaceCamera
-                mode="attendance"
-                scanningMode={verificationMethod === 'qr' ? 'qr' : 'face'}
-                onAttendanceComplete={handleCameraComplete}
-                onQRCodeDetected={handleQRDetected}
-                autoCapture={autoScan && verificationMethod === 'face'}
-                captureInterval={1500}
-                loading={processing}
-                status={faceStatus}
-                deviceInfo={deviceInfo}
-                organizationName={deviceInfo.organization?.name}
+        {/* Top Bar - Only visible during scanning */}
+        {!processing && !attendanceResult && (
+          <div style={{
+            padding: '12px 24px',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            zIndex: 100,
+            borderBottom: '1px solid rgba(0, 243, 255, 0.2)',
+            backdropFilter: 'blur(10px)'
+          }}>
+            {/* Left - Back Button and Org Info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <Button
+                type="text"
+                icon={<ArrowLeft size={20} color="white" />}
+                onClick={() => navigate('/')}
+                className="hologram-btn"
+                style={{
+                  height: 40,
+                  width: 40,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0
+                }}
               />
 
-              {/* Floating Back Button */}
-              <div style={{
-                position: 'absolute',
-                top: 24,
-                left: 24,
-                zIndex: 30
-              }}>
-                <Button
-                  type="text"
-                  icon={<ArrowLeft size={24} color="white" />}
-                  onClick={() => navigate('/')}
-                  style={{
-                    background: 'rgba(0, 0, 0, 0.4)',
-                    backdropFilter: 'blur(10px)',
-                    height: 50,
-                    width: 50,
-                    borderRadius: '50%',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                />
-              </div>
-
-              {!autoScan && !processing && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'rgba(0,0,0,0.4)',
-                  zIndex: 10
+              <div style={{ maxWidth: 200 }}>
+                <Text style={{
+                  color: '#00f3ff',
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  display: 'block',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px'
                 }}>
-                  <Button
-                    type="primary"
-                    shape="circle"
-                    onClick={() => setAutoScan(true)}
-                    icon={<Camera size={48} />}
-                    style={{
-                      height: 120,
-                      width: 120,
-                      boxShadow: '0 0 50px rgba(82, 196, 26, 0.6)',
-                      background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
-                      border: 'none',
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Minimal Overlays */}
-              <div style={{
-                position: 'absolute',
-                top: 24,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 20,
-                display: 'flex',
-                background: 'rgba(0, 0, 0, 0.4)',
-                backdropFilter: 'blur(15px)',
-                padding: '4px',
-                borderRadius: '12px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
-              }}>
-                <Button
-                  type={verificationMethod === 'face' ? 'primary' : 'text'}
-                  icon={<Scan size={18} />}
-                  onClick={() => setVerificationMethod('face')}
-                  style={{
-                    color: verificationMethod === 'face' ? 'white' : 'rgba(255,255,255,0.6)',
-                    borderRadius: '8px',
-                    height: '40px',
-                    padding: '0 20px'
-                  }}
-                >
-                  FACE
-                </Button>
-                <Button
-                  type={verificationMethod === 'qr' ? 'primary' : 'text'}
-                  icon={<QrCode size={18} />}
-                  onClick={() => setVerificationMethod('qr')}
-                  style={{
-                    color: verificationMethod === 'qr' ? 'white' : 'rgba(255,255,255,0.6)',
-                    borderRadius: '8px',
-                    height: '40px',
-                    padding: '0 20px'
-                  }}
-                >
-                  QR
-                </Button>
-                <Button
-                  type={verificationMethod === 'manual' ? 'primary' : 'text'}
-                  icon={<User size={18} />}
-                  onClick={() => setVerificationMethod('manual')}
-                  style={{
-                    color: verificationMethod === 'manual' ? 'white' : 'rgba(255,255,255,0.6)',
-                    borderRadius: '8px',
-                    height: '40px',
-                    padding: '0 20px'
-                  }}
-                >
-                  ID
-                </Button>
+                  {deviceInfo.organization?.name || "RELIANT SYSTEM"}
+                </Text>
+                <Text style={{
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: 10,
+                  display: 'block',
+                  textTransform: 'uppercase'
+                }}>
+                  {deviceInfo.branch?.name || "MAIN TERMINAL"}
+                </Text>
               </div>
-
-              {/* Bottom Overlays */}
-              <div style={{
-                position: 'absolute',
-                bottom: 24,
-                left: 24,
-                zIndex: 20,
-                display: 'flex',
-                gap: 16,
-                alignItems: 'center'
-              }}>
-                {(verificationMethod === 'manual' || true) && (
-                  <div style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    padding: '4px 12px',
-                    borderRadius: 20,
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}>
-                    <User size={14} color="rgba(255,255,255,0.6)" style={{ marginRight: 8 }} />
-                    <Input
-                      placeholder="ENTER ID..."
-                      value={manualId}
-                      onChange={(e) => setManualId(e.target.value)}
-                      style={{
-                        width: 100,
-                        background: 'transparent',
-                        color: 'white',
-                        border: 'none',
-                        fontSize: '12px',
-                        letterSpacing: '1px'
-                      }}
-                      onPressEnter={handleManualAttendance}
-                    />
-                  </div>
-                )}
-
-                {verificationMethod === 'face' && (
-                  <div style={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    padding: '8px 16px',
-                    borderRadius: 12,
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    color: 'white'
-                  }}>
-                    <Switch
-                      checked={autoScan}
-                      onChange={setAutoScan}
-                      size="small"
-                    />
-                    <span style={{ marginLeft: 8, fontSize: 12 }}>AUTO</span>
-                  </div>
-                )}
-              </div>
-
-
             </div>
-          </Col>
-        </Row>
-      </div>
 
-      {/* Attendance Result Modal */}
-      <Modal
-        title={attendanceResult?.success ? "Attendance Recorded" : "Attendance Failed"}
-        open={showResultModal}
-        onCancel={() => setShowResultModal(false)}
-        footer={[
-          <Button key="close" onClick={() => setShowResultModal(false)}>
-            Close
-          </Button>,
-          attendanceResult?.success && (
-            <Button
-              key="another"
-              type="primary"
-              onClick={() => setShowResultModal(false)}
-            >
-              Scan Another
-            </Button>
-          )
-        ]}
-        width={600}
-      >
-        {attendanceResult?.success ? (
-          <Result
-            status="success"
-            title={attendanceResult.user?.full_name}
-            subTitle={formatTime(new Date().toISOString())}
-            extra={[
-              <Space key="details" direction="vertical" style={{ width: '100%', alignItems: 'center' }}>
-                <Tag color={attendanceResult.action === 'clock_in' ? 'green' : 'blue'} style={{ fontSize: 16, padding: '4px 16px' }}>
-                  {attendanceResult.action === 'clock_in' ? 'CLOCK IN' : 'CLOCK OUT'}
-                </Tag>
-                {attendanceResult.photoData && (
-                  <div style={{ marginTop: 16 }}>
-                    <Image
-                      src={attendanceResult.photoData}
-                      alt="Capture"
-                      width={180}
-                      height={180}
-                      style={{ borderRadius: 12, border: '2px solid rgba(255,255,255,0.1)' }}
-                    />
-                  </div>
-                )}
-              </Space>
-            ]}
-          />
-        ) : (
-          <Result
-            status="error"
-            title="Recognition Failed"
-            subTitle={attendanceResult?.error || "Face not recognized"}
-            extra={[
+            {/* Center - Stats Hub */}
+            <div style={{
+              display: 'flex',
+              gap: 12
+            }}>
+              <div style={{
+                padding: '4px 12px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(10, 255, 96, 0.1)',
+                border: '1px solid #0aff60',
+                textAlign: 'center',
+                minWidth: 80
+              }}>
+                <Text style={{ color: '#0aff60', fontSize: 18, fontWeight: 'bold', display: 'block', lineHeight: 1.2 }}>
+                  {stats.present_today}
+                </Text>
+                <Text style={{ color: 'rgba(10, 255, 96, 0.6)', fontSize: 9 }}>ONLINE</Text>
+              </div>
+
+              <div style={{
+                padding: '4px 12px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(0, 243, 255, 0.1)',
+                border: '1px solid #00f3ff',
+                textAlign: 'center',
+                minWidth: 80
+              }}>
+                <Text style={{ color: '#00f3ff', fontSize: 18, fontWeight: 'bold', display: 'block', lineHeight: 1.2 }}>
+                  {stats.total_users}
+                </Text>
+                <Text style={{ color: 'rgba(0, 243, 255, 0.6)', fontSize: 9 }}>TOTAL</Text>
+              </div>
+            </div>
+
+            {/* Right - Verification Modes */}
+            <div style={{
+              display: 'flex',
+              background: 'rgba(255, 255, 255, 0.05)',
+              padding: '4px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
               <Button
-                key="manual"
-                type="primary"
-                onClick={() => {
-                  setShowResultModal(false);
+                type={verificationMethod === 'face' ? 'primary' : 'text'}
+                icon={<Scan size={16} />}
+                onClick={() => setVerificationMethod('face')}
+                style={{
+                  height: 32,
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  color: verificationMethod === 'face' ? 'white' : 'rgba(255,255,255,0.6)'
                 }}
               >
-                Try Manual
+                FACE
               </Button>
-            ]}
-          />
+              <Button
+                type={verificationMethod === 'qr' ? 'primary' : 'text'}
+                icon={<QrCode size={16} />}
+                onClick={() => setVerificationMethod('qr')}
+                style={{
+                  height: 32,
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  color: verificationMethod === 'qr' ? 'white' : 'rgba(255,255,255,0.6)'
+                }}
+              >
+                QR
+              </Button>
+              <Button
+                type={verificationMethod === 'manual' ? 'primary' : 'text'}
+                icon={<User size={16} />}
+                onClick={() => setVerificationMethod('manual')}
+                style={{
+                  height: 32,
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  color: verificationMethod === 'manual' ? 'white' : 'rgba(255,255,255,0.6)'
+                }}
+              >
+                ID
+              </Button>
+            </div>
+          </div>
         )}
-      </Modal>
+
+        {/* Main View Area */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#000' }}>
+
+          {/* Camera View */}
+          {!attendanceResult && !processing && (
+            <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+              <div className="hud-container" style={{ width: '100%', height: '100%', borderRadius: 0, border: 'none' }}>
+                <FaceCamera
+                  mode="attendance"
+                  scanningMode={verificationMethod === 'qr' ? 'qr' : 'face'}
+                  onAttendanceComplete={handleCameraComplete}
+                  onQRCodeDetected={handleQRDetected}
+                  autoCapture={autoScan && verificationMethod === 'face'}
+                  captureInterval={1800}
+                  loading={processing}
+                  status={faceStatus}
+                  deviceInfo={deviceInfo}
+                  organizationName={deviceInfo.organization?.name}
+                />
+
+                {/* HUD Elements */}
+                <div className="hud-corner corner-tl" />
+                <div className="hud-corner corner-tr" />
+                <div className="hud-corner corner-bl" />
+                <div className="hud-corner corner-br" />
+                {autoScan && verificationMethod === 'face' && <div className="laser-scanner" />}
+
+                {/* Status HUD Text */}
+                <div className="hud-status">
+                  <div>TERMINAL_ID: {deviceInfo.device_code}</div>
+                  <div>SECURE_LINK: ESTABLISHED</div>
+                  <div>BIO_SCAN: {autoScan ? 'ACTIVE' : 'READY'}</div>
+                  <div style={{ color: verificationMethod === 'face' ? '#00f3ff' : '#ffac33' }}>
+                    METHOD: {verificationMethod.toUpperCase()}
+                  </div>
+                </div>
+
+                {/* Overlay Controls */}
+                {!autoScan && verificationMethod === 'face' && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    zIndex: 50
+                  }}>
+                    <Button
+                      type="primary"
+                      shape="circle"
+                      icon={<Play size={40} fill="white" />}
+                      onClick={() => setAutoScan(true)}
+                      className="hologram-btn"
+                      style={{
+                        height: 120,
+                        width: 120,
+                        boxShadow: '0 0 30px rgba(0, 243, 255, 0.3)',
+                        border: '2px solid #00f3ff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    />
+                    <Text style={{ color: '#00f3ff', marginTop: 24, fontSize: 16, fontWeight: 'bold', letterSpacing: '4px' }}>
+                      START_SCANNER
+                    </Text>
+                  </div>
+                )}
+
+                {/* Bottom Center Stop Button */}
+                {autoScan && verificationMethod === 'face' && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 40,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 100
+                  }}>
+                    <Button
+                      type="primary"
+                      danger
+                      icon={<StopCircle size={20} />}
+                      onClick={() => setAutoScan(false)}
+                      className="hologram-btn"
+                      style={{
+                        height: 50,
+                        padding: '0 32px',
+                        borderRadius: '25px',
+                        backgroundColor: 'rgba(255, 77, 79, 0.2)',
+                        borderColor: '#ff4d4f',
+                        color: '#ff4d4f',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        letterSpacing: '2px'
+                      }}
+                    >
+                      STOP_SCANNER
+                    </Button>
+                  </div>
+                )}
+
+                {/* ID Input overlay for Manual mode */}
+                {verificationMethod === 'manual' && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 40,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '90%',
+                    maxWidth: 400,
+                    zIndex: 100
+                  }}>
+                    <div style={{
+                      background: 'rgba(0, 0, 0, 0.7)',
+                      backdropFilter: 'blur(10px)',
+                      padding: '24px',
+                      borderRadius: '16px',
+                      border: '1px solid #00f3ff',
+                      boxShadow: '0 8px 32px rgba(0, 243, 255, 0.2)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                        <User size={20} color="#00f3ff" />
+                        <Text strong style={{ color: '#00f3ff', fontSize: 16, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                          Manual Identity Check
+                        </Text>
+                      </div>
+                      <Input
+                        placeholder="ENTER STAFF / STUDENT ID..."
+                        value={manualId}
+                        onChange={(e) => setManualId(e.target.value)}
+                        onPressEnter={handleManualAttendance}
+                        className="hologram-btn"
+                        style={{
+                          height: 50,
+                          backgroundColor: 'rgba(0, 243, 255, 0.05)',
+                          color: 'white',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(0, 243, 255, 0.3)',
+                          fontSize: '16px',
+                          letterSpacing: '2px',
+                          marginBottom: 16
+                        }}
+                      />
+                      <Button
+                        type="primary"
+                        block
+                        onClick={handleManualAttendance}
+                        style={{ height: 50, borderRadius: '8px', fontWeight: 'bold', letterSpacing: '2px' }}
+                      >
+                        VERIFY_IDENTITY
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Processing / Results Full Screen View */}
+          {(processing || attendanceResult) && (
+            <div style={{
+              height: '100%',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#000',
+              padding: '24px'
+            }}>
+              {processing && !attendanceResult ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{
+                    width: 180,
+                    height: 180,
+                    position: 'relative',
+                    margin: '0 auto 48px'
+                  }}>
+                    <Spin size="large" style={{ color: '#00f3ff', fontSize: 40 }} />
+                    <div style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)'
+                    }}>
+                      <Camera size={50} color="#00f3ff" strokeWidth={1} />
+                    </div>
+                  </div>
+                  <Title level={1} style={{ color: '#00f3ff', margin: '0 0 16px 0', fontWeight: 900, letterSpacing: '4px' }}>
+                    ANALYZING_BIO
+                  </Title>
+                  <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '18px', letterSpacing: '2px' }}>
+                    MATCHING BIOMETRIC HASH...
+                  </Text>
+                </div>
+              ) : attendanceResult?.success ? (
+                <div style={{ textAlign: 'center', maxWidth: 500 }}>
+                  <div style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(10, 255, 96, 0.1)',
+                    border: '3px solid #0aff60',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 40px',
+                    boxShadow: '0 0 40px rgba(10, 255, 96, 0.3)'
+                  }}>
+                    <CheckCircle size={60} color="#0aff60" strokeWidth={1.5} />
+                  </div>
+                  <Title level={1} style={{ color: 'white', margin: '0 0 8px 0', fontWeight: 900, letterSpacing: '4px' }}>
+                    ACCESS_GRANTED
+                  </Title>
+                  <div style={{ marginBottom: 40 }}>
+                    <Text style={{ color: '#0aff60', fontSize: '20px', letterSpacing: '2px' }}>VERIFICATION SUCCESSFUL</Text>
+                  </div>
+
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    padding: '32px',
+                    borderRadius: 24,
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    textAlign: 'left',
+                    marginBottom: 40,
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '4px',
+                      height: '100%',
+                      background: '#0aff60'
+                    }} />
+
+                    <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', marginBottom: 12, letterSpacing: '1px' }}>Biometric Profile</div>
+
+                    <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                      {attendanceResult.photoData && (
+                        <div style={{
+                          width: 80,
+                          height: 80,
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          border: '1px solid rgba(255, 255, 255, 0.2)'
+                        }}>
+                          <Image
+                            src={attendanceResult.photoData}
+                            preview={false}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontSize: '24px', fontWeight: 900, color: 'white', marginBottom: 8, letterSpacing: '1px' }}>
+                          {attendanceResult.user?.full_name}
+                        </div>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                          <Tag color="black" style={{ borderRadius: 4, fontWeight: 'bold', border: '1px solid #0aff60', color: '#0aff60' }}>
+                            {attendanceResult.user?.staff_id || "ID: UNKNOWN"}
+                          </Tag>
+                          <Tag style={{ borderRadius: 4, fontWeight: 'bold', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none' }}>
+                            {attendanceResult.action === 'clock_in' ? 'CLOCK_IN' : 'CLOCK_OUT'}
+                          </Tag>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '14px', fontWeight: 500, letterSpacing: '2px' }}>
+                    SYSTEM AUTO-RESET IN 3 SECONDS
+                  </div>
+
+                  {!autoScan && (
+                    <Button
+                      type="primary"
+                      onClick={() => setAttendanceResult(null)}
+                      className="hologram-btn"
+                      style={{ marginTop: 24, height: 50, padding: '0 48px', borderRadius: 8 }}
+                    >
+                      RETURN_TO_DASHBOARD
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', maxWidth: 500 }}>
+                  <div style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(255, 77, 79, 0.1)',
+                    border: '3px solid #ff4d4f',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 40px',
+                    boxShadow: '0 0 40px rgba(255, 77, 79, 0.3)'
+                  }}>
+                    <XCircle size={60} color="#ff4d4f" strokeWidth={1.5} />
+                  </div>
+                  <Title level={1} style={{ color: 'white', margin: '0 0 16px 0', fontWeight: 900, letterSpacing: '4px' }}>
+                    DENIED_IDENTITY
+                  </Title>
+                  <Text style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '18px', display: 'block', marginBottom: 48, letterSpacing: '1px' }}>
+                    {attendanceResult?.error || "Neural-match failed to identify subject"}
+                  </Text>
+                  <Space size="large">
+                    <Button
+                      type="primary"
+                      onClick={() => setAttendanceResult(null)}
+                      className="hologram-btn"
+                      style={{
+                        height: 60,
+                        padding: '0 40px',
+                        fontSize: '16px',
+                        borderRadius: 12,
+                        background: '#fff',
+                        color: '#000'
+                      }}
+                    >
+                      RE-TRY SCAN
+                    </Button>
+                    <Button
+                      onClick={() => navigate('/')}
+                      style={{
+                        height: 60,
+                        padding: '0 40px',
+                        fontSize: '16px',
+                        borderRadius: 12,
+                        background: 'transparent',
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        color: 'white'
+                      }}
+                    >
+                      EXIT_SYSTEM
+                    </Button>
+                  </Space>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
