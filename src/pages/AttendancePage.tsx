@@ -556,7 +556,9 @@ const AttendancePage: React.FC = () => {
     loadStats,
     load,
     setFaceStatus,
-    setProcessing
+    setProcessing,
+    setAttendanceResult,
+    setLastCapturedPhoto
   ]);
 
   // Handle QR Detection — local-first lookup, fallback to Supabase
@@ -629,7 +631,9 @@ const AttendancePage: React.FC = () => {
     determineAttendanceAction,
     recordAttendance,
     loadStats,
-    load
+    load,
+    setProcessing,
+    setAttendanceResult
   ]);
 
   const handleCameraComplete = useCallback(({ photoData }: any) => {
@@ -709,7 +713,8 @@ const AttendancePage: React.FC = () => {
     determineAttendanceAction,
     recordAttendance,
     loadStats,
-    load
+    load,
+    lastCapturedPhoto
   ]);
 
   // Handle screen pairing

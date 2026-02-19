@@ -379,7 +379,13 @@ const EnrollmentPage: React.FC = () => {
       setFaceProcessing(false);
       setProcessingProgress(0);
     }
-  }, [formData, checkDuplicateFace, handleEnrollment]);
+  }, [formData, checkDuplicateFace, handleEnrollment,
+    setFaceProcessing,
+    setProcessingProgress,
+    setFaceProcessingResult,
+    setPhotoData,
+    setPhotoPreview
+  ]);
 
   const handleFaceCapture = useCallback(async (capturedPhotoData: string) => {
     console.log('Face captured, processing...');
@@ -391,7 +397,9 @@ const EnrollmentPage: React.FC = () => {
     }
 
     await processFaceImage(capturedPhotoData);
-  }, [formData, processFaceImage]);
+  }, [formData, processFaceImage,
+    setCurrentStep
+  ]);
 
   const handlePhotoUpload = useCallback((file: File) => {
     return new Promise<string>((resolve, reject) => {
