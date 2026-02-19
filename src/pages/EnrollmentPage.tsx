@@ -36,7 +36,7 @@ import {
   Phone,
   Upload as UploadIcon,
   UserPlus,
-  X,
+  XCircle,
   Briefcase,
   GraduationCap,
   Shield,
@@ -110,7 +110,7 @@ const EnrollmentPage: React.FC = () => {
   const [deviceInfo, setDeviceInfo] = useState<any>(null);
   const [organizationSettings, setOrganizationSettings] = useState<OrganizationSettings>({});
   const [captureMethod, setCaptureMethod] = useState<'camera' | 'upload'>('camera');
-  const [_photoData, setPhotoData] = useState<string>('');
+  const [photoData, setPhotoData] = useState<string>('');
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [faceProcessingResult, setFaceProcessingResult] = useState<FaceProcessingResult | null>(null);
   const [showFaceQuality, setShowFaceQuality] = useState(false);
@@ -382,13 +382,13 @@ const EnrollmentPage: React.FC = () => {
   }, [formData, checkDuplicateFace, handleEnrollment,
     setFaceProcessing,
     setProcessingProgress,
-    setFaceProcessingResult,
     setPhotoData,
-    setPhotoPreview
+    setPhotoPreview,
+    setFaceProcessingResult
   ]);
 
   const handleFaceCapture = useCallback(async (capturedPhotoData: string) => {
-    console.log('Face captured, processing...');
+    console.log('Face captured, waiting for verification...');
 
     if (!formData.full_name) {
       message.error('Please fill in user information first');
@@ -396,23 +396,25 @@ const EnrollmentPage: React.FC = () => {
       return;
     }
 
-    await processFaceImage(capturedPhotoData);
-  }, [formData, processFaceImage,
-    setCurrentStep
-  ]);
+    setPhotoData(capturedPhotoData);
+    setPhotoPreview(capturedPhotoData);
+    setFaceProcessingResult(null); // Reset previous results
+  }, [formData, setCurrentStep, setPhotoData, setPhotoPreview, setFaceProcessingResult]);
 
   const handlePhotoUpload = useCallback((file: File) => {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const result = e.target?.result as string;
-        await processFaceImage(result);
+        setPhotoData(result);
+        setPhotoPreview(result);
+        setFaceProcessingResult(null); // Reset previous results
         resolve(result);
       };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
-  }, [processFaceImage]);
+  }, [setPhotoData, setPhotoPreview, setFaceProcessingResult]);
 
 
   const syncPendingDraft = useCallback(async () => {
@@ -706,7 +708,7 @@ const EnrollmentPage: React.FC = () => {
                             quality: 0,
                             faceDetected: false
                           };
-                          handleEnrollment(formData, faceProcessingResult.photoData || _photoData, dummyResult);
+                          handleEnrollment(formData, faceProcessingResult.photoData || photoData, dummyResult);
                         }}
                       >
                         Use this photo anyway
@@ -792,19 +794,48 @@ const EnrollmentPage: React.FC = () => {
           )}
 
           {photoPreview && (
-            <Card title="Biometric Preview" size="small" style={{ marginBottom: 24 }}>
-              <Image
-                src={photoPreview}
-                alt="Face Preview"
-                width={200}
-                height={200}
-                style={{ borderRadius: 4, objectFit: 'cover' }}
-                preview={{
-                  visible: false,
-                  mask: <span>View Full</span>,
-                }}
-                onClick={() => setShowFaceQuality(true)}
-              />
+            <Card
+              title={<Space><Camera size={16} />Biometric Preview</Space>}
+              size="small"
+              style={{ marginBottom: 24, padding: 16 }}
+              extra={<Tag color="blue">READY FOR VERIFICATION</Tag>}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                <Image
+                  src={photoPreview}
+                  alt="Face Preview"
+                  width={240}
+                  height={240}
+                  style={{ borderRadius: 8, objectFit: 'cover', border: '1px solid #d9d9d9' }}
+                  preview={true}
+                />
+
+                <div style={{ width: '100%', maxWidth: 300 }}>
+                  <Button
+                    type="primary"
+                    size="large"
+                    block
+                    icon={<Zap size={18} />}
+                    onClick={() => processFaceImage(photoData)}
+                    loading={faceProcessing}
+                    style={{ height: 50, borderRadius: 8, fontWeight: 'bold' }}
+                  >
+                    {faceProcessing ? 'EXTRACTING BIOMETRICS...' : 'VERIFY & ENROLL'}
+                  </Button>
+                  <Button
+                    type="link"
+                    block
+                    onClick={() => {
+                      setPhotoPreview('');
+                      setPhotoData('');
+                      setFaceProcessingResult(null);
+                    }}
+                    style={{ marginTop: 8 }}
+                  >
+                    Retake Photo
+                  </Button>
+                </div>
+              </div>
             </Card>
           )}
 
@@ -937,7 +968,7 @@ const EnrollmentPage: React.FC = () => {
             </div>
           ) : (
             <>
-              <X size={64} color="#ff4d4f" style={{ marginBottom: 24 }} />
+              <XCircle size={64} color="#ff4d4f" style={{ marginBottom: 24 }} />
               <Title level={3} style={{ color: '#ff4d4f', marginBottom: 24 }}>
                 Enrollment Failed
               </Title>
@@ -957,9 +988,8 @@ const EnrollmentPage: React.FC = () => {
                 </Button>
               </Space>
             </>
-          )
-          }
-        </div >
+          )}
+        </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Spin size="large" />
