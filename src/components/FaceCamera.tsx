@@ -44,7 +44,8 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   const [isCameraActive, setIsCameraActive] = useState(true);
   const [cameraError, setCameraError] = useState<string>('');
   const [cameraReady, setCameraReady] = useState(false);
-  const [internalScanStatus, setInternalScanStatus] = useState<'idle' | 'scanning' | 'processing' | 'boosting'>('idle');
+  const [internalScanStatus, setInternalScanStatus] = useState<'idle' | 'scanning' | 'processing' | 'boosting' | 'countdown'>('idle');
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   // Use prop status if provided, otherwise internal status
   const currentStatus = status || internalScanStatus;
@@ -116,46 +117,60 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   }, [webcamRef, cameraReady]);
 
   const handleCapture = useCallback(() => {
-    // Skip if already processing a previous capture
-    if (isProcessingRef.current) {
-      console.log('⏳ Skipping capture — previous scan still in progress');
+    // Skip if already processing or in countdown
+    if (isProcessingRef.current || internalScanStatus === 'countdown') {
+      console.log('⏳ Skipping capture — previous scan or countdown in progress');
       return;
     }
 
-    isProcessingRef.current = true;
-    setScanStatus('processing');
-    console.log('Capture button clicked');
-    const photoData = capturePhoto();
+    // Start countdown: 2, 1
+    setScanStatus('countdown');
+    setCountdown(2);
 
-    if (!photoData) {
-      message.error('Failed to capture photo');
-      isProcessingRef.current = false;
-      setScanStatus('idle');
-      return;
-    }
+    const countdownTimer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(countdownTimer);
+          setCountdown(null);
 
-    console.log('Photo captured successfully, calling callback...');
+          // Perform actual capture
+          isProcessingRef.current = true;
+          setScanStatus('processing');
+          console.log('Countdown finished, capturing...');
+          const photoData = capturePhoto();
 
-    if (mode === 'enrollment' && onEnrollmentComplete) {
-      onEnrollmentComplete(photoData);
-      isProcessingRef.current = false;
-      setScanStatus('idle');
-    } else if (mode === 'attendance' && onAttendanceComplete) {
-      // For attendance mode, we'll handle face matching elsewhere
-      onAttendanceComplete({
-        success: true,
-        photoData: { base64: photoData }
+          if (!photoData) {
+            message.error('Failed to capture photo');
+            isProcessingRef.current = false;
+            setScanStatus('idle');
+            return null;
+          }
+
+          if (mode === 'enrollment' && onEnrollmentComplete) {
+            onEnrollmentComplete(photoData);
+            isProcessingRef.current = false;
+            setScanStatus('idle');
+          } else if (mode === 'attendance' && onAttendanceComplete) {
+            onAttendanceComplete({
+              success: true,
+              photoData: { base64: photoData }
+            });
+            setTimeout(() => {
+              isProcessingRef.current = false;
+              setScanStatus('idle');
+            }, 800);
+          } else {
+            isProcessingRef.current = false;
+            setScanStatus('idle');
+          }
+          return null;
+        }
+        return prev - 1;
       });
-      // Reset after a short delay to allow the parent to process
-      setTimeout(() => {
-        isProcessingRef.current = false;
-        setScanStatus('idle');
-      }, 800);
-    } else {
-      isProcessingRef.current = false;
-      setScanStatus('idle');
-    }
-  }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete, setScanStatus]);
+    }, 800); // 800ms per count for a "super fast" feel
+
+  }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete, setScanStatus, internalScanStatus]);
 
   useEffect(() => {
     if (autoCapture && isCameraActive && cameraReady && mode === 'attendance' && scanningMode === 'face') {
@@ -259,13 +274,22 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       <div className="laser-scanner"></div>
 
       <div className="hud-status">
-        STATUS: {currentStatus.toUpperCase() === 'IDLE' ? 'SYSTEM_READY' : currentStatus.toUpperCase() === 'SCANNING' ? 'MONITORING' : currentStatus.toUpperCase() === 'PROCESSING' ? 'ANALYZING...' : 'BOOSTPASS_ACTIVE'}<br />
+        STATUS: {
+          currentStatus.toUpperCase() === 'IDLE' ? 'SYSTEM_READY' :
+            currentStatus.toUpperCase() === 'SCANNING' ? 'MONITORING' :
+              currentStatus.toUpperCase() === 'PROCESSING' ? 'ANALYZING...' :
+                currentStatus.toUpperCase() === 'COUNTDOWN' ? 'GET_READY...' :
+                  'BOOSTPASS_ACTIVE'
+        }<br />
         RESOLUTION: 1280x720<br />
         ORG: {organizationName || 'CORE_SYSTEM'}<br />
         MODE: {mode.toUpperCase()}<br />
         SCAN_TYPE: {scanningMode.toUpperCase()}<br />
         {currentStatus === 'processing' && (
           <span style={{ color: '#0aff60' }}>BIO_METRIC_MATCH: PENDING...</span>
+        )}
+        {currentStatus === 'countdown' && (
+          <span style={{ color: '#bc13fe', fontSize: '18px', fontWeight: 'bold' }}>CAPTURE_IN: {countdown}</span>
         )}
       </div>
 
@@ -321,6 +345,41 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
                 textShadow: '0 0 10px rgba(0, 243, 255, 0.5)'
               }}>
                 PROCESSING_DATA
+              </div>
+            </div>
+          )}
+
+          {currentStatus === 'countdown' && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 40,
+              textAlign: 'center',
+              background: 'rgba(0,0,0,0.5)',
+              padding: '20px 40px',
+              borderRadius: '20px',
+              border: '1px solid #bc13fe',
+              boxShadow: '0 0 30px rgba(188, 19, 254, 0.3)'
+            }}>
+              <div style={{
+                fontSize: '80px',
+                fontWeight: 'bold',
+                color: '#bc13fe',
+                textShadow: '0 0 20px rgba(188, 19, 254, 0.8)',
+                lineHeight: 1
+              }}>
+                {countdown}
+              </div>
+              <div style={{
+                marginTop: 10,
+                color: '#bc13fe',
+                fontSize: '14px',
+                letterSpacing: '4px',
+                fontWeight: 'bold'
+              }}>
+                STEADY
               </div>
             </div>
           )}

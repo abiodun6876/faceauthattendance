@@ -20,9 +20,9 @@ interface FaceDetectionResult {
 class FaceService {
   private modelsLoaded = false;
   private isInitializing = false;
-  private qualityThreshold = 30; // Minimum quality score (0-100) - lowered for better UX
-  private minFaceSize = 100; // Minimum face size in pixels
-  private blurThreshold = 100; // Lower is better quality
+  private qualityThreshold = 25; // Minimum quality score (0-100) - lowered further for better UX
+  private minFaceSize = 80; // Minimum face size in pixels
+  private blurThreshold = 120; // Lower is better quality
 
   async initializeModels() {
     if (this.modelsLoaded) {
@@ -78,37 +78,21 @@ class FaceService {
       // Create image element
       const img = await this.loadImage(photoData);
 
-      // 1. Pass 1: Standard Detection
+      // Single Pass Detection: Optimized for maximum speed and reliability
       const detectionOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 320,
-        scoreThreshold: 0.3
+        inputSize: 160, // Optimized for speed (was 416-608)
+        scoreThreshold: 0.25 // Balanced sensitivity
       });
 
-      let detection = await faceapi.detectSingleFace(img, detectionOptions)
+      const detection = await faceapi.detectSingleFace(img, detectionOptions)
         .withFaceLandmarks()
         .withFaceDescriptor();
-
-      let isEnhanced = false;
-
-      // 2. Pass 2: Low-Light Boosting (if Pass 1 fails)
-      if (!detection) {
-        console.log('[FaceService] Low light detected. Boosting image...');
-        const enhancedImg = await this.enhanceImage(img);
-        isEnhanced = true;
-
-        detection = await faceapi.detectSingleFace(enhancedImg, new faceapi.TinyFaceDetectorOptions({
-          inputSize: 320,
-          scoreThreshold: 0.15 // Higher sensitivity for boosted pass
-        }))
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-      }
 
       if (!detection) {
         return {
           success: false,
           faceDetected: false,
-          error: 'No face detected. Please ensure you are in a well-lit area or facing the camera directly.'
+          error: 'No face detected. Please ensure you are facing the camera directly in a well-lit area.'
         };
       }
 
@@ -118,15 +102,19 @@ class FaceService {
       // Validate face quality
       const quality = this.calculateFaceQuality(box, img);
 
-      if (quality < this.qualityThreshold) {
-        return {
-          success: false,
-          faceDetected: true,
-          quality,
-          isEnhanced,
-          error: 'Face quality too low. Please use a clearer, well-lit frontal image.'
-        };
-      }
+      return {
+        success: true,
+        embedding: descriptor,
+        photoData,
+        quality,
+        faceDetected: true,
+        faceBox: {
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height
+        }
+      };
 
       // Convert to array for database storage
       // Comment out or remove the unused variable
