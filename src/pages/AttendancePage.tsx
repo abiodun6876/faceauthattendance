@@ -127,7 +127,7 @@ const AttendancePage: React.FC = () => {
     average_confidence: 0
   });
 
-  const [showResultModal, setShowResultModal] = useState(false);
+  const [_showResultModal, _setShowResultModal] = useState(false);
   const [attendanceResult, setAttendanceResult] = useState<{
     success: boolean;
     user?: any;
@@ -142,7 +142,7 @@ const AttendancePage: React.FC = () => {
   const [_connectionStatus, setConnectionStatus] = useState<'online' | 'offline'>('online');
   const [manualId, setManualId] = useState('');
   const [verificationMethod, setVerificationMethod] = useState<'face' | 'qr' | 'manual'>('face');
-  const [showCourseSidebar, setShowCourseSidebar] = useState(false);
+  const [_showCourseSidebar, _setShowCourseSidebar] = useState(false);
   const [_manualLoading, setManualLoading] = useState(false);
   const [_showHistory, _setShowHistory] = useState(false);
   const navigate = useNavigate();
@@ -712,11 +712,6 @@ const AttendancePage: React.FC = () => {
   // Handle screen pairing
 
   // Helper functions
-
-  const formatTime = (time: string) => {
-    return dayjs(time).format('HH:mm:ss');
-  };
-
 
   // Add a function to use the scanInterval
   const setupAutoScan = useCallback(() => {

@@ -1,12 +1,12 @@
 // components/FaceCamera.tsx - Multi-tenant Version
 import React, { useRef, useState, useEffect, useCallback } from 'react'; // Added useCallback
 import Webcam from 'react-webcam';
-import { Button, message, Typography, Alert } from 'antd';
+import { Button, message } from 'antd';
 import { Camera, AlertCircle } from 'lucide-react';
 
 import jsQR from 'jsqr';
 
-const { Text } = Typography;
+
 
 interface FaceCameraProps {
   mode: 'enrollment' | 'attendance';
