@@ -78,7 +78,9 @@ class FaceService {
       // Create image element
       let img = await this.loadImage(photoData);
 
-      // Pass 1: Standard Detection - Increased inputSize for "easy" detection (was 320)
+      // --- TRIPLE PASS DETECTION STRATEGY ---
+
+      // PASS 1: STANDARD (High resolution, balanced threshold)
       let detectionOptions = new faceapi.TinyFaceDetectorOptions({
         inputSize: 416,
         scoreThreshold: 0.20
@@ -90,16 +92,13 @@ class FaceService {
 
       let isEnhanced = false;
 
-      // Pass 2: Low-light / Quality Boost (If Pass 1 fails)
+      // PASS 2: LOW-LIGHT BOOST (If Pass 1 fails)
       if (!detection) {
-        console.log('🔍 Pass 1 failed. Attempting Pass 2 (Enhanced Boosting)...');
+        console.log('🔍 Pass 1 failed. Attempting Pass 2 (Low-Light Boost)...');
+        const enhancedCanvas = await this.enhanceImage(img, 'boost');
 
-        // Apply brightness/contrast enhancement
-        const enhancedCanvas = await this.enhanceImage(img);
-
-        // Pass 2 detection: Lower score threshold, higher inputSize
         detectionOptions = new faceapi.TinyFaceDetectorOptions({
-          inputSize: 416,
+          inputSize: 512,
           scoreThreshold: 0.15
         });
 
@@ -108,9 +107,28 @@ class FaceService {
           .withFaceDescriptor();
 
         if (detection) {
-          console.log('✅ Face detected in Boost Pass!');
+          console.log('✅ Face detected in Low-Light Pass!');
           isEnhanced = true;
-          // Note: descriptors from enhanced images are slightly different but usually good enough for matching
+        }
+      }
+
+      // PASS 3: SUNLIGHT / GLARE REDUCTION (If Pass 2 fails)
+      if (!detection) {
+        console.log('🔍 Pass 2 failed. Attempting Pass 3 (Sunlight Glare Reduction)...');
+        const dimmedCanvas = await this.enhanceImage(img, 'sunlight');
+
+        detectionOptions = new faceapi.TinyFaceDetectorOptions({
+          inputSize: 608,
+          scoreThreshold: 0.10 // Ultra-sensitive for harsh light
+        });
+
+        detection = await faceapi.detectSingleFace(dimmedCanvas as any, detectionOptions)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (detection) {
+          console.log('✅ Face detected in Sunlight Pass!');
+          isEnhanced = true;
         }
       }
 
@@ -118,7 +136,7 @@ class FaceService {
         return {
           success: false,
           faceDetected: false,
-          error: 'No face detected. Please ensure you are facing the camera directly in a well-lit area.'
+          error: 'No face detected. If in bright sunlight, try shielding the camera or standing in shade.'
         };
       }
 
@@ -248,10 +266,11 @@ class FaceService {
   }
 
   /**
-   * Enhances image brightness and contrast using a virtual canvas.
-   * This is used as a fallback for low-light conditions.
+   * Enhances image for specific lighting conditions.
+   * 'boost' -> Low light (Brighter)
+   * 'sunlight' -> Bright sun (Dimmer/Higher contrast to fix glare)
    */
-  private async enhanceImage(img: HTMLImageElement): Promise<HTMLCanvasElement | HTMLImageElement> {
+  private async enhanceImage(img: HTMLImageElement, mode: 'boost' | 'sunlight' = 'boost'): Promise<HTMLCanvasElement | HTMLImageElement> {
     try {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -260,9 +279,14 @@ class FaceService {
       canvas.width = img.width;
       canvas.height = img.height;
 
-      // Apply brightness and contrast filters
-      // Brightness: 1.5x, Contrast: 1.2x
-      ctx.filter = 'brightness(150%) contrast(120%)';
+      if (mode === 'sunlight') {
+        // SUNLIGHT: Dim the image to recover details from over-exposed areas
+        ctx.filter = 'brightness(70%) contrast(140%) saturate(120%)';
+      } else {
+        // BOOST: Brighten the image for low-light conditions
+        ctx.filter = 'brightness(150%) contrast(120%)';
+      }
+
       ctx.drawImage(img, 0, 0);
 
       return canvas;

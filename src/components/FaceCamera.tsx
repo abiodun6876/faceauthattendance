@@ -34,7 +34,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   onAttendanceComplete,
   onQRCodeDetected,
   autoCapture = false,
-  captureInterval = 1500,
+  captureInterval = 800, // Reduced from 1500/1800 for more real-time feel
   loading = false,
   deviceInfo,
   organizationName,
@@ -141,11 +141,11 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
           success: true,
           photoData: { base64: photoData }
         });
-        // Short reset to avoid double-triggering
+        // Short reset to allow frequent but controlled scans
         setTimeout(() => {
           isProcessingRef.current = false;
           setScanStatus('scanning');
-        }, 800);
+        }, 500); // Scaled down from 800
       } else {
         isProcessingRef.current = false;
         setScanStatus('scanning');
@@ -306,7 +306,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
       <div className="hud-status">
         STATUS: {
           currentStatus.toUpperCase() === 'IDLE' ? 'SYSTEM_READY' :
-            currentStatus.toUpperCase() === 'SCANNING' ? 'MONITORING' :
+            currentStatus.toUpperCase() === 'SCANNING' ? 'MONITORING...' :
               currentStatus.toUpperCase() === 'PROCESSING' ? 'ANALYZING...' :
                 currentStatus.toUpperCase() === 'COUNTDOWN' ? 'GET_READY...' :
                   'BOOSTPASS_ACTIVE'
@@ -316,7 +316,7 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         MODE: {mode.toUpperCase()}<br />
         SCAN_TYPE: {scanningMode.toUpperCase()}<br />
         {currentStatus === 'processing' && (
-          <span style={{ color: '#0aff60' }}>BIO_METRIC_MATCH: PENDING...</span>
+          <span style={{ color: '#0aff60' }}>HIGH_SENSITIVITY_ACTIVE</span>
         )}
         {currentStatus === 'countdown' && (
           <span style={{ color: '#bc13fe', fontSize: '18px', fontWeight: 'bold' }}>CAPTURE_IN: {countdown}</span>
