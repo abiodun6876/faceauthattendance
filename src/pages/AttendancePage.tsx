@@ -963,45 +963,14 @@ const AttendancePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Center - Scanner Controls */}
-            <div style={{
-              display: 'flex',
-              gap: 12,
-              alignItems: 'center'
-            }}>
-              <Button
-                type="primary"
-                onClick={() => setAutoScan(!autoScan)}
-                icon={autoScan ? <StopCircle size={18} /> : <Play size={18} fill="white" />}
-                className="hologram-btn"
-                danger={autoScan}
-                style={{
-                  height: 44,
-                  padding: '0 24px',
-                  borderRadius: '22px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  letterSpacing: '2px',
-                  background: autoScan ? 'rgba(255, 77, 79, 0.2)' : 'rgba(0, 243, 255, 0.2)',
-                  borderColor: autoScan ? '#ff4d4f' : '#00f3ff',
-                  color: autoScan ? '#ff4d4f' : '#00f3ff',
-                  boxShadow: autoScan ? 'none' : '0 0 15px rgba(0, 243, 255, 0.3)'
-                }}
-              >
-                {autoScan ? 'PAUSE_SCANNER' : 'START_SCANNER'}
-              </Button>
-            </div>
-
-            {/* Right - Verification Modes */}
+            {/* Center - Mode Switchers */}
             <div style={{
               display: 'flex',
               background: 'rgba(255, 255, 255, 0.05)',
               padding: '4px',
               borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.1)'
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              alignItems: 'center'
             }}>
               <Button
                 type={verificationMethod === 'face' ? 'primary' : 'text'}
@@ -1027,7 +996,7 @@ const AttendancePage: React.FC = () => {
                   color: verificationMethod === 'qr' ? 'white' : 'rgba(255,255,255,0.6)'
                 }}
               >
-                QR
+                QR_CODE
               </Button>
               <Button
                 type={verificationMethod === 'manual' ? 'primary' : 'text'}
@@ -1040,7 +1009,34 @@ const AttendancePage: React.FC = () => {
                   color: verificationMethod === 'manual' ? 'white' : 'rgba(255,255,255,0.6)'
                 }}
               >
-                ID
+                MANUAL_ID
+              </Button>
+            </div>
+
+            {/* Right - Scan Trigger */}
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Button
+                type="primary"
+                onClick={() => setAutoScan(!autoScan)}
+                icon={autoScan ? <StopCircle size={18} /> : <Play size={18} fill="white" />}
+                className="hologram-btn"
+                danger={autoScan}
+                style={{
+                  height: 40,
+                  padding: '0 20px',
+                  borderRadius: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  letterSpacing: '1px',
+                  background: autoScan ? 'rgba(255, 77, 79, 0.2)' : 'rgba(0, 243, 255, 0.2)',
+                  borderColor: autoScan ? '#ff4d4f' : '#00f3ff',
+                  color: autoScan ? '#ff4d4f' : '#00f3ff'
+                }}
+              >
+                {autoScan ? 'STOP_SCAN' : 'INITIATE_SCAN'}
               </Button>
             </div>
           </div>
