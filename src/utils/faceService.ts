@@ -76,17 +76,43 @@ class FaceService {
       }
 
       // Create image element
-      const img = await this.loadImage(photoData);
+      let img = await this.loadImage(photoData);
 
-      // Single Pass Detection: Optimized for maximum speed and reliability
-      const detectionOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 160, // Optimized for speed (was 416-608)
-        scoreThreshold: 0.25 // Balanced sensitivity
+      // Pass 1: Standard Detection - Increased inputSize for better reliability (was 160)
+      let detectionOptions = new faceapi.TinyFaceDetectorOptions({
+        inputSize: 320,
+        scoreThreshold: 0.25
       });
 
-      const detection = await faceapi.detectSingleFace(img, detectionOptions)
+      let detection = await faceapi.detectSingleFace(img, detectionOptions)
         .withFaceLandmarks()
         .withFaceDescriptor();
+
+      let isEnhanced = false;
+
+      // Pass 2: Low-light / Quality Boost (If Pass 1 fails)
+      if (!detection) {
+        console.log('🔍 Pass 1 failed. Attempting Pass 2 (Enhanced Boosting)...');
+
+        // Apply brightness/contrast enhancement
+        const enhancedCanvas = await this.enhanceImage(img);
+
+        // Pass 2 detection: Lower score threshold, higher inputSize
+        detectionOptions = new faceapi.TinyFaceDetectorOptions({
+          inputSize: 416,
+          scoreThreshold: 0.15
+        });
+
+        detection = await faceapi.detectSingleFace(enhancedCanvas as any, detectionOptions)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (detection) {
+          console.log('✅ Face detected in Boost Pass!');
+          isEnhanced = true;
+          // Note: descriptors from enhanced images are slightly different but usually good enough for matching
+        }
+      }
 
       if (!detection) {
         return {
@@ -108,26 +134,7 @@ class FaceService {
         photoData,
         quality,
         faceDetected: true,
-        faceBox: {
-          x: box.x,
-          y: box.y,
-          width: box.width,
-          height: box.height
-        }
-      };
-
-      // Convert to array for database storage
-      // Comment out or remove the unused variable
-      // const embeddingArray = Array.from(descriptor);
-      // If you need to use it, uncomment and use it:
-      // console.log('Embedding array length:', embeddingArray.length);
-
-      return {
-        success: true,
-        embedding: descriptor,
-        photoData,
-        quality,
-        faceDetected: true,
+        isEnhanced,
         faceBox: {
           x: box.x,
           y: box.y,

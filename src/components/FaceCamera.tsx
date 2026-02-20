@@ -118,12 +118,42 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
 
   const handleCapture = useCallback(() => {
     // Skip if already processing or in countdown
-    if (isProcessingRef.current || internalScanStatus === 'countdown') {
+    if (isProcessingRef.current || (internalScanStatus === 'countdown' && !autoCapture)) {
       console.log('⏳ Skipping capture — previous scan or countdown in progress');
       return;
     }
 
-    // Start countdown: 2, 1
+    // IF AUTO-CAPTURE: Bypass countdown for instant feel
+    if (autoCapture) {
+      isProcessingRef.current = true;
+      setScanStatus('processing');
+      console.log('Auto-capture triggered, capturing immediately...');
+      const photoData = capturePhoto();
+
+      if (!photoData) {
+        isProcessingRef.current = false;
+        setScanStatus('scanning');
+        return;
+      }
+
+      if (mode === 'attendance' && onAttendanceComplete) {
+        onAttendanceComplete({
+          success: true,
+          photoData: { base64: photoData }
+        });
+        // Short reset to avoid double-triggering
+        setTimeout(() => {
+          isProcessingRef.current = false;
+          setScanStatus('scanning');
+        }, 800);
+      } else {
+        isProcessingRef.current = false;
+        setScanStatus('scanning');
+      }
+      return;
+    }
+
+    // IF MANUAL-CAPTURE: Start fast countdown: 2, 1
     setScanStatus('countdown');
     setCountdown(2);
 
@@ -168,9 +198,9 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
         }
         return prev - 1;
       });
-    }, 800); // 800ms per count for a "super fast" feel
+    }, 500); // 500ms per count for a "super fast" feel (was 800ms)
 
-  }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete, setScanStatus, internalScanStatus]);
+  }, [capturePhoto, mode, onEnrollmentComplete, onAttendanceComplete, setScanStatus, internalScanStatus, autoCapture]);
 
   useEffect(() => {
     if (autoCapture && isCameraActive && cameraReady && mode === 'attendance' && scanningMode === 'face') {
