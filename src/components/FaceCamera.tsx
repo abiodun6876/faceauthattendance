@@ -117,9 +117,11 @@ const FaceCamera: React.FC<FaceCameraProps> = ({
   }, [webcamRef, cameraReady]);
 
   const handleCapture = useCallback(() => {
-    // Skip if already processing or in countdown
-    if (isProcessingRef.current || (internalScanStatus === 'countdown' && !autoCapture)) {
-      console.log('⏳ Skipping capture — previous scan or countdown in progress');
+    // Skip if already processing, loading from parent, or in countdown
+    if (isProcessingRef.current || loading || (internalScanStatus === 'countdown' && !autoCapture)) {
+      if (isProcessingRef.current || loading) {
+        console.log('⏳ Skipping capture — previous scan or parent processing in progress');
+      }
       return;
     }
 

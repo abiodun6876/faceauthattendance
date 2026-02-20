@@ -1054,8 +1054,8 @@ const AttendancePage: React.FC = () => {
                   scanningMode={verificationMethod === 'qr' ? 'qr' : 'face'}
                   onAttendanceComplete={handleCameraComplete}
                   onQRCodeDetected={handleQRDetected}
-                  autoCapture={autoScan && verificationMethod === 'face'}
-                  captureInterval={1800}
+                  autoCapture={autoScan && verificationMethod === 'face' && !processing && !attendanceResult}
+                  captureInterval={800}
                   loading={processing}
                   status={faceStatus}
                   deviceInfo={deviceInfo}
