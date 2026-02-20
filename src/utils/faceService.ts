@@ -78,10 +78,10 @@ class FaceService {
       // Create image element
       let img = await this.loadImage(photoData);
 
-      // Pass 1: Standard Detection - Increased inputSize for better reliability (was 160)
+      // Pass 1: Standard Detection - Increased inputSize for "easy" detection (was 320)
       let detectionOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 320,
-        scoreThreshold: 0.25
+        inputSize: 416,
+        scoreThreshold: 0.20
       });
 
       let detection = await faceapi.detectSingleFace(img, detectionOptions)

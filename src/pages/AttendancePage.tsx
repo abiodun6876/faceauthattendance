@@ -963,38 +963,36 @@ const AttendancePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Center - Stats Hub */}
+            {/* Center - Scanner Controls */}
             <div style={{
               display: 'flex',
-              gap: 12
+              gap: 12,
+              alignItems: 'center'
             }}>
-              <div style={{
-                padding: '4px 12px',
-                borderRadius: '6px',
-                backgroundColor: 'rgba(10, 255, 96, 0.1)',
-                border: '1px solid #0aff60',
-                textAlign: 'center',
-                minWidth: 80
-              }}>
-                <Text style={{ color: '#0aff60', fontSize: 18, fontWeight: 'bold', display: 'block', lineHeight: 1.2 }}>
-                  {stats.present_today}
-                </Text>
-                <Text style={{ color: 'rgba(10, 255, 96, 0.6)', fontSize: 9 }}>ONLINE</Text>
-              </div>
-
-              <div style={{
-                padding: '4px 12px',
-                borderRadius: '6px',
-                backgroundColor: 'rgba(0, 243, 255, 0.1)',
-                border: '1px solid #00f3ff',
-                textAlign: 'center',
-                minWidth: 80
-              }}>
-                <Text style={{ color: '#00f3ff', fontSize: 18, fontWeight: 'bold', display: 'block', lineHeight: 1.2 }}>
-                  {stats.total_users}
-                </Text>
-                <Text style={{ color: 'rgba(0, 243, 255, 0.6)', fontSize: 9 }}>TOTAL</Text>
-              </div>
+              <Button
+                type="primary"
+                onClick={() => setAutoScan(!autoScan)}
+                icon={autoScan ? <StopCircle size={18} /> : <Play size={18} fill="white" />}
+                className="hologram-btn"
+                danger={autoScan}
+                style={{
+                  height: 44,
+                  padding: '0 24px',
+                  borderRadius: '22px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  letterSpacing: '2px',
+                  background: autoScan ? 'rgba(255, 77, 79, 0.2)' : 'rgba(0, 243, 255, 0.2)',
+                  borderColor: autoScan ? '#ff4d4f' : '#00f3ff',
+                  color: autoScan ? '#ff4d4f' : '#00f3ff',
+                  boxShadow: autoScan ? 'none' : '0 0 15px rgba(0, 243, 255, 0.3)'
+                }}
+              >
+                {autoScan ? 'PAUSE_SCANNER' : 'START_SCANNER'}
+              </Button>
             </div>
 
             {/* Right - Verification Modes */}
@@ -1085,42 +1083,7 @@ const AttendancePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Overlay Controls */}
-                {!autoScan && verificationMethod === 'face' && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    backgroundColor: 'rgba(0,0,0,0.5)',
-                    zIndex: 50
-                  }}>
-                    <Button
-                      type="primary"
-                      shape="circle"
-                      icon={<Play size={40} fill="white" />}
-                      onClick={() => setAutoScan(true)}
-                      className="hologram-btn"
-                      style={{
-                        height: 120,
-                        width: 120,
-                        boxShadow: '0 0 30px rgba(0, 243, 255, 0.3)',
-                        border: '2px solid #00f3ff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    />
-                    <Text style={{ color: '#00f3ff', marginTop: 24, fontSize: 16, fontWeight: 'bold', letterSpacing: '4px' }}>
-                      START_SCANNER
-                    </Text>
-                  </div>
-                )}
+                {/* Overlay Controls - Removed for cleaner UI, now handled in top bar */}
 
                 {/* Bottom Center Stop Button */}
                 {autoScan && verificationMethod === 'face' && (
